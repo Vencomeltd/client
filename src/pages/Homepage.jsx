@@ -366,42 +366,6 @@ function HeroSection() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.55 }}
-          style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-            justifyContent: "center",
-          }}
-        >
-          {[
-            { value: "500+", label: "Verified Spaces" },
-            { value: "UK & Middle East", label: "Primary Markets" },
-            { value: "10%", label: "Commission Only" },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              style={{
-                background: "rgba(255,255,255,0.1)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 9999,
-                padding: "8px 18px",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 700, color: "white" }}>{stat.value}</span>
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{stat.label}</span>
-            </div>
-          ))}
-        </motion.div>
-
-        <motion.div
           className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white"
           animate={{ opacity: [0.35, 1, 0.35], y: [0, 6, 0] }}
           transition={{ duration: 1.8, repeat: Infinity }}
