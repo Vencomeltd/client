@@ -34,7 +34,7 @@
 //     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
 //       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-8">
 //         <div className="text-4xl text-center mb-4">
-//           {confirmClass?.includes("red") ? "⚠️" : "✓"}
+//           {confirmClass?.includes("red") ? "Warning" : "Confirm"}
 //         </div>
 //         <h3 className="text-xl font-semibold text-slate-900 text-center mb-2">
 //           {title}
@@ -196,7 +196,7 @@
 //             toast.type === "error" ? "bg-red-600" : "bg-slate-900"
 //           }`}
 //         >
-//           <span>{toast.type === "error" ? "⚠" : "✓"}</span>
+//           <span>{toast.type === "error" ? "Error" : "Success"}</span>
 //           {toast.message}
 //         </div>
 //       )}
@@ -405,7 +405,7 @@
 //                     onClick={() => setModal("accept")}
 //                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold transition cursor-pointer"
 //                   >
-//                     ✓ Accept Booking
+//                     Accept Booking
 //                   </button>
 //                 )}
 //                 {canCancel && (
@@ -437,6 +437,18 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  FileText,
+  FolderOpen,
+  MessageSquare,
+  Printer,
+  X,
+} from "lucide-react";
 
 const STATUS_CONFIG = {
   confirmed: {
@@ -468,8 +480,12 @@ function ConfirmModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-8">
-        <div className="text-4xl text-center mb-4">
-          {confirmClass?.includes("red") ? "⚠️" : "✓"}
+        <div className="mb-4 flex justify-center">
+          {confirmClass?.includes("red") ? (
+            <AlertTriangle size={36} className="text-amber-500" />
+          ) : (
+            <CheckCircle2 size={36} className="text-emerald-600" />
+          )}
         </div>
         <h3 className="text-xl font-semibold text-slate-900 text-center mb-2">
           {title}
@@ -585,7 +601,9 @@ function LeaseSignModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8 max-h-[80vh] overflow-y-auto">
-        <div className="text-4xl text-center mb-4">📄</div>
+        <div className="mb-4 flex justify-center">
+          <FileText size={36} className="text-slate-500" />
+        </div>
         <h3 className="text-xl font-semibold text-slate-900 text-center mb-2">
           Lease Agreement
         </h3>
@@ -601,14 +619,19 @@ function LeaseSignModal({
             {leaseFile ? (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
                 <p className="text-sm font-semibold text-emerald-700 mb-1">
-                  ✓ File Uploaded
+                  <span className="inline-flex items-center gap-2">
+                    <CheckCircle2 size={16} />
+                    File Uploaded
+                  </span>
                 </p>
                 <p className="text-xs text-emerald-600">{leaseFile.name}</p>
               </div>
             ) : (
               <label className="block mb-6">
                 <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer">
-                  <p className="text-3xl mb-2">📁</p>
+                  <div className="mb-2 flex justify-center text-slate-500">
+                    <FolderOpen size={28} />
+                  </div>
                   <p className="text-sm font-semibold text-slate-700 mb-1">
                     Click to upload lease file
                   </p>
@@ -659,7 +682,10 @@ function LeaseSignModal({
               <>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
                   <p className="text-sm font-semibold text-amber-700 mb-1">
-                    ⚠ Pending Host Action
+                    <span className="inline-flex items-center gap-2">
+                      <AlertTriangle size={16} />
+                      Pending Host Action
+                    </span>
                   </p>
                   <p className="text-xs text-amber-600">
                     The host has not uploaded a lease agreement yet.
@@ -704,14 +730,16 @@ function LeaseSignModal({
                     disabled={printingOrDownloading || loading}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 text-sm font-semibold transition disabled:opacity-50 cursor-pointer"
                   >
-                    ⬇ Download PDF
+                    <ArrowDownToLine size={16} />
+                    Download PDF
                   </button>
                   <button
                     onClick={handlePrintLease}
                     disabled={printingOrDownloading || loading}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 active:scale-95 text-slate-700 text-sm font-semibold transition disabled:opacity-50 cursor-pointer"
                   >
-                    🖨 Print
+                    <Printer size={16} />
+                    Print
                   </button>
                 </div>
 
@@ -761,7 +789,10 @@ function LeaseSignModal({
                 ) : (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                     <p className="text-sm font-semibold text-emerald-700 mb-1">
-                      ✓ Agreement Signed
+                      <span className="inline-flex items-center gap-2">
+                        <CheckCircle2 size={16} />
+                        Agreement Signed
+                      </span>
                     </p>
                     <p className="text-xs text-emerald-600">
                       You can still download or print the agreement above.
@@ -960,7 +991,11 @@ export default function BookingDetails() {
             toast.type === "error" ? "bg-red-600" : "bg-slate-900"
           }`}
         >
-          <span>{toast.type === "error" ? "⚠" : "✓"}</span>
+          {toast.type === "error" ? (
+            <AlertTriangle size={16} />
+          ) : (
+            <CheckCircle2 size={16} />
+          )}
           {toast.message}
         </div>
       )}
@@ -1007,7 +1042,8 @@ export default function BookingDetails() {
           onClick={() => navigate(-1)}
           className="text-slate-200 hover:text-slate-400 text-sm font-medium mb-6 flex items-center gap-1.5 transition cursor-pointer"
         >
-          ← Back
+          <ArrowLeft size={16} />
+          Back
         </button>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 max-w-5xl">
           <div>
@@ -1195,7 +1231,8 @@ export default function BookingDetails() {
                         onClick={() => setModal("accept")}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold transition cursor-pointer"
                       >
-                        ✓ Accept Booking
+                        <Check size={16} />
+                        Accept Booking
                       </button>
                     )}
                     {canCancel && (
@@ -1203,7 +1240,8 @@ export default function BookingDetails() {
                         onClick={() => setModal("cancel")}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 hover:bg-red-50 active:scale-95 text-red-600 text-sm font-semibold transition cursor-pointer"
                       >
-                        ✕ Cancel Booking
+                        <X size={16} />
+                        Cancel Booking
                       </button>
                     )}
                     <button
@@ -1212,7 +1250,8 @@ export default function BookingDetails() {
                       }
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold transition cursor-pointer"
                     >
-                      ✉ Message Guest
+                      <MessageSquare size={16} />
+                      Message Guest
                     </button>
                   </>
                 )}
@@ -1228,7 +1267,8 @@ export default function BookingDetails() {
                       }
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold transition cursor-pointer"
                     >
-                      ✉ Message Host
+                      <MessageSquare size={16} />
+                      Message Host
                     </button>
                     <button
                       onClick={() => setModal("lease")}
@@ -1240,9 +1280,15 @@ export default function BookingDetails() {
                       }`}
                     >
                       {leaseSignedAt ? (
-                        <>✓ Lease Signed</>
+                        <>
+                          <CheckCircle2 size={16} />
+                          Lease Signed
+                        </>
                       ) : (
-                        <>📄 Lease Agreement</>
+                        <>
+                          <FileText size={16} />
+                          Lease Agreement
+                        </>
                       )}
                     </button>
                     {canCancel && (
@@ -1250,7 +1296,8 @@ export default function BookingDetails() {
                         onClick={() => setModal("cancel")}
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 hover:bg-red-50 active:scale-95 text-red-600 text-sm font-semibold transition cursor-pointer"
                       >
-                        ✕ Cancel Booking
+                        <X size={16} />
+                        Cancel Booking
                       </button>
                     )}
                   </>

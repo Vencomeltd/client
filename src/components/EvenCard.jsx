@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { Star } from "lucide-react";
 
 const EvenCard = ({ id, data }) => {
   const navigate = useNavigate();
@@ -37,8 +38,9 @@ const EvenCard = ({ id, data }) => {
           ) : (
             <p className="text-lg">${data.pricing?.weekdayPrice} / night</p>
           )}
-          <div className="px-2 py-1 text-sm font-semibold text-gray-800">
-            {data.rating} ★
+          <div className="flex items-center gap-1 px-2 py-1 text-sm font-semibold text-gray-800">
+            <Star size={14} className="fill-yellow-400 text-yellow-400" />
+            <span>{data.rating}</span>
           </div>
         </div>
       </div>

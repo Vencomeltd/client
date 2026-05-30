@@ -4,6 +4,7 @@ import Button from "./Button";
 import OTPInput from "./OTPInput";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
+import { Check, X } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import CustomToast from "./CustomToast";
@@ -269,7 +270,13 @@ const AuthForm = ({ onForgotPassword, onSuccess }) => {
                               : "text-gray-400"
                           }`}
                         >
-                          <span>{check.regex.test(password) ? "✔" : "✖"}</span>
+                          <span>
+                            {check.regex.test(password) ? (
+                              <Check size={14} />
+                            ) : (
+                              <X size={14} />
+                            )}
+                          </span>
                           <span>{check.label}</span>
                         </div>
                       ))}

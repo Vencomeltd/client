@@ -1,31 +1,44 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
+import {
+  BellRing,
+  CheckCheck,
+  CircleSlash,
+  CreditCard,
+  FileText,
+  MessageSquare,
+  Megaphone,
+  ShieldCheck,
+  Star,
+  Wallet,
+  X,
+} from "lucide-react";
 import { apiFetch } from "../utils/api";
 import { useNotifications } from "../context/NotificationContext";
 
 const TYPE_CONFIG = {
-  booking_request: { icon: "📋", color: "#6366f1", label: "Booking request" },
+  booking_request: { icon: FileText, color: "#6366f1", label: "Booking request" },
   booking_confirmed: {
-    icon: "✅",
+    icon: CheckCheck,
     color: "#10b981",
     label: "Booking confirmed",
   },
-  booking_declined: { icon: "✕", color: "#ef4444", label: "Booking declined" },
+  booking_declined: { icon: X, color: "#ef4444", label: "Booking declined" },
   booking_cancelled: {
-    icon: "⊘",
+    icon: CircleSlash,
     color: "#f59e0b",
     label: "Booking cancelled",
   },
-  payment_received: { icon: "💳", color: "#10b981", label: "Payment received" },
-  new_message: { icon: "💬", color: "#6366f1", label: "New message" },
-  new_review: { icon: "⭐", color: "#f59e0b", label: "New review" },
-  payout_sent: { icon: "💸", color: "#10b981", label: "Payout sent" },
+  payment_received: { icon: CreditCard, color: "#10b981", label: "Payment received" },
+  new_message: { icon: MessageSquare, color: "#6366f1", label: "New message" },
+  new_review: { icon: Star, color: "#f59e0b", label: "New review" },
+  payout_sent: { icon: Wallet, color: "#10b981", label: "Payout sent" },
   verification_update: {
-    icon: "🛡",
+    icon: ShieldCheck,
     color: "#6366f1",
     label: "Verification update",
   },
-  admin_message: { icon: "📢", color: "#64748b", label: "From Vencome" },
+  admin_message: { icon: Megaphone, color: "#64748b", label: "From Vencome" },
 };
 
 function timeAgo(dateStr) {
@@ -186,7 +199,9 @@ export default function Notifications() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="notif-empty-state">
-              <div className="notif-empty-icon">🔔</div>
+              <div className="notif-empty-icon">
+                <BellRing size={28} />
+              </div>
               <p className="notif-empty-title">
                 {filter === "unread"
                   ? "You're all caught up"
@@ -212,6 +227,7 @@ export default function Notifications() {
                 <div className="notif-date-label">{dateLabel}</div>
                 {items.map((n, i) => {
                   const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.admin_message;
+                  const Icon = cfg.icon;
                   return (
                     <div
                       key={n._id}
@@ -225,7 +241,9 @@ export default function Notifications() {
                         className="notif-icon-wrap"
                         style={{ "--icon-color": cfg.color }}
                       >
-                        <span className="notif-icon">{cfg.icon}</span>
+                        <span className="notif-icon">
+                          <Icon size={18} />
+                        </span>
                         {!n.read && <span className="notif-dot" />}
                       </div>
                       <div className="notif-content">
@@ -249,7 +267,7 @@ export default function Notifications() {
                         title="Delete notification"
                         aria-label="Delete notification"
                       >
-                        ×
+                        <X size={16} />
                       </button>
                     </div>
                   );
@@ -443,7 +461,9 @@ export default function Notifications() {
         }
 
         .notif-icon {
-          font-size: 17px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           line-height: 1;
         }
 
@@ -535,10 +555,16 @@ export default function Notifications() {
         }
 
         .notif-empty-icon {
-          font-size: 40px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 56px;
+          height: 56px;
+          border-radius: 9999px;
+          background: #fff;
           margin-bottom: 16px;
-          opacity: 0.35;
-          filter: grayscale(1);
+          opacity: 0.55;
+          color: #8b857a;
         }
 
         .notif-empty-title {

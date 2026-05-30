@@ -1,0 +1,233 @@
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  BarChart2,
+  Bell,
+  Building2,
+  CalendarDays,
+  Check,
+  Heart,
+  HelpCircle,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  MessageSquare,
+  Plus,
+  Settings,
+  Star,
+  User,
+  X,
+} from "lucide-react";
+
+const USER = {
+  name: "James Thornton",
+  role: "Professional Tenant",
+  avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&q=80",
+};
+
+const MAIN_ITEMS = [
+  { label: "Overview", path: "/dashboard", icon: LayoutDashboard },
+  { label: "My Bookings", path: "/dashboard/bookings", icon: CalendarDays, badge: 2 },
+  { label: "Saved Spaces", path: "/dashboard/saved", icon: Heart },
+  { label: "Messages", path: "/dashboard/messages", icon: MessageSquare, badge: 3 },
+  { label: "My Reviews", path: "/dashboard/reviews", icon: Star },
+  { label: "Profile", path: "/dashboard/profile", icon: User },
+  { label: "Settings", path: "/dashboard/settings", icon: Settings },
+];
+
+const HOSTING_ITEMS = [
+  { label: "My Listings", path: "/host/listings", icon: Building2 },
+  { label: "Add New Space", path: "/host/create", icon: Plus },
+  { label: "Analytics", path: "/host/analytics", icon: BarChart2 },
+];
+
+function SidebarContent({ pathname, onNavigate }) {
+  const isActive = (path) => pathname === path || pathname.startsWith(`${path}/`);
+
+  const renderItem = (item) => {
+    const Icon = item.icon;
+    const active = isActive(item.path);
+
+    return (
+      <motion.div whileHover={{ x: 3 }}>
+      <Link
+        key={item.path}
+        to={item.path}
+        onClick={onNavigate}
+        className={`mx-2 flex items-center gap-3 rounded-[10px] px-[17px] py-[11px] transition ${
+          active
+            ? "border-l-[3px] border-[#305CDE] bg-white/10 pl-[14px] text-white"
+            : "text-white/60 hover:bg-white/5 hover:text-white"
+        }`}
+      >
+        <span className="relative flex h-5 w-5 items-center justify-center">
+          <Icon size={18} />
+          {item.badge ? (
+            <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#305CDE] px-1 text-[10px] font-bold text-white">
+              {item.badge}
+            </span>
+          ) : null}
+        </span>
+        <span className="text-[14px] font-medium">{item.label}</span>
+      </Link>
+      </motion.div>
+    );
+  };
+
+  return (
+    <>
+      <div className="px-5 pb-0 pt-6">
+        <Link to="/" onClick={onNavigate} className="flex items-center gap-3 text-white">
+          <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/10 text-[#305CDE]">
+            <Building2 size={20} />
+          </span>
+          <span className="text-[18px] font-bold">VenCome</span>
+        </Link>
+      </div>
+
+      <div className="mx-5 mt-5 border-t border-white/10" />
+
+      <div className="px-5 py-4">
+        <div className="flex items-center gap-3">
+          <img
+            src={USER.avatar}
+            alt={USER.name}
+            className="h-11 w-11 rounded-full object-cover"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-semibold text-white">{USER.name}</p>
+            <p className="text-[12px] text-white/50">{USER.role}</p>
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-[rgba(48,92,222,0.3)] bg-[rgba(48,92,222,0.15)] px-2 py-0.5 text-[10px] font-bold text-[#305CDE]">
+              <Check size={12} />
+              Verified
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 pb-2 pt-1 text-[10px] font-bold tracking-[0.15em] text-white/35">
+        MAIN MENU
+      </div>
+      <div className="space-y-1">{MAIN_ITEMS.map(renderItem)}</div>
+
+      <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
+        HOSTING
+      </div>
+      <div className="space-y-1">{HOSTING_ITEMS.map(renderItem)}</div>
+
+      <div className="mt-auto px-5 pt-6">
+        <div className="border-t border-white/10 pt-4">
+          <Link
+            to="/help-support"
+            onClick={onNavigate}
+            className="mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[11px] text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
+          >
+            <HelpCircle size={18} />
+            <span>Help & Support</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              console.log("logout");
+              onNavigate?.();
+            }}
+            className="mx-[-12px] mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-[11px] text-left text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
+          >
+            <LogOut size={18} />
+            <span>Log Out</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function DashboardLayout({ children, title }) {
+  const { pathname } = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-[#F8F6F0]">
+      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col overflow-y-auto bg-[#0A1628] pb-6 md:flex">
+        <SidebarContent pathname={pathname} />
+      </aside>
+
+      <AnimatePresence>
+        {mobileOpen ? (
+          <>
+            <motion.button
+              type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileOpen(false)}
+              className="fixed inset-0 z-40 bg-black/50 md:hidden"
+              aria-label="Close sidebar overlay"
+            />
+            <motion.aside
+              initial={{ x: -260 }}
+              animate={{ x: 0 }}
+              exit={{ x: -260 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col overflow-y-auto bg-[#0A1628] pb-6 md:hidden"
+            >
+              <div className="absolute right-4 top-4">
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white"
+                  aria-label="Close sidebar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <SidebarContent pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+            </motion.aside>
+          </>
+        ) : null}
+      </AnimatePresence>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#0A1628] md:hidden"
+              aria-label="Open sidebar"
+            >
+              <Menu size={18} />
+            </button>
+            <h1 className="break-words text-[16px] font-bold text-[#0A1628] md:text-[18px]">{title}</h1>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F8F6F0]"
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
+              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
+            </button>
+            <img
+              src={USER.avatar}
+              alt={USER.name}
+              className="h-8 w-8 rounded-full object-cover"
+            />
+          </div>
+        </header>
+
+        <motion.main
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="flex-1 bg-[#F8F6F0] p-4 md:p-8"
+        >
+          {children}
+        </motion.main>
+      </div>
+    </div>
+  );
+}

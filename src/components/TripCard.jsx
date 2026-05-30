@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Star } from "lucide-react";
 import Button from "./Button";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../utils/api";
@@ -131,11 +132,14 @@ const TripCard = ({ trip, onBookAgain }) => {
               key={star}
               type="button"
               onClick={() => setRating(star)}
-              className={`text-2xl cursor-pointer ${
+              className={`cursor-pointer ${
                 star <= rating ? "text-yellow-400" : "text-gray-300"
               }`}
             >
-              ★
+              <Star
+                size={24}
+                className={star <= rating ? "fill-current" : ""}
+              />
             </button>
           ))}
         </div>

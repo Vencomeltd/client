@@ -1,9 +1,11 @@
 import {
   BrowserRouter as Router,
+  Navigate,
   Routes,
   Route,
   useLocation,
-} from "react-router";
+} from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -14,9 +16,11 @@ import PrivateRoute from "./PrivateRoute";
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";
 
-import Login from "./pages/Login";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
+import CustomerDashboard from "./pages/CustomerDashboard";
 import Homepage from "./pages/Homepage";
 import PropertyDetails from "./pages/PropertyDetails";
 import Settings from "./pages/Settings";
@@ -54,18 +58,33 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const location = useLocation();
-  const hideNavbar = location.pathname === "/";
+  const hideNavbar =
+    location.pathname === "/" ||
+    location.pathname === "/login" ||
+    location.pathname === "/signup" ||
+    location.pathname === "/search" ||
+    location.pathname.startsWith("/property/") ||
+    location.pathname.startsWith("/dashboard") ||
+    location.pathname.startsWith("/customer") ||
+    location.pathname.startsWith("/host/") ||
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/bookings/") ||
+    location.pathname.startsWith("/availability/") ||
+    location.pathname === "/create-space" ||
+    location.pathname === "/my-listings" ||
+    location.pathname === "/property-availability";
 
   return (
     <>
       {!hideNavbar && <Navbar />}
       <ToastContainer position="top-right" autoClose={4000} />
       <ScrollToTop />
-      <Routes>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
         {/* Public */}
         <Route path="/" element={<Homepage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Login />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/property/:id" element={<PropertyDetails />} />
         <Route path="/category/:id" element={<CategoryPage />} />
@@ -83,6 +102,110 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/dashboard"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="overview" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/bookings"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="bookings" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/saved"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="saved" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/messages"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="messages" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/reviews"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="reviews" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/profile"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="profile" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/settings"
+          element={
+            <PrivateRoute>
+              <CustomerDashboard section="settings" />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/bookings"
+          element={
+            <PrivateRoute>
+              <MyBookings />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/messages"
+          element={
+            <PrivateRoute>
+              <Navigate to="/chat" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/profile"
+          element={
+            <PrivateRoute>
+              <Navigate to="/profile" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/settings"
+          element={
+            <PrivateRoute>
+              <Navigate to="/settings" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/saved"
+          element={
+            <PrivateRoute>
+              <Navigate to="/search" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/reviews"
+          element={
+            <PrivateRoute>
+              <Navigate to="/dashboard/bookings" replace />
             </PrivateRoute>
           }
         />
@@ -106,7 +229,7 @@ function AppContent() {
           path="/my-bookings"
           element={
             <PrivateRoute>
-              <MyBookings />
+              <Navigate to="/dashboard/bookings" replace />
             </PrivateRoute>
           }
         />
@@ -139,9 +262,9 @@ function AppContent() {
         <Route
           path="/create-space"
           element={
-            // <PrivateRoute requireHost>
-            <CreateSpace />
-            // </PrivateRoute>
+            <PrivateRoute>
+              <Navigate to="/host/create" replace />
+            </PrivateRoute>
           }
         />
         <Route
@@ -156,7 +279,31 @@ function AppContent() {
           path="/my-listings"
           element={
             <PrivateRoute requireHost>
+              <Navigate to="/host/listings" replace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/host/listings"
+          element={
+            <PrivateRoute requireHost>
               <MyListings />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/host/create"
+          element={
+            <PrivateRoute>
+              <CreateSpace />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/host/analytics"
+          element={
+            <PrivateRoute requireHost>
+              <Navigate to="/my-listings" replace />
             </PrivateRoute>
           }
         />
@@ -170,6 +317,14 @@ function AppContent() {
         />
         <Route
           path="/property-availability"
+          element={
+            <PrivateRoute requireHost>
+              <PropertyAvailability />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/host/availability/:listingId"
           element={
             <PrivateRoute requireHost>
               <PropertyAvailability />
@@ -196,7 +351,8 @@ function AppContent() {
         />
 
         <Route path="*" element={<NotFound />} />
-      </Routes>
+        </Routes>
+      </AnimatePresence>
     </>
   );
 }

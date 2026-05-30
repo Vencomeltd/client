@@ -1,2203 +1,1279 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast, ToastContainer } from "react-toastify";
-import { apiFetch } from "../utils/api";
-import ProgressBar from "../components/ProgressBar";
-import Input from "../components/Input";
-import Button from "../components/Button";
-import ExtraInput from "../components/ExtraInput";
-import ImageUploadPopup from "../components/ImageUploadPopup";
-import ImageReorder from "../components/ImageReorder";
-import YesNoToggle from "../components/YesNoToggle";
-import Counter from "../components/Counter";
-import MapComponent from "../components/MapComponent";
-import Notification from "../components/Notification";
-import { Autocomplete, useLoadScript } from "@react-google-maps/api";
-import { Save, FileText } from "lucide-react";
-import { IoIosCheckmarkCircleOutline } from "react-icons/io";
-import CountrySelect from "../components/CountrySelect";
-import AvailabilityCalendar from "../components/AvailabilityCalendar";
-import AvailabilitySelector from "../components/AvailabilitySelector";
-
-const CreateSpace = () => {
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [cqcDocuments, setCqcDocuments] = useState([]);
-  const [leaseFile, setLeaseFile] = useState(null);
-  const cqcFileInputRef = useRef(null);
-  const leaseFileInputRef = useRef(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [categories, setCategories] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [countdown, setCountdown] = useState(3);
-  const [currentUser, setCurrentUser] = useState("");
-  const [hasDraft, setHasDraft] = useState(false);
-  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
-  const [draftId, setDraftId] = useState("");
-  const [availability, setAvailability] = useState("all");
-  const [timeBlocks, setTimeBlocks] = useState([{ start: "", end: "" }]);
-  const [blockedDates, setBlockedDates] = useState([]);
-  const libraries = ["places"];
-
-  const [spaceData, setSpaceData] = useState({
-    title: "",
-    description: "",
-    location: { address: "", city: "", country: "" },
-    coordinates: { latitude: null, longitude: null },
-    features: {
-      wifi: true,
-      restrooms: 1,
-      sizeSQM: null,
-      seatCapacity: null,
-      plug: false,
-      sound: false,
-      lockable: false,
-      washbasin: false,
-      clinicalSurface: false,
-      wasteBin: false,
-      meetCQCStandards: false,
-      electricBed: false,
-      adjustableStool: false,
-      trolley: false,
-      magnifyingLamp: false,
-      storage: false,
-      mirror: false,
-      bathroom: 1,
-      consultationArea: false,
-      examinationCouch: false,
-      sinkCounter: false,
-      adjustableEnvironment: false,
-      sharpsBin: false,
-      naturalLight: false,
-      dirtyTowelShoot: false,
-      cqcCompliance: false,
-      treatmentBed: false,
-      clinicianDesk: false,
-      patientSeating: false,
-      sinkHandwashing: false,
-      reliableWifi: false,
-      hcaPhlebotomy: false,
-      gradeIIBuilding: false,
-      ultrasoundColposcopy: false,
-      receptionFacilities: false,
-      mannedReception: false,
-      access247: false,
-      bookableMeetingRooms: false,
-      gigabitInternet: false,
-      postHandling: false,
-      eventsSpace: false,
-      cleaningIncluded: false,
-      dogFriendly: false,
-      bikeStorage: false,
-      membersCafe: false,
-      breakoutAreas: false,
-      showers: false,
-      airConditioning: false,
-    },
-    extras: [],
-    imageFiles: [],
-    imagePreviews: [],
-    serverImages: [],
-    removedImages: [],
-    coverImage: null,
-    category: "",
-    subcategory: [],
-    price: null,
-    pricing: {
-      pricingType: "DAILY",
-      weekdayPrice: null,
-      hourlyPrice: null,
-      preTaxPrice: null,
-      discounts: {
-        newListing: true,
-        lastMinute: false,
-        weekly: false,
-        monthly: false,
-      },
-    },
-    bookingSettings: {
-      approveFirstFive: true,
-      instantBook: false,
-      approveAllBookings: false,
-    },
-  });
-  const [customAvailability, setCustomAvailability] = useState({
-    days: [0, 1, 2, 3, 4, 5, 6],
-    openTime: "09:00",
-    closeTime: "18:00",
-    minBookingHours: 2,
-  });
-  const isMedicalCategory = spaceData.category === "6915bd724f4f95223e555e5b";
-  // Step count: 12 base + 1 CQC (medical) + 1 Lease = 13 or 14
-  const totalSteps = isMedicalCategory ? 14 : 13;
-  const [showPopup, setShowPopup] = useState(false);
-
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
-
-  const autocompleteRef = useRef(null);
-
-  const onLoad = (autocomplete) => {
-    autocompleteRef.current = autocomplete;
-  };
-
-  const onPlaceChanged = () => {
-    if (!autocompleteRef.current) return;
-    const place = autocompleteRef.current.getPlace();
-    if (!place.address_components) return;
-
-    let streetNumber = "";
-    let route = "";
-    let city = "";
-    let country = "";
-
-    place.address_components.forEach((component) => {
-      const types = component.types;
-      if (types.includes("street_number")) streetNumber = component.long_name;
-      if (types.includes("route")) route = component.long_name;
-      if (
-        types.includes("locality") ||
-        types.includes("postal_town") ||
-        types.includes("administrative_area_level_2")
-      ) {
-        if (!city) city = component.long_name;
-      }
-      if (types.includes("country")) country = component.short_name;
-    });
-
-    const address = [streetNumber, route].filter(Boolean).join(" ");
-    setSpaceData((prev) => ({
-      ...prev,
-      location: { ...prev.location, address, city, country },
-    }));
-  };
-
-  const selectedCategoryHasSubcategories = () => {
-    const cat = categories.find((c) => c._id === spaceData.category);
-    return Array.isArray(cat?.subcategory) && cat.subcategory.length > 0;
-  };
-
-  // ─── Effects ──────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (
-      step === 4 &&
-      !spaceData.coordinates.latitude &&
-      !spaceData.coordinates.longitude
-    ) {
-      fetchCoordinates();
-    }
-  }, [step]);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const user = await apiFetch({
-          endpoint: "/auth/me",
-          method: "GET",
-          credentials: "include",
-        });
-        if (!user) {
-          navigate("/login");
-          return;
-        }
-        setCurrentUser(user._id);
-      } catch (err) {
-        console.error("Failed to fetch user:", err);
-      }
-    };
-    fetchUser();
-    checkForDraft();
-  }, []);
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await apiFetch({
-          endpoint: "/categories",
-          method: "GET",
-        });
-        setCategories(response);
-      } catch (err) {
-        toast.error("Failed to load categories");
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    if (!hasDraft) return;
-    migrateLocalDraft();
-  }, [hasDraft]);
-
-  useEffect(() => {
-    return () => {
-      spaceData.imagePreviews.forEach((url) => {
-        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
-      });
-    };
-  }, []);
-
-  // ─── Draft ────────────────────────────────────────────────────────────────────
-
-  const checkForDraft = async () => {
-    try {
-      const response = await apiFetch({ endpoint: "/drafts", method: "GET" });
-      if (response.success && response.draft) {
-        setHasDraft(true);
-        setDraftId(response.draft._id);
-        setShowDraftPrompt(true);
-      }
-    } catch (err) {
-      console.log("No draft found");
-    }
-  };
-
-  const saveDraft = async (overrideData, overrideStep) => {
-    setIsSavingDraft(true);
-    const data = overrideData || spaceData;
-    const currentStep = overrideStep ?? step;
-
-    try {
-      const token = localStorage.getItem("token");
-
-      // ✅ normalize booking settings
-      const bookingSettings = {
-        availability: data.bookingSettings?.availability || "all",
-        timeBlocks:
-          data.bookingSettings?.availability === "custom"
-            ? data.bookingSettings?.timeBlocks || []
-            : [],
-        ...data.bookingSettings,
-      };
-
-      if (!token) {
-        const localDraft = {
-          title: data.title,
-          description: data.description,
-          location: data.location,
-          coordinates: data.coordinates,
-          features: data.features,
-          extras: data.extras,
-          category: data.category || null,
-          subcategory: data.subcategory || [],
-          pricing: data.pricing,
-          bookingSettings,
-          currentStep,
-          imagePreviews: data.imagePreviews || [],
-          savedAt: new Date().toISOString(),
-        };
-
-        localStorage.setItem("vencome_draft", JSON.stringify(localDraft));
-        setHasDraft(true);
-        toast.success(
-          "Draft saved locally. Sign in to save images and publish."
-        );
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append(
-        "data",
-        JSON.stringify({
-          title: data.title,
-          description: data.description,
-          location: data.location,
-          coordinates: data.coordinates,
-          features: data.features,
-          extras: data.extras,
-          category: data.category || null,
-          subcategory: data.subcategory || [],
-          pricing: data.pricing,
-          bookingSettings,
-          currentStep,
-        })
-      );
-
-      data.imageFiles?.forEach((file) => formData.append("images", file));
-      if (data.removedImages?.length) {
-        formData.append("removedImages", JSON.stringify(data.removedImages));
-      }
-
-      cqcDocuments.forEach((file) => formData.append("cqcDocuments", file));
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/drafts/save`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-        credentials: "include",
-      });
-
-      const resData = await res.json();
-      if (!res.ok) throw new Error(resData.message || "Failed to save draft");
-
-      if (resData.draft.images) {
-        setSpaceData((prev) => ({
-          ...prev,
-          serverImages: resData.draft.images,
-          imagePreviews: resData.draft.images.map((img) => img.url),
-          imageFiles: [],
-          removedImages: [],
-        }));
-      }
-
-      localStorage.removeItem("vencome_draft");
-      setHasDraft(true);
-      setDraftId(resData.draft._id);
-      toast.success("Draft saved successfully!");
-    } catch (err) {
-      console.error("Save draft error:", err);
-      toast.error(err.message || "Failed to save draft");
-    } finally {
-      setIsSavingDraft(false);
-    }
-  };
-
-  const loadDraft = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        const raw = localStorage.getItem("vencome_draft");
-        if (!raw) {
-          toast.info("No local draft found.");
-          return;
-        }
-
-        const draft = JSON.parse(raw);
-
-        setSpaceData((prev) => ({
-          ...prev,
-          title: draft.title || "",
-          description: draft.description || "",
-          location: draft.location || { address: "", city: "", country: "" },
-          coordinates: draft.coordinates || { latitude: null, longitude: null },
-          features: { ...prev.features, ...draft.features },
-          extras: draft.extras || [],
-          category: draft.category || "",
-          subcategory: draft.subcategory || [],
-          pricing: { ...prev.pricing, ...draft.pricing },
-
-          // ✅ IMPORTANT
-          bookingSettings: {
-            availability: draft.bookingSettings?.availability || "all",
-            timeBlocks: draft.bookingSettings?.timeBlocks || [],
-            ...prev.bookingSettings,
-            ...draft.bookingSettings,
-          },
-
-          imagePreviews: draft.imagePreviews || [],
-          imageFiles: [],
-          serverImages: [],
-          removedImages: [],
-        }));
-
-        setStep(draft.currentStep || 1);
-        setShowDraftPrompt(false);
-        toast.success("Local draft loaded.");
-        return;
-      }
-
-      const raw = localStorage.getItem("vencome_draft");
-      if (raw) {
-        await migrateLocalDraft();
-        setShowDraftPrompt(false);
-        return;
-      }
-
-      const response = await apiFetch({ endpoint: "/drafts", method: "GET" });
-
-      if (response.success && response.draft) {
-        const draft = response.draft;
-
-        const serverImages =
-          draft.images?.map((img) => ({
-            filename: img.filename,
-            url: img.url,
-          })) || [];
-
-        setSpaceData((prev) => ({
-          ...prev,
-          title: draft.title || "",
-          description: draft.description || "",
-          location: draft.location || { address: "", city: "", country: "" },
-          coordinates: draft.coordinates || { latitude: null, longitude: null },
-          features: { ...prev.features, ...draft.features },
-          extras: draft.extras || [],
-          imageFiles: [],
-          serverImages,
-          removedImages: [],
-          coverImage: serverImages[0] || null,
-          category: draft.category?._id || draft.category || "",
-          subcategory: draft.subcategory?._id || draft.subcategory || [],
-          pricing: { ...prev.pricing, ...draft.pricing },
-
-          // ✅ CRITICAL FIX
-          bookingSettings: {
-            availability: draft.bookingSettings?.availability || "all",
-            timeBlocks: draft.bookingSettings?.timeBlocks || [],
-            ...prev.bookingSettings,
-            ...draft.bookingSettings,
-          },
-        }));
-
-        setStep(draft.currentStep || 1);
-        setShowDraftPrompt(false);
-        toast.success("Draft loaded successfully!");
-      }
-    } catch (err) {
-      console.error("Failed to load draft:", err);
-      toast.error("Failed to load draft");
-    }
-  };
-
-  const migrateLocalDraft = async () => {
-    const raw = localStorage.getItem("vencome_draft");
-    if (!raw) return;
-
-    try {
-      const draft = JSON.parse(raw);
-
-      const migratedData = {
-        title: draft.title || "",
-        description: draft.description || "",
-        location: draft.location || { address: "", city: "", country: "" },
-        coordinates: draft.coordinates || { latitude: null, longitude: null },
-        features: { ...spaceData.features, ...draft.features },
-        extras: draft.extras || [],
-        category: draft.category || null,
-        subcategory: draft.subcategory || [],
-        pricing: { ...spaceData.pricing, ...draft.pricing },
-
-        // ✅ normalize
-        bookingSettings: {
-          availability: draft.bookingSettings?.availability || "all",
-          timeBlocks: draft.bookingSettings?.timeBlocks || [],
-          ...spaceData.bookingSettings,
-          ...draft.bookingSettings,
-        },
-
-        imageFiles: [],
-        serverImages: [],
-        removedImages: [],
-        imagePreviews: draft.imagePreviews || [],
-      };
-
-      setSpaceData((prev) => ({ ...prev, ...migratedData }));
-      setStep(draft.currentStep || 1);
-
-      await saveDraft(migratedData, draft.currentStep || 1);
-
-      localStorage.removeItem("vencome_draft");
-      toast.success("Your draft has been restored!");
-    } catch (err) {
-      console.error("Failed to migrate local draft:", err);
-      toast.error("Failed to restore your draft.");
-    }
-  };
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setErrors((prev) => ({ ...prev, [name]: "" }));
-    const val =
-      type === "checkbox" ? checked : type === "number" ? Number(value) : value;
-
-    if (name.includes(".")) {
-      const [parent, child] = name.split(".");
-      setSpaceData((prev) => ({
-        ...prev,
-        [parent]: { ...prev[parent], [child]: val },
-      }));
-    } else {
-      setSpaceData((prev) => ({ ...prev, [name]: val }));
-    }
-  };
-
-  const handleFeatureChange = (e) => {
-    const { name, value } = e.target;
-    const keys = name.split(".");
-    setSpaceData((prev) => {
-      const updated = { ...prev };
-      let ref = updated;
-      for (let i = 0; i < keys.length - 1; i++) ref = ref[keys[i]];
-      ref[keys[keys.length - 1]] = value;
-      return updated;
-    });
-  };
-
-  const handleExtraChange = (index, updatedExtra) => {
-    setSpaceData((prev) => ({
-      ...prev,
-      extras: prev.extras.map((extra, i) =>
-        i === index ? updatedExtra : extra
-      ),
-    }));
-  };
-
-  const handleAddExtra = () => {
-    setSpaceData((prev) => ({
-      ...prev,
-      extras: [...prev.extras, { name: "", price: 0 }],
-    }));
-  };
-
-  const handleRemoveExtra = (index) => {
-    setSpaceData((prev) => ({
-      ...prev,
-      extras: prev.extras.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleImageUpload = (newImages) => {
-    setErrors((prev) => ({ ...prev, images: "" }));
-    const newPreviews = newImages.map((file) => URL.createObjectURL(file));
-    setSpaceData((prev) => ({
-      ...prev,
-      imageFiles: [...(prev.imageFiles || []), ...newImages],
-      imagePreviews: [...(prev.imagePreviews || []), ...newPreviews],
-      coverImage: prev.coverImage || newPreviews[0] || null,
-    }));
-  };
-
-  const handleImageReorder = (reorderedPreviews) => {
-    setSpaceData((prev) => {
-      const oldPreviews = prev.imagePreviews;
-      const serverImages = prev.serverImages || [];
-      const imageFiles = prev.imageFiles || [];
-      const serverPreviews = oldPreviews.slice(0, serverImages.length);
-      const filePreviews = oldPreviews.slice(serverImages.length);
-      const reorderedServerImages = [];
-      const reorderedFiles = [];
-
-      reorderedPreviews.forEach((preview) => {
-        const serverIdx = serverPreviews.indexOf(preview);
-        if (serverIdx !== -1) {
-          reorderedServerImages.push(serverImages[serverIdx]);
-        } else {
-          const fileIdx = filePreviews.indexOf(preview);
-          if (fileIdx !== -1) reorderedFiles.push(imageFiles[fileIdx]);
-        }
-      });
-
-      return {
-        ...prev,
-        serverImages: reorderedServerImages,
-        imageFiles: reorderedFiles,
-        imagePreviews: reorderedPreviews,
-        coverImage: reorderedPreviews[0] || null,
-      };
-    });
-  };
-
-  const handleDiscountChange = (e) => {
-    const { name, checked } = e.target;
-    setSpaceData((prev) => ({
-      ...prev,
-      pricing: {
-        ...prev.pricing,
-        discounts: { ...prev.pricing.discounts, [name]: checked },
-      },
-    }));
-  };
-
-  const addBlock = (start, end) => {
-    setBlockedDates((prev) => [...prev, { start, end }]);
-  };
-
-  const removeBlock = (dateStr) => {
-    setBlockedDates((prev) =>
-      prev.filter(({ start, end }) => {
-        const s = new Date(start);
-        const e = new Date(end);
-        const d = new Date(dateStr);
-        return d < s || d > e;
-      })
-    );
-  };
-
-  // ─── Validation ───────────────────────────────────────────────────────────────
-
-  const validateStep = () => {
-    const newErrors = {};
-
-    switch (step) {
-      case 1:
-        if (!spaceData.category)
-          newErrors.category = "Please select a category";
-        break;
-      case 2:
-        if (!spaceData.title.trim()) {
-          newErrors.title = "Space name is required";
-        } else if (spaceData.title.trim().length < 5) {
-          newErrors.title = "Title must be at least 5 characters long";
-        }
-        if (!spaceData.description.trim()) {
-          newErrors.description = "Description is required";
-        } else if (spaceData.description.trim().length < 50) {
-          newErrors.description =
-            "Description must be at least 50 characters long";
-        }
-        break;
-      case 3:
-        if (!spaceData.location.address.trim())
-          newErrors["location.address"] = "Address is required";
-        if (!spaceData.location.city.trim())
-          newErrors["location.city"] = "City is required";
-        if (!spaceData.location.country.trim())
-          newErrors["location.country"] = "Country is required";
-        break;
-      case 4:
-        if (!spaceData.coordinates.latitude || !spaceData.coordinates.longitude)
-          newErrors.coordinates = "Please pin a location on the map";
-        break;
-      case 5:
-        if (!spaceData.subcategory.length)
-          newErrors.subcategory = "Please select at least one subcategory";
-        break;
-      case 6:
-        if (!spaceData.features.sizeSQM || spaceData.features.sizeSQM <= 5)
-          newErrors["features.sizeSQM"] = "Size must be greater than 5";
-        if (
-          !spaceData.features.seatCapacity ||
-          spaceData.features.seatCapacity <= 0
-        )
-          newErrors["features.seatCapacity"] =
-            "Seat capacity must be greater than 0";
-        if (spaceData.features.restrooms < 0)
-          newErrors["features.restrooms"] = "Restrooms cannot be negative";
-        spaceData.extras.forEach((extra, index) => {
-          if (!extra.name || !extra.name.trim())
-            newErrors[`extras.${index}.name`] = "Extra name is required";
-          if (extra.price != null && extra.price < 0)
-            newErrors[`extras.${index}.price`] = "Price cannot be negative";
-        });
-        break;
-      case 7:
-        if (
-          spaceData.imageFiles.length === 0 &&
-          (!spaceData.serverImages || spaceData.serverImages.length === 0)
-        )
-          newErrors.images = "At least one photo is required";
-        break;
-      case 9:
-        if (spaceData.pricing.pricingType === "DAILY") {
-          if (
-            !spaceData.pricing.weekdayPrice ||
-            spaceData.pricing.weekdayPrice <= 0
-          )
-            newErrors.weekdayPrice = "Enter a valid daily price";
-        } else if (spaceData.pricing.pricingType === "HOURLY") {
-          if (
-            !spaceData.pricing.hourlyPrice ||
-            spaceData.pricing.hourlyPrice <= 0
-          )
-            newErrors.hourlyPrice = "Enter a valid hourly price";
-        }
-        break;
-      default:
-        break;
-    }
-
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0)
-      toast.error("Please fix the errors before continuing");
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // ─── Navigation ───────────────────────────────────────────────────────────────
-
-  const fetchCoordinates = async () => {
-    try {
-      const params = new URLSearchParams({
-        address: spaceData.location.address,
-        city: spaceData.location.city,
-        country: spaceData.location.country,
-      });
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/geocode?${params.toString()}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch coordinates");
-      const data = await response.json();
-      setSpaceData((prev) => ({
-        ...prev,
-        coordinates: { latitude: data.latitude, longitude: data.longitude },
-      }));
-    } catch (err) {
-      console.error("Failed to fetch coordinates:", err);
-      setErrors((prev) => ({
-        ...prev,
-        coordinates: "Unable to locate this address on the map",
-      }));
-    }
-  };
-
-  const handleNext = () => {
-    if (validateStep()) {
-      setErrors({});
-      setStep((prev) => {
-        const next = prev + 1;
-        if (next === 5 && !selectedCategoryHasSubcategories()) return next + 1;
-        return next;
-      });
-    }
-  };
-
-  const handleBack = () => {
-    setErrors({});
-    setStep((prev) => {
-      const prevStep = prev - 1;
-      if (prevStep === 5 && !selectedCategoryHasSubcategories())
-        return Math.max(1, prevStep - 1);
-      return Math.max(1, prevStep);
-    });
-  };
-
-  // ─── Submit ───────────────────────────────────────────────────────────────────
-
-  const handleSubmit = async () => {
-    if (!validateStep()) return;
-
-    setIsSubmitting(true);
-
-    try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        saveDraft();
-        navigate("/login");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("title", spaceData.title);
-      formData.append("description", spaceData.description);
-      formData.append("category", spaceData.category);
-      formData.append("subcategory", JSON.stringify(spaceData.subcategory));
-      formData.append("pricing", JSON.stringify(spaceData.pricing));
-      formData.append("features", JSON.stringify(spaceData.features));
-
-      formData.append(
-        "bookingSettings",
-        JSON.stringify(spaceData.bookingSettings)
-      );
-
-      formData.append("location", JSON.stringify(spaceData.location));
-      formData.append("coordinates", JSON.stringify(spaceData.coordinates));
-      formData.append("extras", JSON.stringify(spaceData.extras || []));
-      formData.append("draftId", draftId);
-
-      // ✅ availability/timeBlocks sent separately
-      formData.append("availability", availability);
-      formData.append("customAvailability", customAvailability);
-      formData.append("timeBlocks", JSON.stringify(timeBlocks || []));
-
-      formData.append("blockedDates", JSON.stringify(blockedDates || []));
-      spaceData.imageFiles.forEach((file) => formData.append("images", file));
-      formData.append(
-        "removedImages",
-        JSON.stringify(spaceData.removedImages || [])
-      );
-      cqcDocuments.forEach((file) => formData.append("cqcDocuments", file));
-
-      // ✅ NEW: Add lease file if present
-      if (leaseFile) {
-        formData.append("leaseFile", leaseFile);
-      }
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/properties`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-        credentials: "include",
-      });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (res.status === 401) {
-        localStorage.removeItem("token");
-        saveDraft();
-        navigate("/login");
-        return;
-      }
-
-      if (res.status === 403) {
-        toast.error(
-          data?.message ||
-            "Please complete your profile before creating a property"
-        );
-
-        if (data?.missingFields) {
-          console.log("Missing fields:", data.missingFields);
-        }
-
-        saveDraft();
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to create space");
-      }
-
-      toast.success("Your space has been published successfully!");
-      setShowModal(true);
-
-      const timer = setInterval(() => {
-        setCountdown((c) => {
-          if (c <= 1) {
-            clearInterval(timer);
-            window.location.href = "/";
-          }
-          return c - 1;
-        });
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      toast.error(err.message || "Something went wrong.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // ─── Static data ──────────────────────────────────────────────────────────────
-
-  const treatmentRoomFeatures = [
-    {
-      key: "plug",
-      title: "Plug sockets",
-      description: "Guests have access to electrical power outlets",
-    },
-    {
-      key: "sound",
-      title: "Sound Insulation",
-      description: "Designed to minimize external and internal noise",
-    },
-    {
-      key: "lockable",
-      title: "Lockable door/storage",
-      description: "Provides secure lockable storage or doors",
-    },
-    {
-      key: "washbasin",
-      title: "Washbasin",
-      description: "Dedicated basin for washing and daily use",
-    },
-    {
-      key: "clinicalSurface",
-      title: "Clinical grade, wipeable surfaces",
-      description:
-        "Durable, non-porous surfaces designed for effective cleaning",
-    },
-    {
-      key: "wasteBin",
-      title: "Sharp bin & clinical waste",
-      description:
-        "Designated containers for sharps and medical waste disposal",
-    },
-    {
-      key: "meetCQCStandards",
-      title: "Meet CQC / local health authority standards",
-      description:
-        "Meets all required standards set by CQC and local health authorities",
-    },
-    {
-      key: "electricBed",
-      title: "Electric or hydraulic treatment bed",
-      description:
-        "Treatment bed that can be raised, lowered, and tilted electronically or hydraulically",
-    },
-    {
-      key: "adjustableStool",
-      title: "Adjustable stool for practitioners",
-      description: "Ergonomic stool that can be adjusted for practitioner use",
-    },
-    {
-      key: "trolley",
-      title: "Clinical trolley",
-      description:
-        "Trolley designed to store and transport clinical instruments",
-    },
-    {
-      key: "magnifyingLamp",
-      title: "Magnifying lamp or ring",
-      description:
-        "Magnifying lamp or ring to enhance visibility during treatments",
-    },
-    {
-      key: "storage",
-      title: "Built-in storage cabinets or drawers",
-      description:
-        "Built-in storage solutions to keep supplies neatly arranged",
-    },
-    {
-      key: "mirror",
-      title: "Mirror for good facial lighting",
-      description:
-        "Well-lit mirror designed to enhance visibility for facial care",
-    },
-  ];
-
-  const medicalFeatures = [
-    {
-      key: "consultationArea",
-      title: "Consultation area with desk and chairs",
-      description:
-        "Providing exceptional comfort for patient evaluations and discussions with healthcare professionals.",
-    },
-    {
-      key: "examinationCouch",
-      title: "Examination couch with draw around curtain",
-      description: "For added privacy during patient consultations.",
-    },
-    {
-      key: "sinkCounter",
-      title: "Sink & counter space",
-      description: "To ensure hygienic and efficient medical procedures.",
-    },
-    {
-      key: "adjustableEnvironment",
-      title: "Adjustable room environment",
-      description: "Air filtration, temperature control and lighting.",
-    },
-    {
-      key: "sharpsBin",
-      title: "Sharps disposable bin",
-      description:
-        "Providing a secure and hygienic solution for the proper disposal of medical sharps.",
-    },
-    {
-      key: "naturalLight",
-      title: "Natural light",
-      description:
-        "Enhances the overall ambiance and promotes a healing, calming environment for patients.",
-    },
-    {
-      key: "dirtyTowelShoot",
-      title: "In-built dirty towel disposal chute",
-      description:
-        "Promoting a clean and sterile environment for patients and staff.",
-    },
-    {
-      key: "cqcCompliance",
-      title: "Fully CQC compliant",
-      description:
-        "We are not CQC registered, but the space is fully compliant so basic procedures can be carried out by practitioners with their own CQC approval.",
-    },
-    {
-      key: "treatmentBed",
-      title: "Treatment bed",
-      description:
-        "Electric or hydraulic treatment/examination bed for patient care.",
-    },
-    {
-      key: "clinicianDesk",
-      title: "Clinician's desk and chair",
-      description: "Dedicated desk and seating for the practitioner.",
-    },
-    {
-      key: "patientSeating",
-      title: "Patient seating",
-      description: "Comfortable seating available for patients in the room.",
-    },
-    {
-      key: "sinkHandwashing",
-      title: "Sink and handwashing facilities",
-      description: "Dedicated sink for clinical handwashing within the room.",
-    },
-    {
-      key: "reliableWifi",
-      title: "Reliable Wi-Fi",
-      description:
-        "Fast and stable internet connection available in the space.",
-    },
-    {
-      key: "hcaPhlebotomy",
-      title: "HCA & Phlebotomy Available",
-      description:
-        "Healthcare assistant and phlebotomy services available on site.",
-    },
-    {
-      key: "gradeIIBuilding",
-      title: "Newly refurbished, Grade II listed building",
-      description:
-        "Space is within a newly refurbished, Grade II listed heritage building.",
-    },
-    {
-      key: "ultrasoundColposcopy",
-      title: "Ultrasound and Colposcopy Machines",
-      description: "Ultrasound and colposcopy equipment available for use.",
-    },
-    {
-      key: "receptionFacilities",
-      title: "Reception Facilities",
-      description:
-        "Staffed reception available to greet patients and visitors.",
-    },
-    {
-      key: "mannedReception",
-      title: "Manned Reception",
-      description: "Dedicated reception staff present during operating hours.",
-    },
-    {
-      key: "access247",
-      title: "24/7 Access",
-      description: "Round-the-clock access to the building and space.",
-    },
-    {
-      key: "bookableMeetingRooms",
-      title: "Bookable Meeting Rooms",
-      description: "Additional meeting rooms available to reserve separately.",
-    },
-    {
-      key: "gigabitInternet",
-      title: "1 Gbps Internet (symmetric)",
-      description: "Enterprise-grade symmetric gigabit internet connection.",
-    },
-    {
-      key: "postHandling",
-      title: "Post Handling",
-      description: "Mail and postal services handled on your behalf.",
-    },
-    {
-      key: "eventsSpace",
-      title: "Events Space",
-      description: "Dedicated space available for hosting events.",
-    },
-    {
-      key: "cleaningIncluded",
-      title: "Cleaning included",
-      description: "Professional cleaning of the space is included.",
-    },
-    {
-      key: "dogFriendly",
-      title: "Dog Friendly",
-      description: "Well-behaved dogs are welcome in the building.",
-    },
-    {
-      key: "bikeStorage",
-      title: "Bike Storage",
-      description: "Secure bicycle storage available on the premises.",
-    },
-    {
-      key: "membersCafe",
-      title: "Members' Café",
-      description: "On-site café available exclusively for members and guests.",
-    },
-    {
-      key: "breakoutAreas",
-      title: "Breakout Areas",
-      description:
-        "Informal spaces available for breaks and informal meetings.",
-    },
-    {
-      key: "showers",
-      title: "Showers",
-      description: "Shower facilities available within the building.",
-    },
-    {
-      key: "airConditioning",
-      title: "Air Conditioning",
-      description: "Climate-controlled environment with air conditioning.",
-    },
-  ];
-
-  // ─── Derived ──────────────────────────────────────────────────────────────────
-
-  const allPreviews = [
-    ...(spaceData.serverImages || [])
-      .filter((img) => !(spaceData.removedImages || []).includes(img.filename))
-      .map((img) => img.url),
-    ...(spaceData.imageFiles || []).map((file) => URL.createObjectURL(file)),
-  ];
-
-  const selectedCategory = categories.find((c) => c._id === spaceData.category);
-  const subcategories = selectedCategory?.subcategory || [];
-
-  // ─── Shared renderers ─────────────────────────────────────────────────────────
-
-  const renderFeatureCheckbox = ({ key, title, description }) => {
-    const isChecked = spaceData.features[key];
-    return (
-      <label
-        key={key}
-        className={`flex items-center justify-between p-4 mt-4 border rounded-xl cursor-pointer transition-all ${
-          isChecked
-            ? "border-primary bg-blue-50"
-            : "border-gray-200 hover:border-gray-300"
-        }`}
-        onClick={() =>
-          setSpaceData((prev) => ({
-            ...prev,
-            features: { ...prev.features, [key]: !prev.features[key] },
-          }))
-        }
-      >
-        <div className="flex flex-col items-start">
-          <span className="font-medium text-gray-800">{title}</span>
-          <p className="text-sm text-gray-500 mt-1 text-left">{description}</p>
-        </div>
-        <div
-          className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-            isChecked ? "border-primary bg-primary" : "border-gray-300"
-          }`}
-        >
-          {isChecked && (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-3 h-3 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={3}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          )}
-        </div>
-      </label>
-    );
-  };
-
-  // ─── Render ───────────────────────────────────────────────────────────────────
-
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Image as ImageIcon,
+  Lightbulb,
+  Link as LinkIcon,
+  Loader2,
+  MapPin,
+  PoundSterling,
+  Upload,
+} from "lucide-react";
+import DashboardLayout from "../layouts/DashboardLayout";
+
+const STEP_LABELS = [
+  "Category",
+  "Location",
+  "Details",
+  "Photos",
+  "Pricing",
+  "Availability",
+  "Buffer Time",
+  "Calendar",
+  "Preview",
+];
+
+const CATEGORY_OPTIONS = [
+  {
+    id: "office",
+    title: "Office Space",
+    description: "Private suites, executive offices, and corporate floors.",
+  },
+  {
+    id: "coworking",
+    title: "Co-working",
+    description: "Flex desks, day passes, and shared work environments.",
+  },
+  {
+    id: "meeting",
+    title: "Meeting Rooms",
+    description: "Boardrooms, workshop rooms, and conference spaces.",
+  },
+  {
+    id: "studio",
+    title: "Studio Space",
+    description: "Creative studios, content rooms, and production spaces.",
+  },
+];
+
+const PHOTO_LIBRARY = [
+  "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=900&q=80",
+  "https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80",
+  "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=900&q=80",
+  "https://images.unsplash.com/photo-1542744094-3a31f272c490?w=900&q=80",
+];
+
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const BUFFER_OPTIONS = [
+  { label: "None", value: 0 },
+  { label: "30 min", value: 30 },
+  { label: "1 hour", value: 60 },
+  { label: "2 hours", value: 120 },
+  { label: "4 hours", value: 240 },
+  { label: "Custom", value: "custom" },
+];
+
+const CALENDAR_PROVIDERS = [
+  {
+    id: "google",
+    name: "Google Calendar",
+    description: "Two-way sync via Google Calendar API",
+    type: "oauth",
+  },
+  {
+    id: "outlook",
+    name: "Microsoft Outlook",
+    description: "Sync via Microsoft Graph API",
+    type: "oauth",
+  },
+  {
+    id: "apple",
+    name: "Apple iCal / CalDAV",
+    description: "Connect any CalDAV compatible calendar",
+    type: "oauth",
+  },
+  {
+    id: "calendly",
+    name: "Calendly",
+    description: "Sync via Calendly webhook & API",
+    type: "oauth",
+  },
+  {
+    id: "calcom",
+    name: "Cal.com",
+    description: "Open-source scheduling via Cal.com API",
+    type: "oauth",
+  },
+  {
+    id: "ical",
+    name: "iCal Feed (URL)",
+    description: "Paste any .ics calendar feed URL",
+    type: "ical",
+  },
+];
+
+const inputClassName =
+  "h-[52px] w-full rounded-[10px] border-[1.5px] border-[#E5E7EB] bg-white px-4 text-[15px] text-[#111827] outline-none transition focus:border-[#0A1628] focus:shadow-[0_0_0_3px_rgba(10,22,40,0.08)]";
+
+const textareaClassName =
+  "w-full rounded-[10px] border-[1.5px] border-[#E5E7EB] bg-white px-4 py-3 text-[15px] text-[#111827] outline-none transition focus:border-[#0A1628] focus:shadow-[0_0_0_3px_rgba(10,22,40,0.08)]";
+
+const optionCardClassName =
+  "rounded-xl border-[1.5px] border-[#E5E7EB] bg-white p-4 text-left transition hover:border-[#305CDE]";
+
+const sectionTitleClassName = "text-[20px] font-bold text-[#0A1628]";
+
+const defaultState = {
+  category: "office",
+  locationName: "London Bridge, London",
+  address: "The Shard, 32 London Bridge Street",
+  city: "London",
+  country: "United Kingdom",
+  title: "The Shard Executive Suite",
+  description:
+    "Premium boardroom and executive suite with skyline views, concierge reception, and AV-ready setup for leadership meetings, workshops, and client presentations.",
+  capacity: 24,
+  photos: PHOTO_LIBRARY.slice(0, 3),
+  pricingHour: "85",
+  pricingDay: "580",
+  pricingMonth: "7800",
+  minNotice: "24 hours",
+  availabilityDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+  startTime: "09:00",
+  endTime: "18:00",
+  instantBook: true,
+  houseRules:
+    "No smoking. Respect building reception policies. Catering requests require 48 hours notice.",
+};
+
+const formatCurrency = (value) =>
+  `£${new Intl.NumberFormat("en-GB").format(Number(value) || 0)}`;
+
+const formatBufferLabel = (minutes) => {
+  if (!minutes) return "No buffer";
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  return `${minutes} min`;
+};
+
+const getCustomMinutes = (value, unit) => {
+  const numeric = Number(value || 0);
+  if (!numeric) return 0;
+  return unit === "hours" ? numeric * 60 : numeric;
+};
+
+function StepIndicator({ step }) {
   return (
-    <div className="min-h-[calc(100vh-65px)] flex flex-col justify-between bg-gray-50 p-4 sm:p-8">
-      <div className="absolute">
-        <ToastContainer />
+    <div className="sticky top-0 z-50 -mx-4 -mt-6 mb-8 border-b border-[#E5E7EB] bg-white px-4 py-4 sm:-mx-10 sm:-mt-10 sm:px-8">
+      <div className="hidden items-start gap-3 md:flex">
+        {STEP_LABELS.map((label, index) => {
+          const stepNumber = index + 1;
+          const isComplete = step > stepNumber;
+          const isCurrent = step === stepNumber;
+
+          return (
+            <div key={label} className="flex min-w-0 flex-1 items-start">
+              <div className="flex min-w-[54px] flex-col items-center">
+                <motion.div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold ${
+                    isComplete
+                      ? "border-[#0A1628] bg-[#0A1628] text-white"
+                      : isCurrent
+                      ? "border-[#305CDE] bg-[#305CDE] text-white"
+                      : "border-[#E5E7EB] bg-white text-[#9CA3AF]"
+                  }`}
+                >
+                  {isComplete ? (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    >
+                      <Check size={16} />
+                    </motion.span>
+                  ) : (
+                    stepNumber
+                  )}
+                </motion.div>
+                <span
+                  className={`mt-2 text-center text-[12px] ${
+                    isCurrent
+                      ? "font-bold text-[#0A1628]"
+                      : "font-medium text-[#6B7280]"
+                  }`}
+                >
+                  {label}
+                </span>
+              </div>
+              {index < STEP_LABELS.length - 1 ? (
+                <div
+                  className={`mt-[15px] h-[2px] flex-1 ${
+                    step > stepNumber ? "bg-[#0A1628]" : "bg-[#E5E7EB]"
+                  }`}
+                />
+              ) : null}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Draft prompt */}
-      {showDraftPrompt && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
-            <div className="flex items-center justify-center mb-4">
-              <FileText size={48} className="text-primary" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2 text-center">
-              Draft Found!
-            </h2>
-            <p className="text-gray-600 mb-6 text-center">
-              You have an unfinished listing. Would you like to continue from
-              where you left off?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDraftPrompt(false)}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Start Fresh
-              </button>
-              <button
-                onClick={loadDraft}
-                className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/80"
-              >
-                Use Draft
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="md:hidden">
+        <p className="text-[13px] text-[#6B7280]">Step {step} of 9</p>
+        <p className="mt-1 text-[18px] font-bold text-[#0A1628]">
+          {STEP_LABELS[step - 1]}
+        </p>
+      </div>
+    </div>
+  );
+}
 
-      <div className="container mx-auto">
-        {/* Save Draft — hidden on final step */}
-        {step <= totalSteps && (
-          <div className="absolute right-18 flex justify-end mb-4">
-            <button
-              onClick={() => saveDraft()}
-              disabled={isSavingDraft}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg disabled:opacity-50"
-            >
-              <Save size={18} />
-              {isSavingDraft ? "Saving..." : "Save Draft"}
-            </button>
-          </div>
-        )}
+function SectionHeader({ title, subtitle }) {
+  return (
+    <div className="mb-8">
+      <h2 className="text-[28px] font-extrabold text-[#0A1628]">{title}</h2>
+      <p className="mt-2 max-w-[560px] text-[15px] leading-7 text-[#6B7280]">
+        {subtitle}
+      </p>
+    </div>
+  );
+}
 
-        {/* ── Step 1: Category ──────────────────────────────────────────────────── */}
-        {step === 1 && (
-          <div>
-            {errors.category && (
-              <div className="mt-6">
-                <Notification message={errors.category} type="danger" />
+function ProviderLogo({ providerId }) {
+  if (providerId === "google") {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#E5E7EB] bg-white">
+        <svg width="20" height="20" viewBox="0 0 48 48">
+          <path
+            fill="#FFC107"
+            d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l5.7-5.7C34.3 6.5 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"
+          />
+          <path
+            fill="#FF3D00"
+            d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 8 2.9l5.7-5.7C34.3 6.5 29.4 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"
+          />
+          <path
+            fill="#4CAF50"
+            d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.5 26.8 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8H6.5C9.9 37.7 16.4 44 24 44z"
+          />
+          <path
+            fill="#1976D2"
+            d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.3 4.2-4.2 5.6l6.2 5.2C40.5 36.2 44 30.6 44 24c0-1.3-.1-2.6-.4-3.9z"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  if (providerId === "outlook") {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#0078D4] text-[20px] font-bold text-white">
+        O
+      </div>
+    );
+  }
+
+  if (providerId === "apple") {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[linear-gradient(135deg,#555_0%,#333_100%)] text-white">
+        <CalendarDays size={18} />
+      </div>
+    );
+  }
+
+  if (providerId === "calendly") {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#006BFF] text-[20px] font-extrabold text-white">
+        c
+      </div>
+    );
+  }
+
+  if (providerId === "calcom") {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#111827] text-[13px] font-bold text-white">
+        cal
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[rgba(10,22,40,0.06)] text-[#0A1628]">
+      <LinkIcon size={18} />
+    </div>
+  );
+}
+
+function StepFrame({ children }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 30 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -30 }}
+      transition={{ duration: 0.25 }}
+      className="mx-auto max-w-[720px] rounded-[20px] bg-white p-6 shadow-[0_2px_16px_rgba(0,0,0,0.06)] sm:p-10"
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export default function CreateSpace() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [direction, setDirection] = useState(1);
+  const [form, setForm] = useState(defaultState);
+  const [beforeSelection, setBeforeSelection] = useState(0);
+  const [afterSelection, setAfterSelection] = useState(0);
+  const [bufferBefore, setBufferBefore] = useState(0);
+  const [bufferAfter, setBufferAfter] = useState(0);
+  const [customBefore, setCustomBefore] = useState("");
+  const [customAfter, setCustomAfter] = useState("");
+  const [customBeforeUnit, setCustomBeforeUnit] = useState("minutes");
+  const [customAfterUnit, setCustomAfterUnit] = useState("minutes");
+  const [connectedCalendars, setConnectedCalendars] = useState([]);
+  const [connectingCalendar, setConnectingCalendar] = useState(null);
+  const [icalUrl, setIcalUrl] = useState("");
+  const [showIcalInput, setShowIcalInput] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const effectiveBufferBefore =
+    beforeSelection === "custom"
+      ? getCustomMinutes(customBefore, customBeforeUnit)
+      : bufferBefore;
+  const effectiveBufferAfter =
+    afterSelection === "custom"
+      ? getCustomMinutes(customAfter, customAfterUnit)
+      : bufferAfter;
+
+  const previewCategory = useMemo(
+    () =>
+      CATEGORY_OPTIONS.find((category) => category.id === form.category)?.title ||
+      "Office Space",
+    [form.category]
+  );
+
+  const totalTimeline = Math.max(effectiveBufferBefore + effectiveBufferAfter + 120, 120);
+  const beforeWidth = effectiveBufferBefore
+    ? `${(effectiveBufferBefore / totalTimeline) * 100}%`
+    : "12%";
+  const bookingWidth = `${(120 / totalTimeline) * 100}%`;
+  const afterWidth = effectiveBufferAfter
+    ? `${(effectiveBufferAfter / totalTimeline) * 100}%`
+    : "12%";
+
+  const updateField = (key, value) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const toggleDay = (day) => {
+    setForm((current) => ({
+      ...current,
+      availabilityDays: current.availabilityDays.includes(day)
+        ? current.availabilityDays.filter((item) => item !== day)
+        : [...current.availabilityDays, day],
+    }));
+  };
+
+  const handleBufferSelect = (type, optionValue) => {
+    if (type === "before") {
+      setBeforeSelection(optionValue);
+      if (optionValue !== "custom") setBufferBefore(optionValue);
+      return;
+    }
+
+    setAfterSelection(optionValue);
+    if (optionValue !== "custom") setBufferAfter(optionValue);
+  };
+
+  const handleCalendarConnect = (providerId) => {
+    setConnectingCalendar(providerId);
+
+    window.setTimeout(() => {
+      setConnectedCalendars((current) =>
+        current.includes(providerId) ? current : [...current, providerId]
+      );
+      setConnectingCalendar(null);
+      if (providerId === "ical") setShowIcalInput(false);
+    }, 2000);
+  };
+
+  const disconnectCalendar = (providerId) => {
+    setConnectedCalendars((current) => current.filter((item) => item !== providerId));
+  };
+
+  const nextStep = () => {
+    setDirection(1);
+    setStep((current) => Math.min(current + 1, 9));
+  };
+  const previousStep = () => {
+    setDirection(-1);
+    setStep((current) => Math.max(current - 1, 1));
+  };
+
+  const publishListing = () => {
+    setIsPublishing(true);
+    window.setTimeout(() => navigate("/host/listings"), 1200);
+  };
+
+  return (
+    <DashboardLayout title="Create Space">
+      <div className="bg-[#F8F6F0]">
+        <StepIndicator step={step} />
+
+        <AnimatePresence mode="wait">
+          <StepFrame key={`${step}-${direction}`}>
+            {step === 1 ? (
+              <div>
+                <SectionHeader
+                  title="Choose a Category"
+                  subtitle="Select the type of commercial space you want to list so guests can discover it more easily."
+                />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {CATEGORY_OPTIONS.map((option) => {
+                    const selected = form.category === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => updateField("category", option.id)}
+                        className={`${optionCardClassName} ${
+                          selected
+                            ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)]"
+                            : ""
+                        }`}
+                      >
+                        <p className="text-[16px] font-bold text-[#0A1628]">
+                          {option.title}
+                        </p>
+                        <p className="mt-2 text-[14px] leading-6 text-[#6B7280]">
+                          {option.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-            <h2 className="text-4xl my-4">Category</h2>
-            <p className="text-gray-600 mb-4">What type of space is this?</p>
-            <div className="grid grid-cols-2 gap-4">
-              {categories.map((cat) => (
-                <label
-                  key={cat._id}
-                  className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
-                    spaceData.category === cat._id
-                      ? "border-primary bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  onClick={() => {
-                    setSpaceData((prev) => ({
-                      ...prev,
-                      category: cat._id,
-                      subcategory: "",
-                    }));
-                    setErrors((prev) => ({ ...prev, category: "" }));
-                  }}
-                >
-                  <span className="font-medium text-gray-800">{cat.name}</span>
-                  <div
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      spaceData.category === cat._id
-                        ? "border-primary"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    {spaceData.category === cat._id && (
-                      <div className="w-3 h-3 bg-primary rounded-full" />
-                    )}
+            ) : null}
+
+            {step === 2 ? (
+              <div>
+                <SectionHeader
+                  title="Set the Location"
+                  subtitle="Tell guests where your space is based and how they will find it."
+                />
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Search location
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={form.locationName}
+                      onChange={(event) =>
+                        updateField("locationName", event.target.value)
+                      }
+                    />
                   </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* ── Step 2: Title & Description ───────────────────────────────────────── */}
-        {step === 2 && (
-          <div>
-            <h2 className="text-4xl my-4">Publish your space</h2>
-            <Input
-              label="Event space name"
-              name="title"
-              value={spaceData.title}
-              onChange={handleChange}
-              error={errors.title}
-              required
-            />
-            <label className="block text-sm font-medium text-gray-700 mt-4">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={spaceData.description || ""}
-              onChange={handleChange}
-              className={`mt-1 p-2 w-full h-48 border rounded-lg focus:ring-primary focus:border-primary ${
-                errors.description ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.description && (
-              <p className="text-red-500 text-sm mt-1">{errors.description}</p>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 3: Location ──────────────────────────────────────────────────── */}
-        {step === 3 && isLoaded && (
-          <div>
-            <h2 className="text-4xl my-4">Location</h2>
-            <Autocomplete
-              onLoad={onLoad}
-              onPlaceChanged={onPlaceChanged}
-              options={{
-                fields: ["address_components", "geometry", "formatted_address"],
-                types: ["address"],
-              }}
-            >
-              <Input
-                placeholder="Address"
-                defaultValue={spaceData.location.address}
-                required
-              />
-            </Autocomplete>
-            {errors["location.address"] && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors["location.address"]}
-              </p>
-            )}
-            <Input
-              placeholder="City"
-              name="location.city"
-              value={spaceData.location.city}
-              onChange={handleChange}
-              required
-            />
-            {errors["location.city"] && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors["location.city"]}
-              </p>
-            )}
-            <CountrySelect
-              value={spaceData.location.country}
-              onChange={handleChange}
-              required
-            />
-            {errors["location.country"] && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors["location.country"]}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 4: Confirm Location / Map ────────────────────────────────────── */}
-        {step === 4 && (
-          <div>
-            <h2 className="text-4xl my-4">Confirm Location</h2>
-            <p className="mb-4">
-              Pin your location on the map or adjust the marker below
-            </p>
-            <div className="flex gap-4">
-              <div className="mb-4">
-                <input
-                  type="number"
-                  step="0.000001"
-                  name="coordinates.latitude"
-                  value={spaceData.coordinates.latitude || ""}
-                  onChange={handleChange}
-                  placeholder="Latitude"
-                  className={`mt-1 p-2 w-full border rounded-lg focus:ring-primary focus:border-primary ${
-                    errors.latitude ? "border-red-500" : "border-gray-300"
-                  }`}
-                />
-                {errors.latitude && (
-                  <p className="text-red-500 text-sm mt-1">{errors.latitude}</p>
-                )}
-              </div>
-              <div className="mb-4">
-                <input
-                  type="number"
-                  step="0.000001"
-                  name="coordinates.longitude"
-                  value={spaceData.coordinates.longitude || ""}
-                  onChange={handleChange}
-                  placeholder="Longitude"
-                  className={`mt-1 p-2 w-full border rounded-lg focus:ring-primary focus:border-primary ${
-                    errors.longitude ? "border-red-500" : "border-gray-300"
-                  }`}
-                />
-                {errors.longitude && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.longitude}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="w-full h-[350px] md:h-[400px] border border-gray-200 rounded-lg mt-4">
-              <MapComponent
-                coordinates={spaceData.coordinates}
-                onCoordinatesChange={(lat, lng) =>
-                  setSpaceData((prev) => ({
-                    ...prev,
-                    coordinates: { latitude: lat, longitude: lng },
-                  }))
-                }
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 5: Subcategory ───────────────────────────────────────────────── */}
-        {step === 5 && (
-          <div>
-            {errors.subcategory && (
-              <div className="mt-6">
-                <Notification message={errors.subcategory} type="danger" />
-              </div>
-            )}
-            <h2 className="text-4xl my-4">Subcategory</h2>
-            <p className="text-gray-600 mb-4">
-              Choose the option that best describes your space within{" "}
-              <span className="font-medium text-gray-800">
-                {selectedCategory?.name}
-              </span>
-              .
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              {subcategories.map((sub) => {
-                const subId = sub._id || sub;
-                const subName = sub.name || sub;
-
-                const isSelected = spaceData.subcategory.includes(subId);
-                return (
-                  <label
-                    key={subId}
-                    className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
-                      isSelected
-                        ? "border-primary bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                    onClick={() => {
-                      setSpaceData((prev) => {
-                        const already = prev.subcategory.includes(subId);
-                        return {
-                          ...prev,
-                          subcategory: already
-                            ? prev.subcategory.filter((s) => s !== subId)
-                            : [...prev.subcategory, subId],
-                        };
-                      });
-                      setErrors((prev) => ({ ...prev, subcategory: "" }));
-                    }}
-                  >
-                    <span className="font-medium text-gray-800">{subName}</span>
-                    <div
-                      className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                        isSelected
-                          ? "border-primary bg-primary"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      {isSelected && (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="w-3 h-3 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={3}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 6: Features & Extras ─────────────────────────────────────────── */}
-        {step === 6 && (
-          <div className="h-[500px] md:h-[600px] overflow-y-scroll">
-            <h2 className="text-4xl my-4">Features & Extras</h2>
-            <div className="mb-4">
-              <YesNoToggle
-                label="WiFi access"
-                subtitle="Guests get access to free internet connection"
-                name="features.wifi"
-                value={spaceData.features.wifi}
-                onChange={handleFeatureChange}
-              />
-              {errors["features.wifi"] && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors["features.wifi"]}
-                </p>
-              )}
-              <Counter
-                label="Restrooms"
-                subtitle="Numbers of restrooms guests can use"
-                name="features.restrooms"
-                value={spaceData.features.restrooms}
-                onChange={handleFeatureChange}
-              />
-              {errors["features.restrooms"] && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors["features.restrooms"]}
-                </p>
-              )}
-              {spaceData.category === "6915bd724f4f95223e555e57" && (
-                <>
-                  <h2 className="text-xl font-semibold my-4">
-                    Treatment Room Features
-                  </h2>
-                  {treatmentRoomFeatures.map(renderFeatureCheckbox)}
-                </>
-              )}
-              {spaceData.category === "6915bd724f4f95223e555e5b" && (
-                <>
-                  <h2 className="text-xl font-semibold mt-6 mb-2">
-                    Clinical Room Features
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Select all facilities available within the room.
-                  </p>
-                  {medicalFeatures.slice(0, 9).map(renderFeatureCheckbox)}
-
-                  <h2 className="text-xl font-semibold mt-8 mb-2">
-                    Building Amenities
-                  </h2>
-                  <p className="text-sm text-gray-500 mb-3">
-                    Select all amenities available in the wider building.
-                  </p>
-                  {medicalFeatures.slice(9).map(renderFeatureCheckbox)}
-                </>
-              )}
-              <div className="mt-5 flex gap-6 items-center">
-                <Input
-                  label="Size (SQM)"
-                  name="features.sizeSQM"
-                  type="number"
-                  value={spaceData.features.sizeSQM}
-                  onChange={handleFeatureChange}
-                  classes="w-full"
-                  error={errors["features.sizeSQM"]}
-                />
-                <Input
-                  label="Seat Capacity"
-                  name="features.seatCapacity"
-                  type="number"
-                  value={spaceData.features.seatCapacity}
-                  onChange={handleFeatureChange}
-                  classes="w-full"
-                  error={errors["features.seatCapacity"]}
-                />
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-2">Extras</h3>
-              {spaceData.extras.map((extra, index) => (
-                <ExtraInput
-                  key={index}
-                  extra={extra}
-                  onChange={(updated) => handleExtraChange(index, updated)}
-                  onRemove={() => handleRemoveExtra(index)}
-                />
-              ))}
-              <Button
-                onClick={handleAddExtra}
-                className="mt-2 bg-primary text-white px-4 py-2 rounded-lg"
-              >
-                Add More
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 7: Photos ────────────────────────────────────────────────────── */}
-        {step === 7 && (
-          <div>
-            <h2 className="text-4xl my-4">Add Photos</h2>
-            <Button
-              onClick={() => setShowPopup(true)}
-              className="mb-4 bg-primary text-white px-4 py-2 rounded-lg"
-            >
-              Add Photos
-            </Button>
-            {errors.images && (
-              <Notification message={errors.images} type="danger" />
-            )}
-            {allPreviews.length > 0 && (
-              <div className="mt-4">
-                <div className="grid grid-cols-2 gap-3 pb-10 h-[450px] md:h-[510px] overflow-scroll">
-                  {allPreviews.map((img, index) => (
-                    <div
-                      key={index}
-                      className={`relative w-full overflow-hidden rounded-lg border border-gray-200 ${
-                        index === 0 ? "col-span-2 h-80" : "h-64"
-                      }`}
-                    >
-                      <img
-                        src={
-                          typeof img === "string"
-                            ? img
-                            : URL.createObjectURL(img)
-                        }
-                        alt={`Uploaded ${index + 1}`}
-                        className="w-full h-full object-cover"
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Address
+                      </label>
+                      <input
+                        className={inputClassName}
+                        value={form.address}
+                        onChange={(event) => updateField("address", event.target.value)}
                       />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        City
+                      </label>
+                      <input
+                        className={inputClassName}
+                        value={form.city}
+                        onChange={(event) => updateField("city", event.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Country
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={form.country}
+                      onChange={(event) => updateField("country", event.target.value)}
+                    />
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
+                    <div className="flex h-[240px] flex-col items-center justify-center bg-[#0A1628] text-center text-white">
+                      <MapPin size={34} className="text-[#305CDE]" />
+                      <p className="mt-4 text-[18px] font-bold">{form.locationName}</p>
+                      <p className="mt-2 max-w-sm text-[13px] leading-6 text-white/70">
+                        Map preview placeholder for the location pin and nearby transport.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 3 ? (
+              <div>
+                <SectionHeader
+                  title="Add the Listing Details"
+                  subtitle="Describe your space clearly so guests understand what makes it premium and how it works."
+                />
+
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Listing title
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={form.title}
+                      onChange={(event) => updateField("title", event.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Description
+                    </label>
+                    <textarea
+                      rows={6}
+                      className={textareaClassName}
+                      value={form.description}
+                      onChange={(event) =>
+                        updateField("description", event.target.value)
+                      }
+                    />
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Capacity
+                      </label>
+                      <input
+                        type="number"
+                        className={inputClassName}
+                        value={form.capacity}
+                        onChange={(event) => updateField("capacity", event.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Minimum notice
+                      </label>
+                      <select
+                        className={inputClassName}
+                        value={form.minNotice}
+                        onChange={(event) => updateField("minNotice", event.target.value)}
+                      >
+                        <option>24 hours</option>
+                        <option>48 hours</option>
+                        <option>72 hours</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 4 ? (
+              <div>
+                <SectionHeader
+                  title="Upload Photos"
+                  subtitle="Use polished imagery to build trust and help guests picture the experience before they book."
+                />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {PHOTO_LIBRARY.map((photo) => {
+                    const selected = form.photos.includes(photo);
+                    return (
+                      <button
+                        key={photo}
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            photos: selected
+                              ? current.photos.filter((item) => item !== photo)
+                              : [...current.photos, photo],
+                          }))
+                        }
+                        className={`overflow-hidden rounded-xl border-[1.5px] transition hover:border-[#305CDE] ${
+                          selected
+                            ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)]"
+                            : "border-[#E5E7EB]"
+                        }`}
+                      >
+                        <img
+                          src={photo}
+                          alt="Space"
+                          className="h-44 w-full object-cover"
+                        />
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <span className="text-[14px] font-medium text-[#111827]">
+                            Hero photo option
+                          </span>
+                          {selected ? (
+                            <CheckCircle2 size={18} className="text-[#0A1628]" />
+                          ) : (
+                            <ImageIcon size={18} className="text-[#6B7280]" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {step === 5 ? (
+              <div>
+                <SectionHeader
+                  title="Set Your Pricing"
+                  subtitle="Add flexible pricing tiers so guests can book by the hour, day, or month."
+                />
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  {[
+                    {
+                      label: "Hourly Rate",
+                      key: "pricingHour",
+                      value: form.pricingHour,
+                    },
+                    {
+                      label: "Daily Rate",
+                      key: "pricingDay",
+                      value: form.pricingDay,
+                    },
+                    {
+                      label: "Monthly Rate",
+                      key: "pricingMonth",
+                      value: form.pricingMonth,
+                    },
+                  ].map((field) => (
+                    <div key={field.key} className={`${optionCardClassName} p-5`}>
+                      <p className="text-[13px] font-bold text-[#0A1628]">
+                        {field.label}
+                      </p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[10px] border-[1.5px] border-[#E5E7EB] text-[#0A1628]">
+                          <PoundSterling size={18} />
+                        </div>
+                        <input
+                          type="number"
+                          className={inputClassName}
+                          value={field.value}
+                          onChange={(event) =>
+                            updateField(field.key, event.target.value)
+                          }
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-            {showPopup && (
-              <ImageUploadPopup
-                onClose={() => setShowPopup(false)}
-                onUpload={handleImageUpload}
-              />
-            )}
-          </div>
-        )}
+            ) : null}
 
-        {/* ── Step 8: Rearrange Images ──────────────────────────────────────────── */}
-        {step === 8 && (
-          <div>
-            <h2 className="text-4xl my-4">Rearrange Images</h2>
-            <ImageReorder
-              images={allPreviews}
-              onReorder={handleImageReorder}
-              onAddMore={() => setShowPopup(true)}
-            />
-          </div>
-        )}
+            {step === 6 ? (
+              <div>
+                <SectionHeader
+                  title="Availability & House Rules"
+                  subtitle="Define when your listing can be booked and share the key rules guests should know before checkout."
+                />
 
-        {/* ── Step 9: Pricing ───────────────────────────────────────────────────── */}
-        {step === 9 && (
-          <div className="text-center flex flex-col items-center p-6">
-            <div className="flex items-center gap-6 mb-8">
-              <button
-                type="button"
-                onClick={() =>
-                  setSpaceData((prev) => ({
-                    ...prev,
-                    pricing: {
-                      ...prev.pricing,
-                      pricingType: "DAILY",
-                      hourlyPrice: null,
-                    },
-                  }))
-                }
-                className={`px-5 py-2 rounded-full font-medium transition ${
-                  spaceData.pricing.pricingType === "DAILY"
-                    ? "bg-primary text-white"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                Daily
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSpaceData((prev) => ({
-                    ...prev,
-                    pricing: {
-                      ...prev.pricing,
-                      pricingType: "HOURLY",
-                      weekdayPrice: null,
-                    },
-                  }))
-                }
-                className={`px-5 py-2 rounded-full font-medium transition ${
-                  spaceData.pricing.pricingType === "HOURLY"
-                    ? "bg-primary text-white"
-                    : "bg-gray-200 text-gray-700"
-                }`}
-              >
-                Hourly
-              </button>
-            </div>
-
-            {spaceData.pricing.pricingType === "DAILY" && (
-              <>
-                <h3 className="text-3xl font-semibold mb-2">
-                  Set a Weekday Price
-                </h3>
-                <p className="text-gray-600 mb-6">You can change it anytime.</p>
-                <div className="flex items-center justify-center px-6 pt-4 mb-3">
-                  <span className="text-4xl font-bold text-primary mr-1 mb-4">
-                    £
-                  </span>
-                  <Input
-                    name="pricing.weekdayPrice"
-                    type="number"
-                    min="0"
-                    value={spaceData.pricing.weekdayPrice}
-                    onChange={handleChange}
-                    autoFocus
-                    required
-                    className="border-none bg-transparent text-center text-4xl font-semibold text-primary focus:ring-0 focus:outline-none no-spinner dynamic-width"
-                  />
-                </div>
-                {errors.weekdayPrice && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.weekdayPrice}
-                  </p>
-                )}
-              </>
-            )}
-
-            {spaceData.pricing.pricingType === "HOURLY" && (
-              <>
-                <h3 className="text-3xl font-semibold mb-2">
-                  Set an Hourly Price
-                </h3>
-                <p className="text-gray-600 mb-6">You can change it anytime.</p>
-                <div className="flex items-center justify-center px-6 pt-4 mb-3">
-                  <span className="text-4xl font-bold text-primary mr-1 mb-4">
-                    £
-                  </span>
-                  <Input
-                    name="pricing.hourlyPrice"
-                    type="number"
-                    min="0"
-                    value={spaceData.pricing.hourlyPrice}
-                    onChange={handleChange}
-                    autoFocus
-                    required
-                    className="border-none bg-transparent text-center text-4xl font-semibold text-primary focus:ring-0 focus:outline-none no-spinner dynamic-width"
-                  />
-                </div>
-                {errors.hourlyPrice && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.hourlyPrice}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 10: Booking Settings ─────────────────────────────────────────── */}
-        {step === 10 && (
-          <div>
-            <h2 className="text-4xl font-semibold mb-2">
-              Price your booking settings
-            </h2>
-            <p className="text-gray-600 mb-6">You can change it anytime.</p>
-            <div className="space-y-4">
-              {[
-                {
-                  key: "approveFirstFive",
-                  label: "Approve first 5 bookings",
-                  desc: "You'll manually approve your first 5 bookings. After that, bookings can be automatic.",
-                  recommended: true,
-                },
-                {
-                  key: "instantBook",
-                  label: "Instant Book",
-                  desc: "Guests can book instantly without needing your approval.",
-                },
-                {
-                  key: "approveAllBookings",
-                  label: "Approve All Bookings",
-                  desc: "You'll manually approve all your bookings. You cannot receive any booking unless you approve it.",
-                },
-              ].map(({ key, label, desc, recommended }) => (
-                <label
-                  key={key}
-                  className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
-                    spaceData.bookingSettings[key]
-                      ? "border-primary bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  onClick={() =>
-                    setSpaceData((prev) => ({
-                      ...prev,
-                      bookingSettings: {
-                        approveFirstFive: false,
-                        instantBook: false,
-                        approveAllBookings: false,
-                        [key]: true,
-                      },
-                    }))
-                  }
-                >
-                  <div className="w-[90%] flex flex-col items-start gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-800">{label}</span>
-                      {recommended && (
-                        <span className="bg-primary text-white text-xs px-2 py-0.5 rounded-full">
-                          Recommended
-                        </span>
-                      )}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className={sectionTitleClassName}>Open Days</h3>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {DAYS.map((day) => {
+                        const selected = form.availabilityDays.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => toggleDay(day)}
+                            className={`rounded-xl border-[1.5px] px-4 py-3 text-[14px] transition ${
+                              selected
+                                ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)] font-semibold text-[#0A1628]"
+                                : "border-[#E5E7EB] bg-white text-[#111827] hover:border-[#305CDE]"
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <p className="text-sm text-gray-500 text-left">{desc}</p>
                   </div>
-                  <div
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      spaceData.bookingSettings[key]
-                        ? "border-primary"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    {spaceData.bookingSettings[key] && (
-                      <div className="w-3 h-3 bg-primary rounded-full" />
-                    )}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* ── Step 11: Discounts ────────────────────────────────────────────────── */}
-        {step === 11 && (
-          <div>
-            <h2 className="text-4xl font-semibold mb-2">
-              Set up your discounts
-            </h2>
-            <p className="text-gray-600 mb-6">
-              Encourage more bookings with discounts.
-            </p>
-            <div className="space-y-4">
-              {[
-                {
-                  key: "newListing",
-                  label: "New Listing Promotion (20%)",
-                  desc: "Get noticed faster with an automatic 20% discount on your first few bookings.",
-                },
-                {
-                  key: "lastMinute",
-                  label: "Last Minute Discount (1%)",
-                  desc: "Offer small savings for guests booking within a few days of arrival.",
-                },
-                {
-                  key: "weekly",
-                  label: "Weekly Discount (10%)",
-                  desc: "Reward guests who stay for 7 nights or more.",
-                },
-                {
-                  key: "monthly",
-                  label: "Monthly Discount (20%)",
-                  desc: "Attract long-term stays with generous monthly savings.",
-                },
-              ].map(({ key, label, desc }) => (
-                <label
-                  key={key}
-                  className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer transition-all ${
-                    spaceData.pricing.discounts[key]
-                      ? "border-primary bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                  onClick={() =>
-                    handleDiscountChange({
-                      target: {
-                        name: key,
-                        checked: !spaceData.pricing.discounts[key],
-                      },
-                    })
-                  }
-                >
-                  <div className="w-[90%] flex flex-col items-start">
-                    <span className="font-medium text-gray-800">{label}</span>
-                    <p className="text-sm text-gray-500 mt-1 text-left">
-                      {desc}
-                    </p>
-                  </div>
-                  <div
-                    className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                      spaceData.pricing.discounts[key]
-                        ? "border-primary bg-primary"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    {spaceData.pricing.discounts[key] && (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 12: Availability ─────────────────────────────────────────────── */}
-        {step === 12 && (
-          <div>
-            <h2 className="text-4xl font-semibold mb-2">
-              Set your availability
-            </h2>
-            <p className="text-gray-600 mb-8">
-              Configure when your space is open for bookings. This will be saved
-              when you publish.
-            </p>
-
-            <AvailabilitySelector
-              availability={availability}
-              setAvailability={setAvailability}
-              customAvailability={customAvailability}
-              setCustomAvailability={setCustomAvailability}
-            />
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h3 className="text-lg font-semibold mb-1">Block Dates</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Click dates to mark them as unavailable. You can always update
-                this later.
-              </p>
-              <AvailabilityCalendar
-                blockedDates={blockedDates}
-                bookedDates={[]}
-                onBlock={(start, end) => addBlock(start, end)}
-                onUnblock={(dateStr) => removeBlock(dateStr)}
-                monthsPerPage={6}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 13: CQC Document Upload (Medical only) ──────────────────────── */}
-        {step === 13 && isMedicalCategory && (
-          <div>
-            <h2 className="text-4xl font-semibold mb-2">
-              CQC Compliance Documents
-            </h2>
-            <p className="text-gray-600 mb-2">
-              Upload your CQC-compliant documentation for this medical room.
-              Guests will be able to download and review these before booking.
-            </p>
-            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
-              Accepted formats: PDF, DOC, DOCX. Max 10MB per file.
-            </p>
-
-            <div
-              onClick={() => cqcFileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 hover:border-primary rounded-xl p-10 text-center cursor-pointer transition-all hover:bg-blue-50"
-            >
-              <div className="flex flex-col items-center gap-2 text-gray-500">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-10 h-10 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 16v-8m0 0-3 3m3-3 3 3M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1"
-                  />
-                </svg>
-                <p className="font-medium text-gray-700">
-                  Click to upload documents
-                </p>
-                <p className="text-sm">PDF, DOC, DOCX up to 10MB</p>
-              </div>
-              <input
-                ref={cqcFileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  const valid = files.filter((f) => f.size <= 10 * 1024 * 1024);
-                  if (valid.length < files.length)
-                    toast.warn("Some files exceeded 10MB and were skipped.");
-                  setCqcDocuments((prev) => [...prev, ...valid]);
-                  e.target.value = "";
-                }}
-              />
-            </div>
-
-            {cqcDocuments.length > 0 && (
-              <div className="mt-6 space-y-3">
-                <h3 className="font-semibold text-gray-800">
-                  Uploaded Documents ({cqcDocuments.length})
-                </h3>
-                {cqcDocuments.map((doc, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <FileText size={20} className="text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800 text-sm truncate max-w-[220px]">
-                          {doc.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {(doc.size / 1024).toFixed(1)} KB
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setCqcDocuments((prev) =>
-                          prev.filter((_, i) => i !== index)
-                        )
-                      }
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {cqcDocuments.length === 0 && (
-              <p className="text-center text-sm text-gray-400 mt-4">
-                No documents uploaded yet.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── Step 13/14: Lease Agreement Upload ──────────────────────────────── */}
-        {step === (isMedicalCategory ? 14 : 13) && (
-          <div>
-            <h2 className="text-4xl font-semibold mb-2">
-              Upload Lease Agreement
-            </h2>
-            <p className="text-gray-600 mb-2">
-              Upload your standard lease agreement. Guests will be required to
-              review and e-sign this before booking.
-            </p>
-            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
-              Accepted formats: PDF, DOC, DOCX. Max 10MB. This is optional for
-              now and can be added later.
-            </p>
-
-            <div
-              onClick={() => leaseFileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 hover:border-primary rounded-xl p-10 text-center cursor-pointer transition-all hover:bg-blue-50"
-            >
-              <div className="flex flex-col items-center gap-2 text-gray-500">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-10 h-10 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 16v-8m0 0-3 3m3-3 3 3M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1"
-                  />
-                </svg>
-                <p className="font-medium text-gray-700">
-                  Click to upload lease agreement
-                </p>
-                <p className="text-sm">PDF, DOC, DOCX up to 10MB</p>
-              </div>
-              <input
-                ref={leaseFileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 10 * 1024 * 1024) {
-                    toast.warn(
-                      "File exceeds 10MB. Please upload a smaller file."
-                    );
-                    return;
-                  }
-                  setLeaseFile(file);
-                  toast.success("Lease agreement uploaded successfully!");
-                  e.target.value = "";
-                }}
-              />
-            </div>
-
-            {leaseFile && (
-              <div className="mt-6">
-                <h3 className="font-semibold text-gray-800 mb-3">
-                  Uploaded Lease Agreement
-                </h3>
-                <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <FileText size={20} className="text-primary" />
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Start time
+                      </label>
+                      <input
+                        type="time"
+                        className={inputClassName}
+                        value={form.startTime}
+                        onChange={(event) => updateField("startTime", event.target.value)}
+                      />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-800 text-sm">
-                        {leaseFile.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {(leaseFile.size / 1024).toFixed(1)} KB
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        End time
+                      </label>
+                      <input
+                        type="time"
+                        className={inputClassName}
+                        value={form.endTime}
+                        onChange={(event) => updateField("endTime", event.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`${optionCardClassName} p-5`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className={sectionTitleClassName}>Booking Type</h3>
+                        <p className="mt-2 text-[14px] text-[#6B7280]">
+                          Let guests book instantly or approve requests manually.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateField("instantBook", !form.instantBook)
+                        }
+                        className={`relative h-7 w-14 rounded-full transition ${
+                          form.instantBook ? "bg-[#0A1628]" : "bg-[#E5E7EB]"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${
+                            form.instantBook ? "left-8" : "left-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      House rules
+                    </label>
+                    <textarea
+                      rows={5}
+                      className={textareaClassName}
+                      value={form.houseRules}
+                      onChange={(event) => updateField("houseRules", event.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 7 ? (
+              <div>
+                <SectionHeader
+                  title="Buffer Time"
+                  subtitle="Add automatic gap time before and after each booking to give yourself time to prepare or clean the space."
+                />
+
+                <div className="space-y-8">
+                  <div>
+                    <p className="mb-3 text-[13px] font-bold text-[#0A1628]">
+                      Before each booking
+                    </p>
+                    <div className="flex flex-wrap gap-2.5">
+                      {BUFFER_OPTIONS.map((option) => {
+                        const selected = beforeSelection === option.value;
+                        return (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => handleBufferSelect("before", option.value)}
+                            className={`min-h-[44px] min-w-[calc(33%-8px)] rounded-xl border-[1.5px] px-4 py-3 text-[14px] transition sm:min-w-0 sm:px-5 ${
+                              selected
+                                ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)] font-semibold text-[#0A1628]"
+                                : "border-[#E5E7EB] bg-white text-[#111827] hover:border-[#305CDE]"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {beforeSelection === "custom" ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <input
+                          type="number"
+                          className="h-11 w-20 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-center text-[15px] outline-none focus:border-[#0A1628]"
+                          value={customBefore}
+                          onChange={(event) => setCustomBefore(event.target.value)}
+                        />
+                        <select
+                          className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[15px] outline-none focus:border-[#0A1628]"
+                          value={customBeforeUnit}
+                          onChange={(event) => setCustomBeforeUnit(event.target.value)}
+                        >
+                          <option value="minutes">minutes</option>
+                          <option value="hours">hours</option>
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <p className="mb-3 text-[13px] font-bold text-[#0A1628]">
+                      After each booking
+                    </p>
+                    <div className="flex flex-wrap gap-2.5">
+                      {BUFFER_OPTIONS.map((option) => {
+                        const selected = afterSelection === option.value;
+                        return (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => handleBufferSelect("after", option.value)}
+                            className={`min-h-[44px] min-w-[calc(33%-8px)] rounded-xl border-[1.5px] px-4 py-3 text-[14px] transition sm:min-w-0 sm:px-5 ${
+                              selected
+                                ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)] font-semibold text-[#0A1628]"
+                                : "border-[#E5E7EB] bg-white text-[#111827] hover:border-[#305CDE]"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {afterSelection === "custom" ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <input
+                          type="number"
+                          className="h-11 w-20 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-center text-[15px] outline-none focus:border-[#0A1628]"
+                          value={customAfter}
+                          onChange={(event) => setCustomAfter(event.target.value)}
+                        />
+                        <select
+                          className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[15px] outline-none focus:border-[#0A1628]"
+                          value={customAfterUnit}
+                          onChange={(event) => setCustomAfterUnit(event.target.value)}
+                        >
+                          <option value="minutes">minutes</option>
+                          <option value="hours">hours</option>
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-[#E5E7EB] bg-[#F8F6F0] p-5">
+                    <div className="flex items-stretch overflow-hidden rounded-xl border border-[#E5E7EB] bg-white">
+                      <motion.div
+                        animate={{ width: beforeWidth }}
+                        transition={{ duration: 0.3 }}
+                        className="min-h-[72px] border border-dashed border-[#305CDE] bg-[rgba(48,92,222,0.2)]"
+                      />
+                      <motion.div
+                        animate={{ width: bookingWidth }}
+                        transition={{ duration: 0.3 }}
+                        className="min-h-[72px] bg-[#0A1628]"
+                      />
+                      <motion.div
+                        animate={{ width: afterWidth }}
+                        transition={{ duration: 0.3 }}
+                        className="min-h-[72px] border border-dashed border-[#305CDE] bg-[rgba(48,92,222,0.2)]"
+                      />
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-4 text-center text-[12px] text-[#6B7280]">
+                      <p>{formatBufferLabel(effectiveBufferBefore)}</p>
+                      <p className="font-semibold text-[#0A1628]">Booking</p>
+                      <p>{formatBufferLabel(effectiveBufferAfter)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 rounded-xl border border-[rgba(48,92,222,0.2)] bg-[rgba(48,92,222,0.05)] px-4 py-4">
+                    <Lightbulb size={16} className="mt-1 shrink-0 text-[#305CDE]" />
+                    <p className="text-[13px] leading-6 text-[#6B7280]">
+                      Buffer time slots are automatically blocked on your calendar.
+                      Guests cannot book during buffer periods. You can change
+                      this at any time from your listing settings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 8 ? (
+              <div>
+                <SectionHeader
+                  title="Connect Your Calendar"
+                  subtitle="Sync your VenCome availability with your existing calendar. When you receive a booking elsewhere, it automatically blocks on VenCome and vice versa."
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setStep(9)}
+                  className="mb-8 text-[13px] font-medium text-[#305CDE] transition hover:underline"
+                >
+                  Skip for now — set up later in settings
+                </button>
+
+                <div className="mb-6 rounded-2xl border border-[#E5E7EB] bg-[#F8F6F0] p-5">
+                  <div className="flex flex-col items-center gap-4 text-center md:flex-row md:justify-center md:text-left">
+                    {["VenCome Booking", "Auto-syncs", "Your Calendar"].map(
+                      (item, index) => (
+                        <div
+                          key={item}
+                          className="flex items-center gap-4 md:flex-1 md:justify-center"
+                        >
+                          <div className="flex flex-col items-center">
+                            <span className="block h-2 w-2 rounded-full bg-[#0A1628]" />
+                            <span className="mt-2 text-[12px] text-[#6B7280]">
+                              {item}
+                            </span>
+                          </div>
+                          {index < 2 ? (
+                            <div className="hidden h-[2px] w-14 bg-[#E5E7EB] md:block" />
+                          ) : null}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <p className="mt-4 text-center text-[13px] text-[#6B7280]">
+                    Changes sync in real time. Cancellations and modifications
+                    update automatically on both platforms.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {CALENDAR_PROVIDERS.map((provider) => {
+                    const connected = connectedCalendars.includes(provider.id);
+                    const loading = connectingCalendar === provider.id;
+
+                    return (
+                      <motion.div
+                        key={provider.id}
+                        layout
+                        className={`rounded-[14px] border-[1.5px] bg-white p-5 ${
+                          connected
+                            ? "border-[#16A34A]"
+                            : "border-[#E5E7EB] hover:border-[#305CDE]"
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <ProviderLogo providerId={provider.id} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[15px] font-bold text-[#0A1628]">
+                              {provider.name}
+                            </p>
+                            <p className="mt-1 text-[12px] leading-5 text-[#6B7280]">
+                              {provider.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          {connected ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-3.5 py-1.5 text-[12px] font-semibold text-[#16A34A]">
+                                <Check size={12} />
+                                Connected
+                              </span>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => disconnectCalendar(provider.id)}
+                                  className="mt-2 text-[12px] text-[#DC2626] transition hover:underline"
+                                >
+                                  Disconnect
+                                </button>
+                              </div>
+                            </div>
+                          ) : provider.type === "ical" ? (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setShowIcalInput((current) => !current)}
+                                className="rounded-lg border-[1.5px] border-[#E5E7EB] px-4 py-2 text-[13px] font-medium text-[#111827] transition hover:border-[#0A1628]"
+                              >
+                                Add URL
+                              </button>
+
+                              <AnimatePresence initial={false}>
+                                {showIcalInput ? (
+                                  <motion.div
+                                    key="ical-input"
+                                    layout
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="mt-4 flex flex-col gap-3">
+                                      <input
+                                        className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-4 text-[14px] outline-none focus:border-[#0A1628]"
+                                        placeholder="Paste your .ics feed URL"
+                                        value={icalUrl}
+                                        onChange={(event) =>
+                                          setIcalUrl(event.target.value)
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={!icalUrl || loading}
+                                        onClick={() => handleCalendarConnect("ical")}
+                                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
+                                      >
+                                        {loading ? (
+                                          <>
+                                            <Loader2
+                                              size={14}
+                                              className="mr-2 animate-spin"
+                                            />
+                                            Connecting...
+                                          </>
+                                        ) : (
+                                          "Add Calendar"
+                                        )}
+                                      </button>
+                                    </div>
+                                  </motion.div>
+                                ) : null}
+                              </AnimatePresence>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={loading}
+                              onClick={() => handleCalendarConnect(provider.id)}
+                              className="inline-flex items-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 size={14} className="mr-2 animate-spin" />
+                                  Connecting...
+                                </>
+                              ) : (
+                                "Connect"
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                <AnimatePresence>
+                  {connectedCalendars.length > 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="mt-6 rounded-xl border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.06)] px-4 py-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2
+                          size={18}
+                          className="mt-0.5 text-[#16A34A]"
+                        />
+                        <div>
+                          <p className="text-[15px] font-semibold text-[#16A34A]">
+                            {connectedCalendars.length} calendar connected
+                          </p>
+                          <p className="mt-1 text-[13px] text-[#6B7280]">
+                            Your VenCome availability will now sync automatically.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            ) : null}
+
+            {step === 9 ? (
+              <div>
+                <SectionHeader
+                  title="Preview Your Listing"
+                  subtitle="Review the core information before you publish your space to VenCome."
+                />
+
+                <div className="space-y-6">
+                  <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
+                    <img
+                      src={form.photos[0] || PHOTO_LIBRARY[0]}
+                      alt={form.title}
+                      className="h-64 w-full object-cover"
+                    />
+                    <div className="p-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#0A1628] px-3 py-1 text-[12px] font-semibold text-white">
+                          {previewCategory}
+                        </span>
+                        {form.instantBook ? (
+                          <span className="rounded-full bg-[rgba(22,163,74,0.1)] px-3 py-1 text-[12px] font-semibold text-[#16A34A]">
+                            Instant Book
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <h3 className="mt-4 text-[26px] font-extrabold text-[#0A1628]">
+                        {form.title}
+                      </h3>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-4 text-[14px] text-[#6B7280]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <MapPin size={14} />
+                          {form.locationName}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 size={14} />
+                          {form.startTime} - {form.endTime}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays size={14} />
+                          {form.availabilityDays.length} days open
+                        </span>
+                      </div>
+
+                      <p className="mt-4 text-[15px] leading-7 text-[#374151]">
+                        {form.description}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setLeaseFile(null)}
-                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {[
+                      {
+                        label: "Hourly",
+                        value: formatCurrency(form.pricingHour),
+                      },
+                      {
+                        label: "Daily",
+                        value: formatCurrency(form.pricingDay),
+                      },
+                      {
+                        label: "Monthly",
+                        value: formatCurrency(form.pricingMonth),
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl border border-[#E5E7EB] bg-white p-5"
+                      >
+                        <p className="text-[13px] font-bold text-[#6B7280]">
+                          {item.label}
+                        </p>
+                        <p className="mt-2 text-[24px] font-extrabold text-[#0A1628]">
+                          {item.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+                    <h3 className={sectionTitleClassName}>Operational Settings</h3>
+                    <div className="mt-4 grid gap-3 text-[14px] text-[#374151]">
+                      <p>
+                        Buffer before:{" "}
+                        <span className="font-semibold text-[#0A1628]">
+                          {formatBufferLabel(effectiveBufferBefore)}
+                        </span>
+                      </p>
+                      <p>
+                        Buffer after:{" "}
+                        <span className="font-semibold text-[#0A1628]">
+                          {formatBufferLabel(effectiveBufferAfter)}
+                        </span>
+                      </p>
+                      <p>
+                        Connected calendars:{" "}
+                        <span className="font-semibold text-[#0A1628]">
+                          {connectedCalendars.length || 0}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+            ) : null}
+          </StepFrame>
+        </AnimatePresence>
 
-            {!leaseFile && (
-              <p className="text-center text-sm text-gray-400 mt-4">
-                No lease agreement uploaded yet.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+        <div className="sticky bottom-0 z-50 -mx-4 mt-8 border-t border-[#E5E7EB] bg-white px-4 py-3 sm:-mx-10 sm:px-8 sm:py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-h-[48px] items-center">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={previousStep}
+                  className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-[#E5E7EB] px-4 py-3 text-[14px] font-medium text-[#111827] transition hover:border-[#0A1628] sm:w-auto sm:flex-none"
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </button>
+              ) : null}
+            </div>
 
-      {/* Success modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center flex flex-col items-center">
-            <IoIosCheckmarkCircleOutline size={100} color="green" />
-            <h2 className="text-2xl font-bold mt-4 mb-2">Property Created!</h2>
-            <p className="text-gray-600">
-              Redirecting in {countdown} second{countdown > 1 ? "s" : ""}...
+            <p className="text-center text-[13px] text-[#6B7280]">
+              Step {step} of 9
             </p>
+
+            {step < 9 ? (
+              <button
+                type="button"
+                onClick={nextStep}
+                className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] sm:w-auto sm:flex-none"
+              >
+                Continue
+                <ChevronRight size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isPublishing}
+                onClick={publishListing}
+                className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-70 sm:w-auto sm:flex-none"
+              >
+                {isPublishing ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Publishing...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} />
+                    Publish Listing
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
-      )}
-
-      {/* ── Progress + Navigation ─────────────────────────────────────────────── */}
-      <div>
-        <ProgressBar step={step} totalSteps={totalSteps} />
-        <div className="mt-6 flex justify-between">
-          <button
-            onClick={handleBack}
-            disabled={step === 1}
-            className="text-gray-600 hover:text-gray-900 disabled:opacity-50 cursor-pointer"
-          >
-            Back
-          </button>
-          <Button
-            onClick={step === totalSteps ? handleSubmit : handleNext}
-            disabled={isSubmitting}
-            className="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/80 disabled:opacity-70"
-          >
-            {isSubmitting
-              ? "Publishing..."
-              : step === totalSteps
-              ? "Publish Space"
-              : "Next"}
-          </Button>
-        </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
-};
-
-export default CreateSpace;
+}
