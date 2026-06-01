@@ -76,49 +76,43 @@ export default function LoginPage({ mode = "login" }) {
     }
     setEmailError("");
     setIsLoading(true);
-    setOtpError("");
 
     try {
-      const loginRes = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password: "otp-flow" }),
-      });
-      const loginData = await loginRes.json();
-
-      if (loginRes.status === 401 || loginRes.status === 404) {
-        const signupRes = await fetch(`${API}/auth/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            password: `Vencome_${Math.random().toString(36).slice(2)}`,
-            role,
-            isHost: role === "host",
-          }),
-        });
-        const signupData = await signupRes.json();
-        if (!signupRes.ok) {
-          setEmailError(signupData.error || "Something went wrong");
-          setIsLoading(false);
-          return;
-        }
-      } else if (!loginRes.ok) {
-        setEmailError(loginData.error || "Something went wrong");
-        return;
-      }
-
-      const otpRes = await fetch(`${API}/auth/resend-otp`, {
+      const checkRes = await fetch(`${API}/auth/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
-      if (otpRes.ok) {
+      if (checkRes.ok) {
         setStep("otp");
         setResendTimer(30);
       } else {
-        setEmailError("Failed to send verification code. Try again.");
+        const signupRes = await fetch(`${API}/auth/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password: `Vc_${Math.random().toString(36).slice(2)}!A1`,
+            isHost: role === "host",
+          }),
+        });
+        const signupData = await signupRes.json();
+
+        if (!signupRes.ok && signupRes.status !== 409) {
+          setEmailError(signupData.error || "Something went wrong");
+          setIsLoading(false);
+          return;
+        }
+
+        await fetch(`${API}/auth/resend-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+
+        setStep("otp");
+        setResendTimer(30);
       }
     } catch (err) {
       setEmailError("Network error. Please check your connection.");
@@ -510,7 +504,7 @@ export default function LoginPage({ mode = "login" }) {
                       useOneTap={false}
                       theme="outline"
                       size="large"
-                      width="100%"
+                      width="400"
                       text="continue_with"
                     />
                   </div>
