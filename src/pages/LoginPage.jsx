@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { GoogleLogin } from "@react-oauth/google";
 import { Building2, Check, ChevronLeft, Loader2, Search } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const COLORS = {
   blue: "#2E58EC",
@@ -13,6 +15,8 @@ const COLORS = {
   error: "#DC2626",
   success: "#16A34A",
 };
+
+const API = import.meta.env.VITE_API_URL;
 
 const BG_IMAGES = [
   "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400&q=80",
@@ -35,9 +39,11 @@ function isValidEmail(value) {
 
 export default function LoginPage({ mode = "login" }) {
   const navigate = useNavigate();
+  const { updateUser } = useAuth();
   const [step, setStep] = useState("role");
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
@@ -58,53 +64,145 @@ export default function LoginPage({ mode = "login" }) {
     }
   }, [resendTimer, step]);
 
-  useEffect(() => {
-    if (step !== "success") return undefined;
-    const t = window.setTimeout(() => {
-      navigate(role === "host" ? "/dashboard" : "/search");
-    }, 4000);
-    return () => window.clearTimeout(t);
-  }, [navigate, role, step]);
-
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!role) {
       setEmailError("Please select an account type");
       return;
     }
 
-    if (!email || !isValidEmail(email)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Please enter a valid email address");
       return;
     }
-
     setEmailError("");
+    setIsLoading(true);
     setOtpError("");
-    setIsLoading(true);
 
-    window.setTimeout(() => {
-      setIsLoading(false);
-      setStep("otp");
-      setResendTimer(30);
-    }, 1500);
-  };
+    try {
+      const loginRes = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: "otp-flow" }),
+      });
+      const loginData = await loginRes.json();
 
-  const handleVerifyOtp = () => {
-    const code = otp.join("");
-    if (code.length < 6) return;
-
-    setIsLoading(true);
-    window.setTimeout(() => {
-      setIsLoading(false);
-      if (code === "123456") {
-        setOtpError("");
-        setStep("success");
+      if (loginRes.status === 401 || loginRes.status === 404) {
+        const signupRes = await fetch(`${API}/auth/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password: `Vencome_${Math.random().toString(36).slice(2)}`,
+            role,
+            isHost: role === "host",
+          }),
+        });
+        const signupData = await signupRes.json();
+        if (!signupRes.ok) {
+          setEmailError(signupData.error || "Something went wrong");
+          setIsLoading(false);
+          return;
+        }
+      } else if (!loginRes.ok) {
+        setEmailError(loginData.error || "Something went wrong");
         return;
       }
 
-      setOtpError("Incorrect code. Please try again.");
-      setOtp(["", "", "", "", "", ""]);
-      otpRefs.current[0]?.focus();
-    }, 1500);
+      const otpRes = await fetch(`${API}/auth/resend-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (otpRes.ok) {
+        setStep("otp");
+        setResendTimer(30);
+      } else {
+        setEmailError("Failed to send verification code. Try again.");
+      }
+    } catch (err) {
+      setEmailError("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = otp.join("");
+    if (code.length < 6) return;
+    setIsLoading(true);
+    setOtpError("");
+
+    try {
+      const res = await fetch(`${API}/auth/verify-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: code }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setOtpError(data.error || "Invalid or expired code");
+        setOtp(["", "", "", "", "", ""]);
+        otpRefs.current[0]?.focus();
+        setIsLoading(false);
+        return;
+      }
+
+      let resolvedUser = data.user;
+      localStorage.setItem("vencome_token", data.token);
+      localStorage.setItem("vencome_refresh", data.refreshToken);
+      localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("refreshToken", data.refreshToken);
+      localStorage.setItem("user", JSON.stringify(resolvedUser));
+
+      if (role === "host" && !resolvedUser.isHost) {
+        const roleRes = await fetch(`${API}/auth/update-role`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.token}`,
+          },
+          body: JSON.stringify({ isHost: true }),
+        });
+
+        if (roleRes.ok) {
+          resolvedUser = { ...resolvedUser, isHost: true };
+          localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+          localStorage.setItem("user", JSON.stringify(resolvedUser));
+        }
+      }
+
+      updateUser(resolvedUser);
+      setFirstName(resolvedUser.firstName || email.split("@")[0]);
+      setStep("success");
+
+      window.setTimeout(() => {
+        if (role === "host" || resolvedUser.isHost) {
+          navigate("/dashboard");
+        } else {
+          navigate("/customer/dashboard");
+        }
+      }, 3000);
+    } catch (err) {
+      setOtpError("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendTimer(30);
+    try {
+      await fetch(`${API}/auth/resend-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch (err) {
+      console.error("Resend failed", err);
+    }
   };
 
   const title = mode === "signup" ? "Create your account" : "Log in or sign up";
@@ -343,46 +441,79 @@ export default function LoginPage({ mode = "login" }) {
                     <div style={{ flex: 1, height: 1, background: COLORS.border }} />
                   </div>
 
-                  <button
-                    type="button"
-                    style={{
-                      width: "100%",
-                      height: 52,
-                      border: `1.5px solid ${COLORS.border}`,
-                      borderRadius: 10,
-                      background: "white",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 12,
-                      fontSize: 15,
-                      fontWeight: 500,
-                      color: "#111827",
-                      marginBottom: 10,
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 48 48">
-                      <path
-                        fill="#FFC107"
-                        d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l5.7-5.7C34.3 6.5 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"
-                      />
-                      <path
-                        fill="#FF3D00"
-                        d="M6.3 14.7l6.6 4.8C14.7 16 19.1 13 24 13c3.1 0 5.8 1.1 8 2.9l5.7-5.7C34.3 6.5 29.4 4 24 4 16.3 4 9.7 8.4 6.3 14.7z"
-                      />
-                      <path
-                        fill="#4CAF50"
-                        d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.5 26.8 36.5 24 36.5c-5.2 0-9.6-3.4-11.2-8H6.5C9.9 37.7 16.4 44 24 44z"
-                      />
-                      <path
-                        fill="#1976D2"
-                        d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.3 4.2-4.2 5.6l6.2 5.2C40.5 36.2 44 30.6 44 24c0-1.3-.1-2.6-.4-3.9z"
-                      />
-                    </svg>
-                    Continue with Google
-                  </button>
+                  <div style={{ marginBottom: 10 }}>
+                    <GoogleLogin
+                      onSuccess={async (credentialResponse) => {
+                        setIsLoading(true);
+                        setEmailError("");
+                        try {
+                          const res = await fetch(`${API}/auth/google`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              token: credentialResponse.credential,
+                              role,
+                              isHost: role === "host",
+                            }),
+                          });
+                          const data = await res.json();
+
+                          if (!res.ok) {
+                            setEmailError(data.error || "Google sign in failed");
+                            setIsLoading(false);
+                            return;
+                          }
+
+                          let resolvedUser = data.user;
+                          localStorage.setItem("vencome_token", data.token);
+                          localStorage.setItem("vencome_refresh", data.refreshToken);
+                          localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+                          localStorage.setItem("token", data.token);
+                          localStorage.setItem("refreshToken", data.refreshToken);
+                          localStorage.setItem("user", JSON.stringify(resolvedUser));
+
+                          if (role === "host" && !resolvedUser.isHost) {
+                            const roleRes = await fetch(`${API}/auth/update-role`, {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${data.token}`,
+                              },
+                              body: JSON.stringify({ isHost: true }),
+                            });
+
+                            if (roleRes.ok) {
+                              resolvedUser = { ...resolvedUser, isHost: true };
+                              localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+                              localStorage.setItem("user", JSON.stringify(resolvedUser));
+                            }
+                          }
+
+                          updateUser(resolvedUser);
+                          setFirstName(resolvedUser.firstName || "");
+                          setStep("success");
+
+                          window.setTimeout(() => {
+                            if (role === "host" || resolvedUser.isHost) {
+                              navigate("/dashboard");
+                            } else {
+                              navigate("/customer/dashboard");
+                            }
+                          }, 3000);
+                        } catch (err) {
+                          setEmailError("Google sign in failed. Try again.");
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      onError={() => setEmailError("Google sign in failed")}
+                      useOneTap={false}
+                      theme="outline"
+                      size="large"
+                      width="100%"
+                      text="continue_with"
+                    />
+                  </div>
 
                   <button
                     type="button"
@@ -577,7 +708,7 @@ export default function LoginPage({ mode = "login" }) {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setResendTimer(30)}
+                        onClick={handleResend}
                         style={{
                           color: COLORS.blue,
                           fontWeight: 600,
@@ -617,7 +748,7 @@ export default function LoginPage({ mode = "login" }) {
                     You're in!
                   </div>
                   <div style={{ fontSize: 15, color: COLORS.grey, textAlign: "center", marginTop: 6, marginBottom: 20 }}>
-                    Welcome to VenCome.
+                    Welcome to VenCome{firstName ? `, ${firstName}` : ""}.
                   </div>
 
                   <button
