@@ -524,7 +524,7 @@ export default function PropertyDetails() {
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.45, ease: "easeOut" }}
-              className="lg:sticky lg:top-[100px] lg:self-start"
+              className="lg:self-start"
             >
               <BookingSidebar
                 property={property}
@@ -1086,7 +1086,7 @@ function BookingSidebar({
   bookingTotal,
 }) {
   return (
-    <div className="rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.1)] md:p-7">
+    <div className="lg:sticky lg:top-[100px] rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.1)] md:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[28px] font-extrabold text-[#0A1628]">

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import PropertyCard from "../components/PropertyCard";
+import { getUser } from "../utils/auth";
 
 const UPCOMING = [
   {
@@ -58,7 +59,6 @@ const STATS = [
 ];
 
 const ACTIONS = [
-  { icon: Search, title: "Find a Space", description: "Browse thousands of listings", href: "/search" },
   { icon: Plus, title: "List Your Space", description: "Start earning from your property", href: "/create-space" },
   { icon: MessageSquare, title: "Messages", description: "3 unread conversations", href: "/dashboard/messages" },
   { icon: Heart, title: "Saved Spaces", description: "14 spaces saved", href: "/dashboard/saved" },
@@ -102,6 +102,10 @@ function StatusBadge({ status }) {
 }
 
 export default function Dashboard() {
+  const currentUser = getUser();
+  const displayName = currentUser?.firstName
+    ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
+    : currentUser?.email?.split("@")[0] || "there";
   const upcomingCount = useCountUp(2);
   const savedCount = useCountUp(14);
   const unreadCount = useCountUp(3);
@@ -124,7 +128,7 @@ export default function Dashboard() {
         <div className="pointer-events-none absolute right-[-40px] top-[-40px] h-[200px] w-[200px] rounded-full bg-[rgba(48,92,222,0.1)]" />
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-[18px] font-bold text-white md:text-[22px]">Good morning, James</h2>
+            <h2 className="text-[18px] font-bold text-white md:text-[22px]">Good morning, {displayName}</h2>
             <p className="mt-1.5 text-[14px] text-white/70">
               You have 2 upcoming bookings this week.
             </p>

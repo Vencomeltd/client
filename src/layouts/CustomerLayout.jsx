@@ -38,7 +38,6 @@ const MAIN_ITEMS = [
 
 const QUICK_ITEMS = [
   { label: "Find a Space", path: "/search", icon: Search },
-  { label: "List a Space", path: "/create-space", icon: Building2 },
   { label: "Help & Support", path: "/support", icon: HelpCircle },
 ];
 

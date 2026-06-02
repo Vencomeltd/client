@@ -17,6 +17,9 @@ import {
   Upload,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { getToken, authHeaders } from "../utils/auth";
+
+const API = import.meta.env.VITE_API_URL;
 
 const STEP_LABELS = [
   "Category",
@@ -343,6 +346,8 @@ export default function CreateSpace() {
   const [icalUrl, setIcalUrl] = useState("");
   const [showIcalInput, setShowIcalInput] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const effectiveBufferBefore =
     beforeSelection === "custom"
@@ -418,9 +423,101 @@ export default function CreateSpace() {
     setStep((current) => Math.max(current - 1, 1));
   };
 
-  const publishListing = () => {
+  const handlePublish = async () => {
+    setIsLoading(true);
     setIsPublishing(true);
-    window.setTimeout(() => navigate("/host/listings"), 1200);
+    setError("");
+
+    try {
+      const formData = new FormData();
+      const authorizationHeader =
+        authHeaders().Authorization || `Bearer ${getToken()}`;
+
+      formData.append("title", form.title);
+      formData.append("description", form.description);
+      formData.append(
+        "location",
+        JSON.stringify({
+          address: form.address,
+          city: form.city,
+          country: form.country,
+        })
+      );
+      formData.append(
+        "coordinates",
+        JSON.stringify({
+          latitude: form.latitude || 0,
+          longitude: form.longitude || 0,
+        })
+      );
+      formData.append(
+        "pricing",
+        JSON.stringify({
+          pricingType: form.pricingType || "DAILY",
+          weekdayPrice: form.pricingDay || 0,
+          hourlyPrice: form.pricingHour || 0,
+          minHours: form.minHours || 1,
+        })
+      );
+      formData.append(
+        "features",
+        JSON.stringify({
+          wifi: form.wifi || false,
+          seatCapacity: form.capacity || 0,
+          sizeSQM: form.size || 0,
+          naturalLight: form.naturalLight || false,
+          restrooms: form.restrooms || 0,
+        })
+      );
+      formData.append(
+        "bookingSettings",
+        JSON.stringify({
+          instantBook: form.instantBook || false,
+          approveAllBookings: !form.instantBook,
+          refundPolicy: form.refundPolicy || "moderate",
+        })
+      );
+      formData.append(
+        "availability",
+        form.availability || JSON.stringify(form.availabilityDays || []) || "all"
+      );
+
+      if (form.category) {
+        formData.append("category", form.category);
+      }
+
+      if (form.images && form.images.length > 0) {
+        form.images.forEach((image) => {
+          if (image instanceof File) {
+            formData.append("images", image);
+          }
+        });
+      }
+
+      const res = await fetch(`${API}/properties`, {
+        method: "POST",
+        headers: {
+          Authorization: authorizationHeader,
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || data.error || "Failed to create listing");
+        setIsLoading(false);
+        setIsPublishing(false);
+        return;
+      }
+
+      navigate("/dashboard");
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
+      setIsPublishing(false);
+    }
   };
 
   return (
@@ -1252,24 +1349,40 @@ export default function CreateSpace() {
                 <ChevronRight size={16} />
               </button>
             ) : (
-              <button
-                type="button"
-                disabled={isPublishing}
-                onClick={publishListing}
-                className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-70 sm:w-auto sm:flex-none"
-              >
-                {isPublishing ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Publishing...
-                  </>
-                ) : (
-                  <>
-                    <Upload size={16} />
-                    Publish Listing
-                  </>
+              <div className="w-full sm:w-auto">
+                {error && (
+                  <div
+                    style={{
+                      color: "#DC2626",
+                      fontSize: 14,
+                      marginBottom: 12,
+                      padding: "10px 16px",
+                      background: "rgba(220,38,38,0.08)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    {error}
+                  </div>
                 )}
-              </button>
+                <button
+                  type="button"
+                  disabled={isLoading || isPublishing}
+                  onClick={handlePublish}
+                  className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-70 sm:w-auto sm:flex-none"
+                >
+                  {isLoading || isPublishing ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      Publish Listing
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </div>

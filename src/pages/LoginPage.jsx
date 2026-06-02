@@ -171,14 +171,15 @@ export default function LoginPage({ mode = "login" }) {
       updateUser(resolvedUser);
       setFirstName(resolvedUser.firstName || email.split("@")[0]);
       setStep("success");
+      const userIsHost = resolvedUser?.isHost === true || role === "host";
 
       window.setTimeout(() => {
-        if (role === "host" || resolvedUser.isHost) {
+        if (userIsHost) {
           navigate("/dashboard");
         } else {
           navigate("/customer/dashboard");
         }
-      }, 3000);
+      }, 1500);
     } catch (err) {
       setOtpError("Network error. Please try again.");
     } finally {
@@ -467,33 +468,35 @@ export default function LoginPage({ mode = "login" }) {
                           localStorage.setItem("user", JSON.stringify(resolvedUser));
 
                           if (role === "host" && !resolvedUser.isHost) {
-                            const roleRes = await fetch(`${API}/auth/update-role`, {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${data.token}`,
-                              },
-                              body: JSON.stringify({ isHost: true }),
-                            });
-
-                            if (roleRes.ok) {
+                            try {
+                              await fetch(`${API}/auth/update-role`, {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${data.token}`,
+                                },
+                                body: JSON.stringify({ isHost: true }),
+                              });
                               resolvedUser = { ...resolvedUser, isHost: true };
                               localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
                               localStorage.setItem("user", JSON.stringify(resolvedUser));
+                            } catch (err) {
+                              console.error("Role update failed", err);
                             }
                           }
 
                           updateUser(resolvedUser);
                           setFirstName(resolvedUser.firstName || "");
                           setStep("success");
+                          const userIsHost = resolvedUser?.isHost === true || role === "host";
 
                           window.setTimeout(() => {
-                            if (role === "host" || resolvedUser.isHost) {
+                            if (userIsHost) {
                               navigate("/dashboard");
                             } else {
                               navigate("/customer/dashboard");
                             }
-                          }, 3000);
+                          }, 1500);
                         } catch (err) {
                           setEmailError("Google sign in failed. Try again.");
                         } finally {

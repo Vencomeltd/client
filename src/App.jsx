@@ -13,6 +13,12 @@ import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import PrivateRoute from "./PrivateRoute";
+import {
+  ProtectedRoute,
+  HostRoute,
+  CustomerRoute,
+  AdminRoute,
+} from "./components/ProtectedRoute";
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";
 
@@ -100,17 +106,17 @@ function AppContent() {
         <Route
           path="/dashboard"
           element={
-            <PrivateRoute>
+            <HostRoute>
               <Dashboard />
-            </PrivateRoute>
+            </HostRoute>
           }
         />
         <Route
           path="/customer/dashboard"
           element={
-            <PrivateRoute>
+            <CustomerRoute>
               <CustomerDashboard section="overview" />
-            </PrivateRoute>
+            </CustomerRoute>
           }
         />
         <Route
@@ -228,9 +234,9 @@ function AppContent() {
         <Route
           path="/my-bookings"
           element={
-            <PrivateRoute>
-              <Navigate to="/dashboard/bookings" replace />
-            </PrivateRoute>
+            <HostRoute>
+              <MyBookings />
+            </HostRoute>
           }
         />
         <Route
@@ -262,9 +268,9 @@ function AppContent() {
         <Route
           path="/create-space"
           element={
-            <PrivateRoute>
-              <Navigate to="/host/create" replace />
-            </PrivateRoute>
+            <HostRoute>
+              <CreateSpace />
+            </HostRoute>
           }
         />
         <Route
@@ -278,9 +284,9 @@ function AppContent() {
         <Route
           path="/my-listings"
           element={
-            <PrivateRoute requireHost>
-              <Navigate to="/host/listings" replace />
-            </PrivateRoute>
+            <HostRoute>
+              <MyListings />
+            </HostRoute>
           }
         />
         <Route
@@ -318,9 +324,9 @@ function AppContent() {
         <Route
           path="/property-availability"
           element={
-            <PrivateRoute requireHost>
+            <HostRoute>
               <PropertyAvailability />
-            </PrivateRoute>
+            </HostRoute>
           }
         />
         <Route
@@ -344,9 +350,9 @@ function AppContent() {
         <Route
           path="/admin"
           element={
-            <PrivateRoute requireAdmin>
+            <AdminRoute>
               <AdminDashboard />
-            </PrivateRoute>
+            </AdminRoute>
           }
         />
 

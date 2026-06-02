@@ -79,10 +79,16 @@ function SidebarContent({ pathname, onNavigate }) {
     <>
       <div className="px-5 pb-0 pt-6">
         <Link to="/" onClick={onNavigate} className="flex items-center gap-3 text-white">
-          <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/10 text-[#305CDE]">
-            <Building2 size={20} />
-          </span>
-          <span className="text-[18px] font-bold">VenCome</span>
+          <img
+            src="/logo-blue.png"
+            alt="VenCome"
+            style={{
+              height: 36,
+              width: "auto",
+              objectFit: "contain",
+              filter: "brightness(0) invert(1)",
+            }}
+          />
         </Link>
       </div>
 

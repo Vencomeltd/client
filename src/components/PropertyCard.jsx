@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
@@ -276,7 +276,7 @@ export default function PropertyCard({
 
               <p className="mt-2.5 text-left">
                 <span className="text-[16px] font-bold text-[#111827]">
-                  Â£{formatPrice(listing.price)}
+                  {`\u00A3${formatPrice(listing.price)}`}
                 </span>
                 <span className="text-[13px] font-normal text-[#6B7280]">
                   {" "}
