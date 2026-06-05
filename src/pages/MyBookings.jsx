@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -15,15 +15,6 @@ import {
   XCircle,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-
-const ALL_BOOKINGS = [
-  { id: 1, tab: "upcoming", space: "Canary Wharf Boardroom", location: "Canary Wharf, London", category: "Meeting Rooms", image: "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=400&q=80", checkIn: "Mon 19 May 2026", checkOut: "Mon 19 May 2026", duration: "9:00am – 1:00pm", durationLabel: "4 hours", price: 480, status: "Confirmed", bookingRef: "VC-2026-001", host: "Marcus Williams", hostAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&q=80", canCancel: true, canModify: true, canMessage: true },
-  { id: 2, tab: "upcoming", space: "DIFC Creative Studio", location: "DIFC, Dubai", category: "Studio Space", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&q=80", checkIn: "Fri 23 May 2026", checkOut: "Fri 23 May 2026", duration: "9:00am – 6:00pm", durationLabel: "Full day", price: 250, status: "Pending Approval", bookingRef: "VC-2026-002", host: "Aisha Rahman", hostAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&q=80", canCancel: true, canModify: false, canMessage: true },
-  { id: 6, tab: "current", space: "Soho Client Suite", location: "Soho, London", category: "Office Space", image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=400&q=80", checkIn: "Today", checkOut: "Today", duration: "9:00am – 5:00pm", durationLabel: "8 hours", price: 680, status: "Confirmed", bookingRef: "VC-2026-006", host: "Nina Brooks", hostAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=60&q=80", canCancel: false, canModify: false, canMessage: true },
-  { id: 3, tab: "past", space: "The Shard Executive Suite", location: "London Bridge, London", category: "Office Space", image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400&q=80", checkIn: "Wed 1 May 2026", checkOut: "Wed 1 May 2026", duration: "10:00am – 4:00pm", durationLabel: "6 hours", price: 510, status: "Completed", bookingRef: "VC-2026-003", host: "James Thornton", hostAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=60&q=80", canCancel: false, canModify: false, canMessage: true, hasReview: false },
-  { id: 4, tab: "past", space: "Shoreditch Event Space", location: "Shoreditch, London", category: "Event Venues", image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400&q=80", checkIn: "Sat 12 Apr 2026", checkOut: "Sat 12 Apr 2026", duration: "12:00pm – 10:00pm", durationLabel: "10 hours", price: 1800, status: "Completed", bookingRef: "VC-2026-004", host: "Sophie Chen", hostAvatar: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=60&q=80", canCancel: false, canModify: false, canMessage: true, hasReview: true },
-  { id: 5, tab: "cancelled", space: "Birmingham Conference Centre", location: "Digbeth, Birmingham", category: "Meeting Rooms", image: "https://images.unsplash.com/photo-1517502884422-41eaead166d4?w=400&q=80", checkIn: "Thu 10 Apr 2026", checkOut: "Thu 10 Apr 2026", duration: "2:00pm – 5:00pm", durationLabel: "3 hours", price: 270, status: "Cancelled", bookingRef: "VC-2026-005", host: "David Park", hostAvatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=60&q=80", canCancel: false, canModify: false, canMessage: false, refundStatus: "Refunded £270" },
-];
 
 const TABS = ["upcoming", "current", "past", "cancelled"];
 const STATUS_FILTERS = ["All", "Confirmed", "Pending", "Completed", "Cancelled"];
@@ -128,38 +119,140 @@ export default function MyBookings() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
+  const [allBookings, setAllBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        const currentUser = JSON.parse(localStorage.getItem("vencome_user") || "{}");
+        const token = localStorage.getItem("vencome_token");
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        const raw = Array.isArray(data) ? data : data.bookings || [];
+
+        // Map API booking to the shape the UI expects
+        const mapped = raw.map((b) => {
+          const checkInDate = new Date(b.checkIn);
+          const checkOutDate = new Date(b.checkOut);
+          const now = new Date();
+
+          let tab = "upcoming";
+          if (b.status === "cancelled" || b.status === "declined") tab = "cancelled";
+          else if (checkOutDate < now) tab = "past";
+          else if (checkInDate <= now && checkOutDate >= now) tab = "current";
+          else tab = "upcoming";
+
+          const statusMap = {
+            pending: "Pending Approval",
+            confirmed: "Confirmed",
+            completed: "Completed",
+            cancelled: "Cancelled",
+            declined: "Cancelled",
+          };
+
+          return {
+            id: b._id,
+            tab,
+            space: b.property?.title || "Property",
+            location: b.property?.location?.city
+              ? `${b.property.location.city}, ${b.property.location.country || ""}`
+              : "",
+            category: b.property?.category?.name || "",
+            image:
+              b.property?.coverImage ||
+              "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=400&q=80",
+            checkIn: checkInDate.toLocaleDateString("en-GB", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            checkOut: checkOutDate.toLocaleDateString("en-GB", {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            duration: `${checkInDate.toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })} – ${checkOutDate.toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`,
+            durationLabel: b.totalHours
+              ? `${b.totalHours} hours`
+              : b.totalNights
+              ? `${b.totalNights} nights`
+              : "Full day",
+            price: b.totalPrice || 0,
+            status: statusMap[b.status] || "Confirmed",
+            bookingRef: b._id.toString().slice(-8).toUpperCase(),
+            host: b.host?.displayName || b.host?.firstName || "Host",
+            hostAvatar: b.host?.profileImage || "",
+            isHost: b.host?._id === currentUser.id || b.host === currentUser.id,
+            canCancel: tab === "upcoming" && (b.status === "confirmed" || b.status === "pending"),
+            canModify: false,
+            canMessage: true,
+            hasReview: b.reviewed || false,
+            refundStatus: b.refund?.amount ? `Refunded £${b.refund.amount}` : "",
+          };
+        });
+
+        setAllBookings(mapped);
+      } catch (err) {
+        console.error("Failed to fetch bookings:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, []);
+
   const direction =
     TABS.indexOf(activeTab) > TABS.indexOf(prevTab) ? 1 : -1;
 
   const tabCounts = useMemo(
     () =>
       TABS.reduce((acc, tab) => {
-        acc[tab] = ALL_BOOKINGS.filter((booking) => booking.tab === tab).length;
+        acc[tab] = allBookings.filter((b) => b.tab === tab).length;
         return acc;
       }, {}),
-    []
+    [allBookings]
   );
 
   const visibleBookings = useMemo(() => {
-    const filtered = ALL_BOOKINGS.filter((booking) => booking.tab === activeTab)
-      .filter((booking) =>
+    const filtered = allBookings
+      .filter((b) => b.tab === activeTab)
+      .filter((b) =>
         query
-          ? [booking.space, booking.location, booking.host, booking.bookingRef]
+          ? [b.space, b.location, b.host, b.bookingRef]
               .join(" ")
               .toLowerCase()
               .includes(query.toLowerCase())
           : true
       )
-      .filter((booking) => {
+      .filter((b) => {
         if (statusFilter === "All") return true;
-        if (statusFilter === "Pending") return booking.status === "Pending Approval";
-        return booking.status === statusFilter;
+        if (statusFilter === "Pending") return b.status === "Pending Approval";
+        return b.status === statusFilter;
       });
 
-    return [...filtered].sort((a, b) =>
-      sortBy === "newest" ? b.id - a.id : a.id - b.id
+    return [...filtered].sort((a, b) => (sortBy === "newest" ? -1 : 1));
+  }, [allBookings, activeTab, query, sortBy, statusFilter]);
+
+  if (loading)
+    return (
+      <DashboardLayout title="My Bookings">
+        <div style={{ textAlign: "center", padding: "60px 0", color: "#6B7280" }}>
+          Loading your bookings...
+        </div>
+      </DashboardLayout>
     );
-  }, [activeTab, query, sortBy, statusFilter]);
 
   return (
     <DashboardLayout title="My Bookings">
@@ -309,7 +402,7 @@ export default function MyBookings() {
                       <div className="flex min-w-[120px] flex-1 sm:flex-none">
                       <SmallButton>
                         <MessageSquare size={14} />
-                        Message Host
+                        {booking.isHost ? "Message Guest" : "Message Host"}
                       </SmallButton>
                       </div>
                     ) : null}

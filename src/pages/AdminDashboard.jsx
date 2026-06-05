@@ -592,6 +592,57 @@ function formatNumber(value) {
   return new Intl.NumberFormat("en-GB").format(value);
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getUserDisplayName(user = {}) {
+  return user.displayName || [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "User";
+}
+
+function getUserRole(user = {}) {
+  return user.isHost ? "host" : "customer";
+}
+
+function getUserStatus(user = {}) {
+  if (user.isBanned) return "suspended";
+  if (user.isVerified) return "active";
+  return "pending";
+}
+
+function getListingStatus(listing = {}) {
+  return listing.isActive ? "active" : "inactive";
+}
+
+function getListingPriceLabel(listing = {}) {
+  if (listing.pricing?.hourly) return `${formatCurrency(listing.pricing.hourly)} / hr`;
+  if (listing.pricing?.daily) return `${formatCurrency(listing.pricing.daily)} / day`;
+  return "POA";
+}
+
+function getListingHostName(listing = {}) {
+  return (
+    listing.host?.displayName ||
+    [listing.host?.firstName, listing.host?.lastName].filter(Boolean).join(" ") ||
+    "Unknown host"
+  );
+}
+
+function getBookingStatusLabel(status = "") {
+  const normalized = String(status).toLowerCase();
+  if (normalized === "confirmed") return "Confirmed";
+  if (normalized === "cancelled") return "Cancelled";
+  if (normalized === "completed") return "Completed";
+  return "Pending";
+}
+
 function useCountUp(target, duration = 1500) {
   const [count, setCount] = useState(0);
 
@@ -664,15 +715,21 @@ function Toast({ message }) {
 function StatusPill({ status, type = "generic" }) {
   if (type === "listing") {
     const classes =
-      status === "live"
+      status === "active" || status === "live"
         ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
         : status === "paused"
         ? "border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.1)] text-[#D97706]"
         : "border-[rgba(107,114,128,0.2)] bg-[rgba(107,114,128,0.1)] text-[#6B7280]";
+    const label =
+      status === "active" || status === "live"
+        ? "Active"
+        : status === "inactive" || status === "draft"
+        ? "Inactive"
+        : status;
 
     return (
       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${classes}`}>
-        {status}
+        {label}
       </span>
     );
   }
@@ -718,6 +775,23 @@ function StatusPill({ status, type = "generic" }) {
       <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-semibold ${classes}`}>
         <StatusIcon size={12} />
         {label}
+      </span>
+    );
+  }
+
+  if (type === "booking") {
+    const classes =
+      status === "confirmed"
+        ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
+        : status === "pending"
+        ? "border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.1)] text-[#D97706]"
+        : status === "cancelled"
+        ? "border-[rgba(220,38,38,0.15)] bg-[rgba(220,38,38,0.08)] text-[#DC2626]"
+        : "border-[rgba(107,114,128,0.2)] bg-[rgba(107,114,128,0.1)] text-[#6B7280]";
+
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-semibold ${classes}`}>
+        {getBookingStatusLabel(status)}
       </span>
     );
   }
@@ -983,9 +1057,11 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
             {label}
           </p>
           <p className="mt-1 text-[28px] font-extrabold text-[#0A1628]">{value}</p>
-          <div className="mt-2">
-            <GrowthBadge value={growth} positive={positive} />
-          </div>
+          {growth ? (
+            <div className="mt-2">
+              <GrowthBadge value={growth} positive={positive} />
+            </div>
+          ) : null}
         </div>
       </div>
     </motion.div>
@@ -1001,11 +1077,11 @@ function UserMenu({ user, onClose }) {
       className="absolute right-4 top-12 z-20 min-w-[180px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
     >
       <UserMenuItem icon={Eye} label="View Profile" onClick={onClose} />
-      {!user.verified ? <UserMenuItem icon={UserCheck} label="Verify User" onClick={onClose} /> : null}
+      {!user.isVerified ? <UserMenuItem icon={UserCheck} label="Verify User" onClick={onClose} /> : null}
       <UserMenuItem
         icon={ShieldOff}
-        label={user.status === "suspended" ? "Unsuspend" : "Suspend"}
-        danger={user.status !== "suspended"}
+        label={user.isBanned ? "Unsuspend" : "Suspend"}
+        danger={!user.isBanned}
         onClick={onClose}
       />
       <UserMenuItem icon={Key} label="Reset Password" onClick={onClose} />
@@ -1029,62 +1105,46 @@ function UserMenuItem({ icon: Icon, label, danger = false, onClick }) {
   );
 }
 
-function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId }) {
+function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading }) {
   const totalRevenue = MOCK_CHART_DATA.reduce((sum, item) => sum + item.revenue, 0);
   const totalBookings = MOCK_CHART_DATA.reduce((sum, item) => sum + item.bookings, 0);
   const avgMonthRevenue = Math.round(totalRevenue / MOCK_CHART_DATA.length);
   const activeDisputes = MOCK_DISPUTES.filter((item) => item.status !== "resolved");
-  const totalUsersCount = useCountUp(MOCK_METRICS.totalUsers);
-  const activeListingsCount = useCountUp(MOCK_METRICS.activeListings);
-  const gmvCount = useCountUp(MOCK_METRICS.gmv);
-  const revenueCount = useCountUp(MOCK_METRICS.revenue);
+  const totalUsersCount = useCountUp(stats.totalUsers);
+  const totalListingsCount = useCountUp(stats.totalListings);
+  const pendingListingsCount = useCountUp(stats.pendingListings);
+  const activeUsersCount = useCountUp(stats.activeUsers);
 
   const metrics = [
     {
       icon: Users,
       label: "Total Users",
       value: formatNumber(totalUsersCount),
-      growth: MOCK_METRICS.totalUsersGrowth,
+      growth: "",
       iconClasses: "bg-[rgba(10,22,40,0.06)] text-[#0A1628]",
       positive: true,
     },
     {
       icon: Building2,
-      label: "Active Listings",
-      value: formatNumber(activeListingsCount),
-      growth: MOCK_METRICS.activeListingsGrowth,
+      label: "Total Listings",
+      value: formatNumber(totalListingsCount),
+      growth: "",
       iconClasses: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
       positive: true,
     },
     {
-      icon: TrendingUp,
-      label: "GMV",
-      value: formatCurrency(gmvCount),
-      growth: MOCK_METRICS.gmvGrowth,
-      iconClasses: "bg-[rgba(22,163,74,0.1)] text-[#16A34A]",
-      positive: true,
-    },
-    {
-      icon: PoundSterling,
-      label: "Revenue",
-      value: formatCurrency(revenueCount),
-      growth: MOCK_METRICS.revenueGrowth,
-      iconClasses: "bg-[rgba(22,163,74,0.1)] text-[#16A34A]",
-      positive: true,
-    },
-    {
       icon: AlertTriangle,
-      label: "Pending Disputes",
-      value: formatNumber(MOCK_METRICS.pendingDisputes),
-      growth: MOCK_METRICS.disputesGrowth,
+      label: "Pending Listings",
+      value: formatNumber(pendingListingsCount),
+      growth: "",
       iconClasses: "bg-[rgba(239,68,68,0.1)] text-[#DC2626]",
       positive: true,
     },
     {
-      icon: CreditCard,
-      label: "Avg Booking Value",
-      value: formatCurrency(MOCK_METRICS.avgBookingValue),
-      growth: MOCK_METRICS.avgBookingGrowth,
+      icon: UserCheck,
+      label: "Active Users",
+      value: formatNumber(activeUsersCount),
+      growth: "",
       iconClasses: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
       positive: true,
     },
@@ -1093,9 +1153,23 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId }) 
   return (
     <>
       <div className="mb-7 grid grid-cols-2 gap-4 xl:grid-cols-3">
-        {metrics.map((metric, index) => (
-          <MetricCard key={metric.label} index={index} {...metric} />
-        ))}
+        {loading
+          ? Array.from({ length: 4 }, (_, index) => (
+              <div
+                key={`metric-skeleton-${index}`}
+                className="rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-4 md:px-6 md:py-5"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="h-11 w-11 rounded-xl bg-[#F3F4F6]" />
+                  <div className="min-w-0 flex-1">
+                    <div className="h-3 w-24 rounded-full bg-[#F3F4F6]" />
+                    <div className="mt-2 h-8 w-28 rounded-lg bg-[#F3F4F6]" />
+                    <div className="mt-3 h-5 w-16 rounded-full bg-[#F3F4F6]" />
+                  </div>
+                </div>
+              </div>
+            ))
+          : metrics.map((metric, index) => <MetricCard key={metric.label} index={index} {...metric} />)}
       </div>
 
       <div className="mb-7 grid grid-cols-1 gap-5 xl:grid-cols-[2fr_1fr]">
@@ -1248,6 +1322,8 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId }) 
 
 function UsersSection({
   users,
+  totalUsers,
+  loading,
   userQuery,
   setUserQuery,
   roleFilter,
@@ -1260,12 +1336,12 @@ function UsersSection({
   setOpenUserMenuId,
 }) {
   const tabs = [
-    { key: "all", label: `All (${MOCK_USERS.length})` },
-    { key: "customers", label: `Customers (${MOCK_USERS.filter((item) => item.role === "customer").length})` },
-    { key: "hosts", label: `Hosts (${MOCK_USERS.filter((item) => item.role === "host").length})` },
-    { key: "unverified", label: `Unverified (${MOCK_USERS.filter((item) => !item.verified).length})` },
-    { key: "suspended", label: `Suspended (${MOCK_USERS.filter((item) => item.status === "suspended").length})` },
-    { key: "pending", label: `Pending (${MOCK_USERS.filter((item) => item.status === "pending").length})` },
+    { key: "all", label: `All (${users.length})` },
+    { key: "customers", label: `Customers (${users.filter((item) => getUserRole(item) === "customer").length})` },
+    { key: "hosts", label: `Hosts (${users.filter((item) => getUserRole(item) === "host").length})` },
+    { key: "unverified", label: `Unverified (${users.filter((item) => !item.isVerified).length})` },
+    { key: "suspended", label: `Suspended (${users.filter((item) => item.isBanned).length})` },
+    { key: "pending", label: `Pending (${users.filter((item) => !item.isVerified && !item.isBanned).length})` },
   ];
 
   return (
@@ -1273,7 +1349,7 @@ function UsersSection({
       <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="text-[20px] font-extrabold text-[#0A1628]">Users</h2>
-          <p className="mt-1 text-[13px] text-[#6B7280]">4,821 registered users</p>
+          <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(totalUsers)} registered users</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -1334,7 +1410,7 @@ function UsersSection({
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-[#E5E7EB] bg-[#F8F6F0]">
-                {["User", "Role", "Status", "Location", "Joined", "Activity", "Actions"].map(
+                {["User", "Role", "Status", "Email", "Joined", "Verification", "Actions"].map(
                   (heading) => (
                     <th
                       key={heading}
@@ -1347,9 +1423,26 @@ function UsersSection({
               </tr>
             </thead>
             <tbody>
-              {users.map((user, index) => (
+              {loading ? (
+                Array.from({ length: 5 }, (_, index) => (
+                  <tr key={`user-skeleton-${index}`} className="border-b border-[#F3F4F6]">
+                    {Array.from({ length: 7 }, (_, cellIndex) => (
+                      <td key={cellIndex} className="px-4 py-3.5">
+                        <div className="h-4 w-full rounded-full bg-[#F3F4F6]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-[14px] text-[#6B7280]">
+                    No data yet
+                  </td>
+                </tr>
+              ) : (
+                users.slice(0, 10).map((user, index) => (
                 <motion.tr
-                  key={user.id}
+                  key={user._id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: index * 0.04 }}
@@ -1357,11 +1450,16 @@ function UsersSection({
                 >
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
-                      <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-full object-cover" />
+                      <img src={user.profileImage} alt={getUserDisplayName(user)} className="h-9 w-9 rounded-full object-cover" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="truncate text-[13px] font-semibold text-[#0A1628]">{user.name}</p>
-                          {user.verified ? <UserCheck size={12} className="text-[#305CDE]" /> : null}
+                          <p className="truncate text-[13px] font-semibold text-[#0A1628]">{getUserDisplayName(user)}</p>
+                          {user.isVerified ? <UserCheck size={12} className="text-[#305CDE]" /> : null}
+                          {user.isBanned ? (
+                            <span className="rounded-full bg-[rgba(220,38,38,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[#DC2626]">
+                              Banned
+                            </span>
+                          ) : null}
                         </div>
                         <p className="truncate text-[12px] text-[#6B7280]">{user.email}</p>
                       </div>
@@ -1370,55 +1468,60 @@ function UsersSection({
                   <td className="px-4 py-3.5">
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                        user.role === "customer"
+                        getUserRole(user) === "customer"
                           ? "bg-[rgba(10,22,40,0.06)] text-[#0A1628]"
-                          : user.role === "host"
+                          : getUserRole(user) === "host"
                           ? "bg-[rgba(48,92,222,0.12)] text-[#254FC7]"
                           : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                       }`}
                     >
-                      {user.role}
+                      {getUserRole(user) === "host" ? "Host" : "Customer"}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <StatusPill status={user.status} type="userStatus" />
+                    <StatusPill status={getUserStatus(user)} type="userStatus" />
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">
-                    <span className="inline-flex items-center gap-1.5">
-                      <MapPin size={12} />
-                      {user.location}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#6B7280]">{user.joined}</td>
-                  <td className="px-4 py-3.5 text-[12px] text-[#374151]">
-                    {user.role === "customer"
-                      ? `${user.bookings} bookings · ${formatCurrency(user.spent)} spent`
-                      : `${user.listings} listings · ${formatCurrency(user.revenue)} revenue`}
-                  </td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{user.email}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#6B7280]">{formatDate(user.createdAt)}</td>
+                  <td className="px-4 py-3.5 text-[12px] text-[#374151]">{user.isVerified ? "Verified" : "Unverified"}</td>
                   <td className="relative px-4 py-3.5">
                     <button
                       type="button"
-                      onClick={() => setOpenUserMenuId((current) => (current === user.id ? null : user.id))}
+                      onClick={() => setOpenUserMenuId((current) => (current === user._id ? null : user._id))}
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#0A1628] hover:text-white"
                     >
                       <MoreHorizontal size={16} />
                     </button>
                     <AnimatePresence>
-                      {openUserMenuId === user.id ? (
+                      {openUserMenuId === user._id ? (
                         <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} />
                       ) : null}
                     </AnimatePresence>
                   </td>
                 </motion.tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="space-y-3 p-4 md:hidden">
-          {users.map((user, index) => (
+          {loading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`user-mobile-skeleton-${index}`} className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                <div className="h-4 w-32 rounded-full bg-[#F3F4F6]" />
+                <div className="mt-3 h-3 w-40 rounded-full bg-[#F3F4F6]" />
+                <div className="mt-3 h-8 w-full rounded-lg bg-[#F3F4F6]" />
+              </div>
+            ))
+          ) : users.length === 0 ? (
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-center text-[14px] text-[#6B7280]">
+              No data yet
+            </div>
+          ) : (
+            users.slice(0, 10).map((user, index) => (
             <motion.div
-              key={user.id}
+              key={user._id}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
@@ -1426,9 +1529,9 @@ function UsersSection({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <img src={user.avatar} alt={user.name} className="h-10 w-10 rounded-full object-cover" />
+                  <img src={user.profileImage} alt={getUserDisplayName(user)} className="h-10 w-10 rounded-full object-cover" />
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold text-[#0A1628]">{user.name}</p>
+                    <p className="truncate text-[14px] font-semibold text-[#0A1628]">{getUserDisplayName(user)}</p>
                     <p className="truncate text-[12px] text-[#6B7280]">{user.email}</p>
                   </div>
                 </div>
@@ -1442,22 +1545,24 @@ function UsersSection({
               <div className="mt-3 flex flex-wrap gap-2">
                 <span
                   className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    user.role === "customer"
+                    getUserRole(user) === "customer"
                       ? "bg-[rgba(10,22,40,0.06)] text-[#0A1628]"
-                      : user.role === "host"
+                      : getUserRole(user) === "host"
                       ? "bg-[rgba(48,92,222,0.12)] text-[#254FC7]"
                       : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                   }`}
                 >
-                  {user.role}
+                  {getUserRole(user) === "host" ? "Host" : "Customer"}
                 </span>
-                <StatusPill status={user.status} type="userStatus" />
+                <StatusPill status={getUserStatus(user)} type="userStatus" />
+                {user.isBanned ? (
+                  <span className="rounded-full bg-[rgba(220,38,38,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[#DC2626]">
+                    Banned
+                  </span>
+                ) : null}
               </div>
-              <p className="mt-3 text-[12px] text-[#374151]">
-                {user.role === "customer"
-                  ? `${user.bookings} bookings · ${formatCurrency(user.spent)} spent`
-                  : `${user.listings} listings · ${formatCurrency(user.revenue)} revenue`}
-              </p>
+              <p className="mt-3 text-[12px] text-[#374151]">{user.isVerified ? "Verified" : "Unverified"}</p>
+              <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(user.createdAt)}</p>
               <button
                 type="button"
                 className="mt-4 min-h-[44px] rounded-lg border border-[#E5E7EB] bg-white px-4 text-[13px] font-medium text-[#111827]"
@@ -1465,11 +1570,14 @@ function UsersSection({
                 View Actions
               </button>
             </motion.div>
-          ))}
+          ))
+          )}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <p className="text-[13px] text-[#6B7280]">Showing 1–8 of 4,821 users</p>
+          <p className="text-[13px] text-[#6B7280]">
+            Showing {users.length ? `1–${Math.min(users.length, 10)}` : "0"} of {formatNumber(totalUsers)} users
+          </p>
           <div className="flex items-center gap-2">
             {["1", "2", "3"].map((page, index) => (
               <button
@@ -1490,6 +1598,8 @@ function UsersSection({
 }
 
 function ListingsSection({
+  listings,
+  loading,
   moderationQueue,
   setModerationQueue,
   listingQueueFilter,
@@ -1682,7 +1792,7 @@ function ListingsSection({
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-[#E5E7EB] bg-[#F8F6F0]">
-                {["Listing", "Host", "Category", "Status", "Price", "Bookings", "Revenue", "Actions"].map(
+                {["Listing", "City", "Host", "Status", "Created", "Price", "Actions"].map(
                   (heading) => (
                     <th
                       key={heading}
@@ -1695,9 +1805,26 @@ function ListingsSection({
               </tr>
             </thead>
             <tbody>
-              {MOCK_LISTINGS.map((listing, index) => (
+              {loading ? (
+                Array.from({ length: 5 }, (_, index) => (
+                  <tr key={`listing-skeleton-${index}`} className="border-b border-[#F3F4F6]">
+                    {Array.from({ length: 7 }, (_, cellIndex) => (
+                      <td key={cellIndex} className="px-4 py-3.5">
+                        <div className="h-4 w-full rounded-full bg-[#F3F4F6]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : listings.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-[14px] text-[#6B7280]">
+                    No data yet
+                  </td>
+                </tr>
+              ) : (
+                listings.slice(0, 10).map((listing, index) => (
                 <motion.tr
-                  key={listing.id}
+                  key={listing._id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: index * 0.04 }}
@@ -1705,65 +1832,94 @@ function ListingsSection({
                 >
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
-                      <img src={listing.image} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
+                      <img src={listing.coverImage} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
-                        <p className="truncate text-[12px] text-[#6B7280]">{listing.location}</p>
+                        <p className="truncate text-[12px] text-[#6B7280]">{listing.location?.city || ""}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{listing.host}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{listing.category}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{listing.location?.city || ""}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getListingHostName(listing)}</td>
                   <td className="px-4 py-3.5">
-                    <StatusPill status={listing.status} type="listing" />
+                    <StatusPill status={getListingStatus(listing)} type="listing" />
                   </td>
-                  <td className="px-4 py-3.5 text-[13px] font-semibold text-[#305CDE]">
-                    {formatCurrency(listing.pricing.hour || listing.pricing.day)} / {listing.pricing.hour ? "hr" : "day"}
-                  </td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">
-                    {formatNumber(listing.stats.bookings)}
-                  </td>
-                  <td className="px-4 py-3.5 text-[13px] font-semibold text-[#16A34A]">
-                    {formatCurrency(listing.stats.revenue)}
-                  </td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#6B7280]">{formatDate(listing.createdAt)}</td>
+                  <td className="px-4 py-3.5 text-[13px] font-semibold text-[#305CDE]">{getListingPriceLabel(listing)}</td>
                   <td className="px-4 py-3.5">
-                    <button
-                      type="button"
+                    <a
+                      href={`/property/${listing._id}`}
                       className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
                     >
                       View
-                    </button>
+                    </a>
                   </td>
                 </motion.tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="space-y-3 p-4 md:hidden">
-          {filteredTransactions.map((transaction, index) => (
-            <motion.div
-              key={transaction.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04 }}
-              className="rounded-xl border border-[#E5E7EB] bg-white p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-mono text-[12px] text-[#6B7280]">{transaction.id}</p>
-                  <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">
-                    {transaction.space}
-                  </p>
-                </div>
-                <StatusPill status={transaction.status} type="payment" />
+          {loading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`listing-mobile-skeleton-${index}`} className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+                <div className="h-4 w-36 rounded-full bg-[#F3F4F6]" />
+                <div className="mt-3 h-3 w-28 rounded-full bg-[#F3F4F6]" />
+                <div className="mt-3 h-8 w-full rounded-lg bg-[#F3F4F6]" />
               </div>
-              <p className="mt-3 text-[16px] font-bold text-[#0A1628]">
-                {formatCurrency(transaction.amount)}
-              </p>
-              <p className="mt-1 text-[12px] text-[#6B7280]">{transaction.date}</p>
-            </motion.div>
-          ))}
+            ))
+          ) : listings.length === 0 ? (
+            <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-center text-[14px] text-[#6B7280]">
+              No data yet
+            </div>
+          ) : (
+            listings.slice(0, 10).map((listing, index) => (
+              <motion.div
+                key={listing._id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04 }}
+                className="rounded-xl border border-[#E5E7EB] bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
+                    <p className="mt-1 text-[12px] text-[#6B7280]">{listing.location?.city || ""}</p>
+                  </div>
+                  <StatusPill status={getListingStatus(listing)} type="listing" />
+                </div>
+                <p className="mt-3 text-[12px] text-[#374151]">{getListingHostName(listing)}</p>
+                <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
+                <div className="mt-4">
+                  <a
+                    href={`/property/${listing._id}`}
+                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                  >
+                    View
+                  </a>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BookingsSection({ bookings, loading }) {
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Bookings</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Latest booking activity across the platform</p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
+        <div style={{ textAlign: "center", padding: "40px 0", color: "#6B7280" }}>
+          <p>Bookings overview coming soon</p>
         </div>
       </div>
     </>
@@ -2527,11 +2683,24 @@ function PlaceholderSection({ title }) {
 }
 
 export default function AdminDashboard() {
+  const token = localStorage.getItem("vencome_token");
   const [activeSection, setActiveSection] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [listings, setListings] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalListings: 0,
+    totalBookings: 0,
+    totalRevenue: 0,
+    pendingListings: 0,
+    activeUsers: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
-  const [moderationQueue, setModerationQueue] = useState(MOCK_LISTINGS_QUEUE);
+  const [moderationQueue, setModerationQueue] = useState([]);
   const [listingQueueFilter, setListingQueueFilter] = useState("all");
   const [reviewOpenId, setReviewOpenId] = useState(null);
   const [rejectionState, setRejectionState] = useState({ id: null, reason: "" });
@@ -2586,32 +2755,92 @@ export default function AdminDashboard() {
     return () => window.clearTimeout(timer);
   }, [resolvedFlashId]);
 
+  useEffect(() => {
+    const fetchAdminData = async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [usersRes, listingsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
+        ]);
+
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          const allUsers = usersData.users || [];
+          setUsers(allUsers);
+          setStats((prev) => ({
+            ...prev,
+            totalUsers: usersData.total || allUsers.length,
+            activeUsers: allUsers.filter((user) => !user.isBanned).length,
+          }));
+        }
+
+        if (listingsRes.ok) {
+          const listingsData = await listingsRes.json();
+          const allListings = listingsData.properties || [];
+          setListings(allListings);
+          setStats((prev) => ({
+            ...prev,
+            totalListings: listingsData.total || allListings.length,
+            pendingListings: allListings.filter((listing) => !listing.isActive).length,
+          }));
+          setModerationQueue(
+            allListings
+              .filter((listing) => !listing.isActive)
+              .slice(0, 10)
+              .map((listing) => ({
+                id: listing._id,
+                title: listing.title,
+                host: getListingHostName(listing),
+                category: listing.category?.name || "",
+                location: listing.location?.city || "",
+                price: listing.pricing?.hourly || listing.pricing?.daily || 0,
+                priceUnit: listing.pricing?.hourly ? "hour" : "day",
+                submittedAt: formatDate(listing.createdAt),
+                status: "pending_review",
+                image: listing.coverImage,
+                flags: [],
+              }))
+          );
+        }
+
+      } catch (err) {
+        console.error("Admin dashboard fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAdminData();
+  }, [token]);
+
   const showToast = (message) => {
     setToastMessage(message);
   };
 
   const filteredUsers = useMemo(() => {
-    return MOCK_USERS.filter((user) => {
+    return users.filter((user) => {
       const matchesQuery =
-        `${user.name} ${user.email} ${user.location}`.toLowerCase().includes(userQuery.toLowerCase());
+        `${getUserDisplayName(user)} ${user.email}`.toLowerCase().includes(userQuery.toLowerCase());
 
       const matchesRole =
-        roleFilter === "All Roles" || user.role.toLowerCase() === roleFilter.toLowerCase();
+        roleFilter === "All Roles" || getUserRole(user) === roleFilter.toLowerCase();
 
       const matchesStatus =
-        statusFilter === "All Status" || user.status.toLowerCase() === statusFilter.toLowerCase();
+        statusFilter === "All Status" || getUserStatus(user) === statusFilter.toLowerCase();
 
       const matchesTab =
         activeUserTab === "all" ||
-        (activeUserTab === "customers" && user.role === "customer") ||
-        (activeUserTab === "hosts" && user.role === "host") ||
-        (activeUserTab === "unverified" && !user.verified) ||
-        (activeUserTab === "suspended" && user.status === "suspended") ||
-        (activeUserTab === "pending" && user.status === "pending");
+        (activeUserTab === "customers" && getUserRole(user) === "customer") ||
+        (activeUserTab === "hosts" && getUserRole(user) === "host") ||
+        (activeUserTab === "unverified" && !user.isVerified) ||
+        (activeUserTab === "suspended" && user.isBanned) ||
+        (activeUserTab === "pending" && !user.isVerified && !user.isBanned);
 
       return matchesQuery && matchesRole && matchesStatus && matchesTab;
     });
-  }, [activeUserTab, roleFilter, statusFilter, userQuery]);
+  }, [activeUserTab, roleFilter, statusFilter, userQuery, users]);
 
   let sectionContent = null;
 
@@ -2621,12 +2850,16 @@ export default function AdminDashboard() {
         onSectionChange={setActiveSection}
         moderationQueue={moderationQueue}
         setReviewOpenId={setReviewOpenId}
+        stats={stats}
+        loading={loading}
       />
     );
   } else if (activeSection === "users") {
     sectionContent = (
       <UsersSection
         users={filteredUsers}
+        totalUsers={stats.totalUsers}
+        loading={loading}
         userQuery={userQuery}
         setUserQuery={setUserQuery}
         roleFilter={roleFilter}
@@ -2642,6 +2875,8 @@ export default function AdminDashboard() {
   } else if (activeSection === "listings") {
     sectionContent = (
       <ListingsSection
+        listings={listings}
+        loading={loading}
         moderationQueue={moderationQueue}
         setModerationQueue={setModerationQueue}
         listingQueueFilter={listingQueueFilter}
@@ -2653,6 +2888,8 @@ export default function AdminDashboard() {
         onToast={showToast}
       />
     );
+  } else if (activeSection === "bookings") {
+    sectionContent = <BookingsSection bookings={bookings} loading={loading} />;
   } else if (activeSection === "payments") {
     sectionContent = (
       <PaymentsSection

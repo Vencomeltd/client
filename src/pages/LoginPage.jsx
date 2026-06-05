@@ -40,6 +40,7 @@ function isValidEmail(value) {
 export default function LoginPage({ mode = "login" }) {
   const navigate = useNavigate();
   const { updateUser } = useAuth();
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [step, setStep] = useState("role");
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState("");
@@ -50,6 +51,12 @@ export default function LoginPage({ mode = "login" }) {
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const otpRefs = useRef([]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (step === "otp") {
@@ -201,6 +208,10 @@ export default function LoginPage({ mode = "login" }) {
   };
 
   const title = mode === "signup" ? "Create your account" : "Log in or sign up";
+  const googleButtonWidth = Math.min(
+    400,
+    Math.max(220, window.innerWidth - (isMobile ? 88 : 128))
+  );
   const roleOptions =
     mode === "signup"
       ? [
@@ -276,12 +287,13 @@ export default function LoginPage({ mode = "login" }) {
         <div
           style={{
             background: "white",
-            borderRadius: 20,
+            borderRadius: isMobile ? 18 : 20,
             width: "100%",
             maxWidth: 480,
-            padding: 40,
+            padding: isMobile ? 24 : 40,
             boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
             position: "relative",
+            overflow: "hidden",
           }}
         >
           <AnimatePresence mode="wait">
@@ -321,7 +333,14 @@ export default function LoginPage({ mode = "login" }) {
                     Welcome to VenCome
                   </div>
 
-                  <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: isMobile ? "column" : "row",
+                      gap: 12,
+                      marginBottom: 24,
+                    }}
+                  >
                     {roleOptions.map((option) => {
                       const RoleIcon = option.Icon;
                       return (
@@ -437,79 +456,89 @@ export default function LoginPage({ mode = "login" }) {
                   </div>
 
                   <div style={{ marginBottom: 10 }}>
-                    <GoogleLogin
-                      onSuccess={async (credentialResponse) => {
-                        setIsLoading(true);
-                        setEmailError("");
-                        try {
-                          const res = await fetch(`${API}/auth/google`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              token: credentialResponse.credential,
-                              role,
-                              isHost: role === "host",
-                            }),
-                          });
-                          const data = await res.json();
-
-                          if (!res.ok) {
-                            setEmailError(data.error || "Google sign in failed");
-                            setIsLoading(false);
-                            return;
-                          }
-
-                          let resolvedUser = data.user;
-                          localStorage.setItem("vencome_token", data.token);
-                          localStorage.setItem("vencome_refresh", data.refreshToken);
-                          localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
-                          localStorage.setItem("token", data.token);
-                          localStorage.setItem("refreshToken", data.refreshToken);
-                          localStorage.setItem("user", JSON.stringify(resolvedUser));
-
-                          if (role === "host" && !resolvedUser.isHost) {
-                            try {
-                              await fetch(`${API}/auth/update-role`, {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  Authorization: `Bearer ${data.token}`,
-                                },
-                                body: JSON.stringify({ isHost: true }),
-                              });
-                              resolvedUser = { ...resolvedUser, isHost: true };
-                              localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
-                              localStorage.setItem("user", JSON.stringify(resolvedUser));
-                            } catch (err) {
-                              console.error("Role update failed", err);
-                            }
-                          }
-
-                          updateUser(resolvedUser);
-                          setFirstName(resolvedUser.firstName || "");
-                          setStep("success");
-                          const userIsHost = resolvedUser?.isHost === true || role === "host";
-
-                          window.setTimeout(() => {
-                            if (userIsHost) {
-                              navigate("/dashboard");
-                            } else {
-                              navigate("/customer/dashboard");
-                            }
-                          }, 1500);
-                        } catch (err) {
-                          setEmailError("Google sign in failed. Try again.");
-                        } finally {
-                          setIsLoading(false);
-                        }
+                    <div
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        borderRadius: 10,
                       }}
-                      onError={() => setEmailError("Google sign in failed")}
-                      useOneTap={false}
-                      theme="outline"
-                      size="large"
-                      width="400"
-                      text="continue_with"
-                    />
+                    >
+                      <GoogleLogin
+                        onSuccess={async (credentialResponse) => {
+                          setIsLoading(true);
+                          setEmailError("");
+                          try {
+                            const res = await fetch(`${API}/auth/google`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                token: credentialResponse.credential,
+                                role,
+                                isHost: role === "host",
+                              }),
+                            });
+                            const data = await res.json();
+
+                            if (!res.ok) {
+                              setEmailError(data.error || "Google sign in failed");
+                              setIsLoading(false);
+                              return;
+                            }
+
+                            let resolvedUser = data.user;
+                            localStorage.setItem("vencome_token", data.token);
+                            localStorage.setItem("vencome_refresh", data.refreshToken);
+                            localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+                            localStorage.setItem("token", data.token);
+                            localStorage.setItem("refreshToken", data.refreshToken);
+                            localStorage.setItem("user", JSON.stringify(resolvedUser));
+
+                            if (role === "host" && !resolvedUser.isHost) {
+                              try {
+                                await fetch(`${API}/auth/update-role`, {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${data.token}`,
+                                  },
+                                  body: JSON.stringify({ isHost: true }),
+                                });
+                                resolvedUser = { ...resolvedUser, isHost: true };
+                                localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+                                localStorage.setItem("user", JSON.stringify(resolvedUser));
+                              } catch (err) {
+                                console.error("Role update failed", err);
+                              }
+                            }
+
+                            updateUser(resolvedUser);
+                            setFirstName(resolvedUser.firstName || "");
+                            setStep("success");
+                            const userIsHost = resolvedUser?.isHost === true || role === "host";
+
+                            window.setTimeout(() => {
+                              if (userIsHost) {
+                                navigate("/dashboard");
+                              } else {
+                                navigate("/customer/dashboard");
+                              }
+                            }, 1500);
+                          } catch (err) {
+                            setEmailError("Google sign in failed. Try again.");
+                          } finally {
+                            setIsLoading(false);
+                          }
+                        }}
+                        onError={() => setEmailError("Google sign in failed")}
+                        useOneTap={false}
+                        theme="outline"
+                        size="large"
+                        width={String(googleButtonWidth)}
+                        text="continue_with"
+                      />
+                    </div>
                   </div>
 
                   <button

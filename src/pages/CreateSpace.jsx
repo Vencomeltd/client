@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Building2,
+  Calendar,
   CalendarDays,
+  CalendarRange,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Clock3,
   Image as ImageIcon,
   Lightbulb,
@@ -17,7 +21,42 @@ import {
   Upload,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-import { getToken, authHeaders } from "../utils/auth";
+import apiFetch from "../utils/apiClient";
+
+// Load Google Maps script
+const loadGoogleMapsScript = () => {
+  return new Promise((resolve, reject) => {
+    if (window.google?.maps?.places) {
+      resolve(window.google);
+      return;
+    }
+
+    const existingScript = document.getElementById("google-maps-script");
+    if (existingScript) {
+      if (window.google?.maps?.places) {
+        resolve(window.google);
+        return;
+      }
+
+      existingScript.addEventListener(
+        "load",
+        () => resolve(window.google),
+        { once: true }
+      );
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "google-maps-script";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(window.google);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -133,26 +172,44 @@ const optionCardClassName =
 const sectionTitleClassName = "text-[20px] font-bold text-[#0A1628]";
 
 const defaultState = {
-  category: "office",
-  locationName: "London Bridge, London",
-  address: "The Shard, 32 London Bridge Street",
-  city: "London",
-  country: "United Kingdom",
-  title: "The Shard Executive Suite",
-  description:
-    "Premium boardroom and executive suite with skyline views, concierge reception, and AV-ready setup for leadership meetings, workshops, and client presentations.",
-  capacity: 24,
-  photos: PHOTO_LIBRARY.slice(0, 3),
-  pricingHour: "85",
-  pricingDay: "580",
-  pricingMonth: "7800",
-  minNotice: "24 hours",
-  availabilityDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  startTime: "09:00",
-  endTime: "18:00",
-  instantBook: true,
-  houseRules:
-    "No smoking. Respect building reception policies. Catering requests require 48 hours notice.",
+  category: "",
+  categoryName: "",
+  subcategory: "",
+  subcategoryName: "",
+  locationName: "",
+  address: "",
+  city: "",
+  country: "",
+  postcode: "",
+  latitude: null,
+  longitude: null,
+  title: "",
+  description: "",
+  whatsIncluded: "",
+  capacity: "",
+  photos: [],
+  images: [],
+  photoUrls: [],
+  pricing: {
+    hourly: { enabled: false, price: "" },
+    daily: { enabled: false, price: "" },
+    weekly: { enabled: false, price: "" },
+    monthly: { enabled: false, price: "" },
+    annual: { enabled: false, price: "" },
+  },
+  minHours: "",
+  minNotice: "",
+  availability: "",
+  availabilityDays: [],
+  startTime: "",
+  endTime: "",
+  instantBook: false,
+  houseRules: "",
+  wifi: false,
+  size: "",
+  naturalLight: false,
+  restrooms: "",
+  refundPolicy: "moderate",
 };
 
 const formatCurrency = (value) =>
@@ -333,6 +390,7 @@ export default function CreateSpace() {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const [form, setForm] = useState(defaultState);
+  const [publishSuccess, setPublishSuccess] = useState(false);
   const [beforeSelection, setBeforeSelection] = useState(0);
   const [afterSelection, setAfterSelection] = useState(0);
   const [bufferBefore, setBufferBefore] = useState(0);
@@ -348,6 +406,137 @@ export default function CreateSpace() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [selectedSubcategory, setSelectedSubcategory] = useState("");
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const locationInputRef = useRef(null);
+  const autocompleteRef = useRef(null);
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${API}/categories`);
+        const data = await res.json();
+        if (data.categories || Array.isArray(data)) {
+          setCategories(data.categories || data);
+        }
+      } catch (err) {
+        console.error("Failed to load categories:", err);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    if (step !== 2) return;
+
+    let cancelled = false;
+
+    const waitForDomAndInit = () => {
+      const mapDiv = document.getElementById("location-map");
+      const input = document.getElementById("location-search");
+
+      if (!mapDiv || !input) {
+        if (!cancelled) window.setTimeout(waitForDomAndInit, 100);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.id = "google-maps-script";
+
+      script.onload = () => {
+        if (cancelled) return;
+
+        const map = new window.google.maps.Map(mapDiv, {
+          center: { lat: 51.5074, lng: -0.1278 },
+          zoom: 13,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        });
+
+        mapRef.current = map;
+
+        window.setTimeout(() => {
+          window.google.maps.event.trigger(map, "resize");
+          map.setCenter({ lat: 51.5074, lng: -0.1278 });
+          setMapsLoaded(true);
+        }, 100);
+
+        const autocomplete = new window.google.maps.places.Autocomplete(input, {
+          types: ["establishment", "geocode"],
+          fields: ["formatted_address", "geometry", "name", "address_components"],
+        });
+
+        autocompleteRef.current = autocomplete;
+
+        const marker = new window.google.maps.Marker({ map });
+        markerRef.current = marker;
+
+        autocomplete.addListener("place_changed", () => {
+          const place = autocomplete.getPlace();
+          if (!place.geometry) return;
+
+          map.setCenter(place.geometry.location);
+          map.setZoom(16);
+          marker.setPosition(place.geometry.location);
+
+          let address = "";
+          let city = "";
+          let country = "";
+          let postcode = "";
+
+          place.address_components?.forEach((component) => {
+            const types = component.types;
+            if (types.includes("street_number") || types.includes("route")) {
+              address += `${component.long_name} `;
+            }
+            if (types.includes("postal_town") || types.includes("locality")) {
+              city = component.long_name;
+            }
+            if (types.includes("country")) {
+              country = component.long_name;
+            }
+            if (types.includes("postal_code")) {
+              postcode = component.long_name;
+            }
+          });
+
+          setForm((prev) => ({
+            ...prev,
+            locationName: place.name || place.formatted_address || prev.locationName,
+            address: address.trim() || place.formatted_address || "",
+            city,
+            country,
+            postcode,
+            latitude: place.geometry.location.lat(),
+            longitude: place.geometry.location.lng(),
+          }));
+        });
+      };
+
+      if (!document.getElementById("google-maps-script") && !window.google?.maps) {
+        document.head.appendChild(script);
+      } else if (window.google?.maps) {
+        script.onload();
+      }
+    };
+
+    waitForDomAndInit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
 
   const effectiveBufferBefore =
     beforeSelection === "custom"
@@ -360,9 +549,10 @@ export default function CreateSpace() {
 
   const previewCategory = useMemo(
     () =>
+      form.categoryName ||
       CATEGORY_OPTIONS.find((category) => category.id === form.category)?.title ||
-      "Office Space",
-    [form.category]
+      "Category not selected",
+    [form.category, form.categoryName]
   );
 
   const totalTimeline = Math.max(effectiveBufferBefore + effectiveBufferAfter + 120, 120);
@@ -415,6 +605,16 @@ export default function CreateSpace() {
   };
 
   const nextStep = () => {
+    if (step === 5) {
+      const hasEnabledPricing = Object.values(form.pricing || {}).some(
+        (pricing) => pricing.enabled && pricing.price
+      );
+      if (!hasEnabledPricing) {
+        alert("Please enable at least one pricing option with a price.");
+        return;
+      }
+    }
+
     setDirection(1);
     setStep((current) => Math.min(current + 1, 9));
   };
@@ -430,11 +630,17 @@ export default function CreateSpace() {
 
     try {
       const formData = new FormData();
-      const authorizationHeader =
-        authHeaders().Authorization || `Bearer ${getToken()}`;
+      const flatPricing = {};
+
+      Object.entries(form.pricing || {}).forEach(([key, val]) => {
+        if (val.enabled && val.price) {
+          flatPricing[key] = parseFloat(val.price);
+        }
+      });
 
       formData.append("title", form.title);
       formData.append("description", form.description);
+      formData.append("whatsIncluded", form.whatsIncluded || "");
       formData.append(
         "location",
         JSON.stringify({
@@ -452,12 +658,7 @@ export default function CreateSpace() {
       );
       formData.append(
         "pricing",
-        JSON.stringify({
-          pricingType: form.pricingType || "DAILY",
-          weekdayPrice: form.pricingDay || 0,
-          hourlyPrice: form.pricingHour || 0,
-          minHours: form.minHours || 1,
-        })
+        JSON.stringify(flatPricing)
       );
       formData.append(
         "features",
@@ -494,11 +695,8 @@ export default function CreateSpace() {
         });
       }
 
-      const res = await fetch(`${API}/properties`, {
+      const res = await apiFetch("/properties", {
         method: "POST",
-        headers: {
-          Authorization: authorizationHeader,
-        },
         body: formData,
       });
 
@@ -511,7 +709,7 @@ export default function CreateSpace() {
         return;
       }
 
-      navigate("/dashboard");
+      setPublishSuccess(true);
     } catch (err) {
       setError("Network error. Please try again.");
     } finally {
@@ -534,30 +732,169 @@ export default function CreateSpace() {
                   subtitle="Select the type of commercial space you want to list so guests can discover it more easily."
                 />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {CATEGORY_OPTIONS.map((option) => {
-                    const selected = form.category === option.id;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => updateField("category", option.id)}
-                        className={`${optionCardClassName} ${
-                          selected
-                            ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)]"
-                            : ""
-                        }`}
+                {loadingCategories ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 40,
+                    }}
+                  >
+                    <Loader2 size={24} className="animate-spin text-[#305CDE]" />
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 16,
+                        marginBottom: 24,
+                      }}
+                    >
+                      {categories.map((cat) => {
+                        const selected = form.category === cat._id;
+                        return (
+                          <button
+                            key={cat._id}
+                            type="button"
+                            onClick={() => {
+                              updateField("category", cat._id);
+                              updateField("categoryName", cat.name);
+                              setSelectedSubcategory("");
+                            }}
+                            style={{
+                              borderRadius: 12,
+                              border: selected
+                                ? "2px solid #0A1628"
+                                : "1.5px solid #E5E7EB",
+                              background: selected
+                                ? "rgba(10,22,40,0.03)"
+                                : "white",
+                              padding: 16,
+                              textAlign: "left",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8,
+                            }}
+                          >
+                            {cat.image ? (
+                              <img
+                                src={cat.image}
+                                alt={cat.name}
+                                style={{
+                                  width: "100%",
+                                  height: 80,
+                                  objectFit: "cover",
+                                  borderRadius: 8,
+                                }}
+                              />
+                            ) : null}
+                            <p
+                              style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: "#0A1628",
+                                margin: 0,
+                              }}
+                            >
+                              {cat.name}
+                            </p>
+                            <p
+                              style={{
+                                fontSize: 13,
+                                color: "#6B7280",
+                                margin: 0,
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {cat.description}
+                            </p>
+                            {selected &&
+                            cat.subcategories &&
+                            cat.subcategories.length > 0 ? (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  borderTop: "1px solid #E5E7EB",
+                                  paddingTop: 12,
+                                }}
+                              >
+                                <p
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: "#6B7280",
+                                    textTransform: "uppercase",
+                                    letterSpacing: 1,
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  Select subcategory
+                                </p>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: 6,
+                                  }}
+                                >
+                                  {cat.subcategories.map((sub) => (
+                                    <button
+                                      key={sub._id || sub.name}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedSubcategory(sub.name);
+                                        updateField("subcategoryName", sub.name);
+                                      }}
+                                      style={{
+                                        padding: "6px 12px",
+                                        borderRadius: 9999,
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        border:
+                                          selectedSubcategory === sub.name
+                                            ? "1.5px solid #0A1628"
+                                            : "1.5px solid #E5E7EB",
+                                        background:
+                                          selectedSubcategory === sub.name
+                                            ? "#0A1628"
+                                            : "white",
+                                        color:
+                                          selectedSubcategory === sub.name
+                                            ? "white"
+                                            : "#111827",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      {sub.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {categories.length === 0 ? (
+                      <p
+                        style={{
+                          textAlign: "center",
+                          color: "#6B7280",
+                          fontSize: 14,
+                        }}
                       >
-                        <p className="text-[16px] font-bold text-[#0A1628]">
-                          {option.title}
-                        </p>
-                        <p className="mt-2 text-[14px] leading-6 text-[#6B7280]">
-                          {option.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+                        No categories found. Please check your connection.
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </div>
             ) : null}
 
@@ -565,24 +902,39 @@ export default function CreateSpace() {
               <div>
                 <SectionHeader
                   title="Set the Location"
-                  subtitle="Tell guests where your space is based and how they will find it."
+                  subtitle="Search your address using Google Maps. Select from the dropdown and the map will update automatically."
                 />
 
-                <div className="space-y-5">
-                  <div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div style={{ position: "relative", zIndex: 1000 }}>
                     <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                       Search location
                     </label>
-                    <input
-                      className={inputClassName}
-                      value={form.locationName}
-                      onChange={(event) =>
-                        updateField("locationName", event.target.value)
-                      }
-                    />
+                    <div style={{ position: "relative" }}>
+                      <MapPin
+                        size={16}
+                        color="#6B7280"
+                        style={{
+                          position: "absolute",
+                          left: 14,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                        }}
+                      />
+                      <input
+                        id="location-search"
+                        ref={locationInputRef}
+                        className={inputClassName}
+                        style={{ paddingLeft: 40 }}
+                        placeholder="Start typing your address..."
+                        defaultValue={form.locationName}
+                        onChange={(e) => updateField("locationName", e.target.value)}
+                      />
+                    </div>
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div>
                       <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                         Address
@@ -590,7 +942,8 @@ export default function CreateSpace() {
                       <input
                         className={inputClassName}
                         value={form.address}
-                        onChange={(event) => updateField("address", event.target.value)}
+                        onChange={(e) => updateField("address", e.target.value)}
+                        placeholder="Full address"
                       />
                     </div>
 
@@ -601,7 +954,8 @@ export default function CreateSpace() {
                       <input
                         className={inputClassName}
                         value={form.city}
-                        onChange={(event) => updateField("city", event.target.value)}
+                        onChange={(e) => updateField("city", e.target.value)}
+                        placeholder="City"
                       />
                     </div>
                   </div>
@@ -613,19 +967,46 @@ export default function CreateSpace() {
                     <input
                       className={inputClassName}
                       value={form.country}
-                      onChange={(event) => updateField("country", event.target.value)}
+                      onChange={(e) => updateField("country", e.target.value)}
+                      placeholder="Country"
                     />
                   </div>
 
-                  <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
-                    <div className="flex h-[240px] flex-col items-center justify-center bg-[#0A1628] text-center text-white">
-                      <MapPin size={34} className="text-[#305CDE]" />
-                      <p className="mt-4 text-[18px] font-bold">{form.locationName}</p>
-                      <p className="mt-2 max-w-sm text-[13px] leading-6 text-white/70">
-                        Map preview placeholder for the location pin and nearby transport.
-                      </p>
-                    </div>
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      overflow: "hidden",
+                      border: "1px solid #E5E7EB",
+                    }}
+                  >
+                    <div
+                      id="location-map"
+                      ref={mapContainerRef}
+                      style={{
+                        height: "300px",
+                        width: "100%",
+                        borderRadius: "12px",
+                        display: "block",
+                        backgroundColor: "#e5e7eb",
+                      }}
+                    />
                   </div>
+
+                  {form.latitude && form.longitude ? (
+                    <p style={{ fontSize: 12, color: "#6B7280", textAlign: "center" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <MapPin size={12} />
+                        {Number(form.latitude).toFixed(6)},{" "}
+                      </span>
+                      {Number(form.longitude).toFixed(6)}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -691,6 +1072,45 @@ export default function CreateSpace() {
                       </select>
                     </div>
                   </div>
+
+                  <div style={{ marginTop: "24px" }}>
+                    <label
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: "600",
+                        color: "#0A1628",
+                        display: "block",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      What's Included
+                    </label>
+                    <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "10px" }}>
+                      List everything tenants get with this space - WiFi, parking, AV
+                      equipment, kitchen access, reception etc.
+                    </p>
+                    <textarea
+                      value={form.whatsIncluded || ""}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, whatsIncluded: e.target.value }))
+                      }
+                      placeholder="e.g. High-speed WiFi, Parking for 2 cars, 65-inch screen, Whiteboard, Kitchen access, Dedicated reception"
+                      rows={4}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        borderRadius: "10px",
+                        border: "1.5px solid #E5E7EB",
+                        fontSize: "14px",
+                        color: "#111827",
+                        resize: "vertical",
+                        outline: "none",
+                        fontFamily: "inherit",
+                        lineHeight: "1.6",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -699,96 +1119,467 @@ export default function CreateSpace() {
               <div>
                 <SectionHeader
                   title="Upload Photos"
-                  subtitle="Use polished imagery to build trust and help guests picture the experience before they book."
+                  subtitle="Upload high quality photos of your space. First photo will be the cover image. Maximum 10 photos."
                 />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {PHOTO_LIBRARY.map((photo) => {
-                    const selected = form.photos.includes(photo);
-                    return (
-                      <button
-                        key={photo}
-                        type="button"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            photos: selected
-                              ? current.photos.filter((item) => item !== photo)
-                              : [...current.photos, photo],
-                          }))
-                        }
-                        className={`overflow-hidden rounded-xl border-[1.5px] transition hover:border-[#305CDE] ${
-                          selected
-                            ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)]"
-                            : "border-[#E5E7EB]"
-                        }`}
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div
+                    onClick={() => document.getElementById("photo-upload-input").click()}
+                    style={{
+                      border: "2px dashed #E5E7EB",
+                      borderRadius: 16,
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      background: "white",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "#305CDE";
+                      e.currentTarget.style.background = "rgba(48,92,222,0.02)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.background = "white";
+                    }}
+                  >
+                    <input
+                      id="photo-upload-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        const current = form.images || [];
+                        const combined = [...current, ...files].slice(0, 10);
+                        updateField("images", combined);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Upload size={32} color="#305CDE" style={{ margin: "0 auto 12px" }} />
+                    <p
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: "#0A1628",
+                        margin: 0,
+                      }}
+                    >
+                      Click to upload photos
+                    </p>
+                    <p style={{ fontSize: 13, color: "#6B7280", marginTop: 6 }}>
+                      JPEG, PNG, WebP up to 10MB each - maximum 10 photos
+                    </p>
+                  </div>
+
+                  {form.images && form.images.length > 0 ? (
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: 12,
+                        }}
                       >
-                        <img
-                          src={photo}
-                          alt="Space"
-                          className="h-44 w-full object-cover"
-                        />
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <span className="text-[14px] font-medium text-[#111827]">
-                            Hero photo option
-                          </span>
-                          {selected ? (
-                            <CheckCircle2 size={18} className="text-[#0A1628]" />
-                          ) : (
-                            <ImageIcon size={18} className="text-[#6B7280]" />
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                        <p
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#0A1628",
+                          }}
+                        >
+                          {form.images.length} photo{form.images.length !== 1 ? "s" : ""}{" "}
+                          selected
+                          {form.images.length > 0 ? " - first photo is cover image" : ""}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => updateField("images", [])}
+                          style={{
+                            fontSize: 13,
+                            color: "#DC2626",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Remove all
+                        </button>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        {form.images.map((file, index) => {
+                          const url = file instanceof File ? URL.createObjectURL(file) : file;
+                          return (
+                            <div
+                              key={index}
+                              style={{
+                                position: "relative",
+                                borderRadius: 12,
+                                overflow: "hidden",
+                                border:
+                                  index === 0
+                                    ? "2px solid #305CDE"
+                                    : "1.5px solid #E5E7EB",
+                              }}
+                            >
+                              <img
+                                src={url}
+                                alt={`Photo ${index + 1}`}
+                                style={{
+                                  width: "100%",
+                                  height: 120,
+                                  objectFit: "cover",
+                                  display: "block",
+                                }}
+                              />
+                              {index === 0 ? (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: 6,
+                                    left: 6,
+                                    background: "#305CDE",
+                                    color: "white",
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: 9999,
+                                  }}
+                                >
+                                  COVER
+                                </div>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = form.images.filter((_, i) => i !== index);
+                                  updateField("images", updated);
+                                }}
+                                style={{
+                                  position: "absolute",
+                                  top: 6,
+                                  right: 6,
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: "50%",
+                                  background: "rgba(0,0,0,0.6)",
+                                  color: "white",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 14,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                x
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      background: "rgba(48,92,222,0.05)",
+                      border: "1px solid rgba(48,92,222,0.15)",
+                      borderRadius: 12,
+                      padding: "14px 16px",
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <Lightbulb
+                      size={16}
+                      color="#305CDE"
+                      style={{ flexShrink: 0, marginTop: 2 }}
+                    />
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: "#6B7280",
+                        lineHeight: 1.6,
+                        margin: 0,
+                      }}
+                    >
+                      Tips: Use natural lighting, shoot from corners to show the full
+                      space, include photos of amenities. Listings with 5+ photos get 3x
+                      more enquiries.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
 
             {step === 5 ? (
               <div>
-                <SectionHeader
-                  title="Set Your Pricing"
-                  subtitle="Add flexible pricing tiers so guests can book by the hour, day, or month."
-                />
+                <div>
+                  <h2
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: "700",
+                      color: "#0A1628",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Set Your Pricing
+                  </h2>
+                  <p style={{ color: "#6B7280", marginBottom: "32px" }}>
+                    Enable the duration types you want to offer and set a price
+                    for each.
+                  </p>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                  {[
-                    {
-                      label: "Hourly Rate",
-                      key: "pricingHour",
-                      value: form.pricingHour,
-                    },
-                    {
-                      label: "Daily Rate",
-                      key: "pricingDay",
-                      value: form.pricingDay,
-                    },
-                    {
-                      label: "Monthly Rate",
-                      key: "pricingMonth",
-                      value: form.pricingMonth,
-                    },
-                  ].map((field) => (
-                    <div key={field.key} className={`${optionCardClassName} p-5`}>
-                      <p className="text-[13px] font-bold text-[#0A1628]">
-                        {field.label}
-                      </p>
-                      <div className="mt-3 flex items-center gap-3">
-                        <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[10px] border-[1.5px] border-[#E5E7EB] text-[#0A1628]">
-                          <PoundSterling size={18} />
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "16px",
+                    }}
+                  >
+                    {[
+                      {
+                        key: "hourly",
+                        label: "Per Hour",
+                        description: "Ideal for meeting rooms and studios",
+                        icon: Clock,
+                        placeholder: "e.g. 85",
+                        unit: "hour",
+                      },
+                      {
+                        key: "daily",
+                        label: "Per Day",
+                        description: "Full day bookings",
+                        icon: Calendar,
+                        placeholder: "e.g. 450",
+                        unit: "day",
+                      },
+                      {
+                        key: "weekly",
+                        label: "Per Week",
+                        description: "Weekly arrangements",
+                        icon: CalendarDays,
+                        placeholder: "e.g. 1800",
+                        unit: "week",
+                      },
+                      {
+                        key: "monthly",
+                        label: "Per Month",
+                        description: "Monthly rolling agreements",
+                        icon: CalendarRange,
+                        placeholder: "e.g. 5500",
+                        unit: "month",
+                      },
+                      {
+                        key: "annual",
+                        label: "Per Year",
+                        description: "Annual or long-term leases",
+                        icon: Building2,
+                        placeholder: "e.g. 60000",
+                        unit: "year",
+                      },
+                    ].map(({ key, label, description, icon: Icon, placeholder, unit }) => (
+                      <div
+                        key={key}
+                        style={{
+                          border: `2px solid ${
+                            form.pricing[key]?.enabled ? "#0A1628" : "#E5E7EB"
+                          }`,
+                          borderRadius: "12px",
+                          padding: "20px",
+                          background: form.pricing[key]?.enabled
+                            ? "rgba(10,22,40,0.02)"
+                            : "#fff",
+                          transition: "all 0.2s ease",
+                          cursor: "pointer",
+                        }}
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            pricing: {
+                              ...prev.pricing,
+                              [key]: {
+                                ...prev.pricing[key],
+                                enabled: !prev.pricing[key]?.enabled,
+                              },
+                            },
+                          }))
+                        }
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "12px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#0A1628",
+                              }}
+                            >
+                              {Icon ? <Icon size={20} /> : null}
+                            </span>
+                            <div>
+                              <p
+                                style={{
+                                  fontWeight: "700",
+                                  color: "#0A1628",
+                                  fontSize: "15px",
+                                  margin: 0,
+                                }}
+                              >
+                                {label}
+                              </p>
+                              <p
+                                style={{
+                                  color: "#6B7280",
+                                  fontSize: "13px",
+                                  margin: 0,
+                                }}
+                              >
+                                {description}
+                              </p>
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              width: "24px",
+                              height: "24px",
+                              borderRadius: "50%",
+                              border: `2px solid ${
+                                form.pricing[key]?.enabled ? "#0A1628" : "#D1D5DB"
+                              }`,
+                              background: form.pricing[key]?.enabled
+                                ? "#0A1628"
+                                : "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {form.pricing[key]?.enabled && (
+                              <span
+                                style={{
+                                  color: "#fff",
+                                  fontSize: "14px",
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <input
-                          type="number"
-                          className={inputClassName}
-                          value={field.value}
-                          onChange={(event) =>
-                            updateField(field.key, event.target.value)
-                          }
-                        />
+
+                        {form.pricing[key]?.enabled && (
+                          <div
+                            style={{ marginTop: "16px" }}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "18px",
+                                  fontWeight: "700",
+                                  color: "#0A1628",
+                                }}
+                              >
+                                £
+                              </span>
+                              <input
+                                type="number"
+                                placeholder={placeholder}
+                                value={form.pricing[key]?.price || ""}
+                                onChange={(event) =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    pricing: {
+                                      ...prev.pricing,
+                                      [key]: {
+                                        ...prev.pricing[key],
+                                        price: event.target.value,
+                                      },
+                                    },
+                                  }))
+                                }
+                                style={{
+                                  flex: 1,
+                                  padding: "10px 14px",
+                                  borderRadius: "8px",
+                                  border: "1.5px solid #E5E7EB",
+                                  fontSize: "16px",
+                                  fontWeight: "600",
+                                  color: "#0A1628",
+                                  outline: "none",
+                                }}
+                                min="0"
+                              />
+                              <span
+                                style={{
+                                  color: "#6B7280",
+                                  fontSize: "14px",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                / {unit}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "24px",
+                      padding: "16px",
+                      background: "#F8F6F0",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#6B7280",
+                        margin: 0,
+                      }}
+                    >
+                      You must enable at least one pricing option to publish your
+                      listing.
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -1221,7 +2012,14 @@ export default function CreateSpace() {
                 <div className="space-y-6">
                   <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
                     <img
-                      src={form.photos[0] || PHOTO_LIBRARY[0]}
+                      src={
+                        form.photoUrls?.[0] ||
+                        (form.images?.[0]
+                          ? form.images[0] instanceof File
+                            ? URL.createObjectURL(form.images[0])
+                            : form.images[0]
+                          : "/placeholder.jpg")
+                      }
                       alt={form.title}
                       className="h-64 w-full object-cover"
                     />
@@ -1259,24 +2057,36 @@ export default function CreateSpace() {
                       <p className="mt-4 text-[15px] leading-7 text-[#374151]">
                         {form.description}
                       </p>
+
+                      {(form.photoUrls?.length || form.images?.length) > 0 ? (
+                        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                          {(form.photoUrls?.length ? form.photoUrls : form.images || []).map(
+                            (image, index) => (
+                              <img
+                                key={index}
+                                src={
+                                  image instanceof File
+                                    ? URL.createObjectURL(image)
+                                    : image
+                                }
+                                alt={`Photo ${index + 1}`}
+                                className="h-24 w-full rounded-xl object-cover"
+                              />
+                            )
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-3">
-                    {[
-                      {
-                        label: "Hourly",
-                        value: formatCurrency(form.pricingHour),
-                      },
-                      {
-                        label: "Daily",
-                        value: formatCurrency(form.pricingDay),
-                      },
-                      {
-                        label: "Monthly",
-                        value: formatCurrency(form.pricingMonth),
-                      },
-                    ].map((item) => (
+                    {Object.entries(form.pricing || {})
+                      .filter(([, pricing]) => pricing.enabled && pricing.price)
+                      .map(([key, pricing]) => ({
+                        label: key.charAt(0).toUpperCase() + key.slice(1),
+                        value: formatCurrency(pricing.price),
+                      }))
+                      .map((item) => (
                       <div
                         key={item.label}
                         className="rounded-xl border border-[#E5E7EB] bg-white p-5"
@@ -1386,6 +2196,90 @@ export default function CreateSpace() {
             )}
           </div>
         </div>
+        {publishSuccess && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: "16px",
+                padding: "48px 40px",
+                maxWidth: "480px",
+                width: "90%",
+                textAlign: "center",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              }}
+            >
+              <div style={{ marginBottom: "16px" }}>
+                <CheckCircle2 size={64} color="#16A34A" style={{ margin: "0 auto" }} />
+              </div>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: "700",
+                  color: "#0A1628",
+                  marginBottom: "12px",
+                }}
+              >
+                Your listing is live!
+              </h2>
+              <p
+                style={{
+                  fontSize: "15px",
+                  color: "#6B7280",
+                  lineHeight: "1.6",
+                  marginBottom: "32px",
+                }}
+              >
+                {form.title || "Your listing"} has been published successfully.
+                Tenants can now discover and book your space.
+              </p>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                <button
+                  onClick={() => navigate("/host/listings")}
+                  style={{
+                    background: "#0A1628",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "14px 24px",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  View My Listings
+                </button>
+                <button
+                  onClick={() => {
+                    window.location.href = "/create-space";
+                  }}
+                  style={{
+                    background: "transparent",
+                    color: "#0A1628",
+                    border: "1.5px solid #0A1628",
+                    borderRadius: "8px",
+                    padding: "14px 24px",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Add Another Space
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

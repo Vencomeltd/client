@@ -92,3 +92,13 @@ body {
 .group:hover .tooltip {
   @apply visible opacity-100;
 }
+
+.pac-container {
+  z-index: 9999 !important;
+  pointer-events: all !important;
+}
+
+.pac-item {
+  cursor: pointer !important;
+  pointer-events: all !important;
+}

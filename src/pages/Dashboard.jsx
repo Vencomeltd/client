@@ -1,67 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
   Clock,
-  Heart,
   HelpCircle,
   MapPin,
   MessageSquare,
   Plus,
   PoundSterling,
-  Search,
   Star,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-import PropertyCard from "../components/PropertyCard";
-import { getUser } from "../utils/auth";
-
-const UPCOMING = [
-  {
-    id: 1,
-    space: "Canary Wharf Boardroom",
-    location: "Canary Wharf, London",
-    image: "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=200&q=80",
-    checkIn: "Mon 19 May 2026",
-    checkOut: "Mon 19 May 2026",
-    duration: "9:00am – 1:00pm (4 hours)",
-    price: "£480",
-    status: "Confirmed",
-    bookingRef: "VC-2024-001",
-  },
-  {
-    id: 2,
-    space: "DIFC Creative Studio",
-    location: "DIFC, Dubai",
-    image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=200&q=80",
-    checkIn: "Fri 23 May 2026",
-    checkOut: "Fri 23 May 2026",
-    duration: "Full day (9am – 6pm)",
-    price: "£250",
-    status: "Pending",
-    bookingRef: "VC-2024-002",
-  },
-];
-
-const RECENT = [
-  { id: 5, title: "Shoreditch Event Space", location: "Shoreditch, London", category: "Event Venues", price: 450, priceUnit: "day", rating: 4.9, reviewCount: 58, badge: "Popular", image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80" },
-  { id: 10, title: "Mayfair Private Members Office", location: "Mayfair, London", category: "Office Space", price: 5500, priceUnit: "month", rating: 4.95, reviewCount: 12, badge: "Featured", image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&q=80" },
-  { id: 3, title: "DIFC Creative Studio", location: "DIFC, Dubai", category: "Studio Space", price: 250, priceUnit: "day", rating: 4.97, reviewCount: 22, badge: "Verified", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&q=80" },
-  { id: 9, title: "Abu Dhabi Business Hub", location: "Al Maryah Island, Abu Dhabi", category: "Co-working", price: 180, priceUnit: "day", rating: 4.72, reviewCount: 41, badge: "Verified", image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=80" },
-];
-
-const STATS = [
-  { icon: CalendarDays, label: "Upcoming Bookings", value: "2", sub: "Next: Mon 19 May" },
-  { icon: Heart, label: "Saved Spaces", value: "14", sub: "3 new matches" },
-  { icon: MessageSquare, label: "Unread Messages", value: "3", sub: "2 from hosts" },
-  { icon: PoundSterling, label: "Total Spent", value: "£4,820", sub: "This year", trend: "+12% vs last year" },
-];
 
 const ACTIONS = [
   { icon: Plus, title: "List Your Space", description: "Start earning from your property", href: "/create-space" },
   { icon: MessageSquare, title: "Messages", description: "3 unread conversations", href: "/dashboard/messages" },
-  { icon: Heart, title: "Saved Spaces", description: "14 spaces saved", href: "/dashboard/saved" },
+  { icon: CalendarDays, title: "Bookings", description: "Manage your booking requests", href: "/dashboard/bookings" },
   { icon: Star, title: "Leave a Review", description: "2 bookings awaiting review", href: "/dashboard/reviews" },
   { icon: HelpCircle, title: "Help & Support", description: "Get answers instantly", href: "/help-support" },
 ];
@@ -89,33 +44,151 @@ function useCountUp(target, duration = 1500) {
 }
 
 function StatusBadge({ status }) {
+  const normalized = String(status || "").toLowerCase();
   const styles =
-    status === "Confirmed"
-      ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
-      : "border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.1)] text-[#D97706]";
+    normalized === "confirmed"
+      ? "border-[#DCFCE7] bg-[#F0FDF4] text-[#166534]"
+      : normalized === "cancelled" || normalized === "declined"
+      ? "border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]"
+      : normalized === "completed"
+      ? "border-[#E5E7EB] bg-[#F3F4F6] text-[#374151]"
+      : "border-[#FDE68A] bg-[#FEF9C3] text-[#854D0E]";
+  const label =
+    normalized === "confirmed"
+      ? "Confirmed"
+      : normalized === "cancelled"
+      ? "Cancelled"
+      : normalized === "declined"
+      ? "Declined"
+      : normalized === "completed"
+      ? "Completed"
+      : "Pending";
 
   return (
     <span className={`rounded-full border px-3 py-1 text-[12px] font-semibold ${styles}`}>
-      {status}
+      {label}
     </span>
   );
 }
 
+const formatCurrency = (value) =>
+  `£${new Intl.NumberFormat("en-GB").format(Number(value) || 0)}`;
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getListingLocation = (listing) => listing.location?.city || "";
+
+const getCustomerName = (booking) =>
+  booking.guest?.displayName ||
+  booking.guest?.firstName ||
+  booking.guest?.name ||
+  [booking.guest?.firstName, booking.guest?.lastName].filter(Boolean).join(" ") ||
+  "Guest";
+
 export default function Dashboard() {
-  const currentUser = getUser();
-  const displayName = currentUser?.firstName
-    ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
-    : currentUser?.email?.split("@")[0] || "there";
-  const upcomingCount = useCountUp(2);
-  const savedCount = useCountUp(14);
-  const unreadCount = useCountUp(3);
-  const spentCount = useCountUp(4820);
+  const token = localStorage.getItem("vencome_token");
+  const user = JSON.parse(localStorage.getItem("vencome_user") || "{}");
+  const [listings, setListings] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [stats, setStats] = useState({
+    totalListings: 0,
+    activeListings: 0,
+    totalBookings: 0,
+    pendingBookings: 0,
+    totalRevenue: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const displayName = user.displayName || user.firstName || "Host";
+
+  const fetchHostDashboard = useCallback(async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [listingsRes, bookingsRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/properties/me`, { headers }),
+        fetch(`${import.meta.env.VITE_API_URL}/bookings/host`, { headers }),
+      ]);
+
+      if (listingsRes.ok) {
+        const listingsData = await listingsRes.json();
+        const allListings = listingsData.properties || [];
+        setListings(allListings);
+        setStats((prev) => ({
+          ...prev,
+          totalListings: allListings.length,
+          activeListings: allListings.filter((listing) => listing.isActive).length,
+        }));
+      }
+
+      if (bookingsRes.ok) {
+        const bookingsData = await bookingsRes.json();
+        const allBookings = Array.isArray(bookingsData) ? bookingsData : bookingsData.bookings || [];
+        setBookings(allBookings);
+        const revenue = allBookings
+          .filter((booking) => String(booking.status || "").toLowerCase() === "completed")
+          .reduce((sum, booking) => sum + (booking.totalPrice || 0), 0);
+        setStats((prev) => ({
+          ...prev,
+          totalBookings: allBookings.length,
+          pendingBookings: allBookings.filter(
+            (booking) => String(booking.status || "").toLowerCase() === "pending"
+          ).length,
+          totalRevenue: revenue,
+        }));
+      }
+    } catch (err) {
+      console.error("Host dashboard fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchHostDashboard();
+  }, [fetchHostDashboard]);
+
+  const handleBookingAction = async (bookingId, status) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${bookingId}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update booking");
+      }
+
+      await fetchHostDashboard();
+    } catch (error) {
+      console.error("Failed to update booking status:", error);
+    }
+  };
+
+  const totalListingsCount = useCountUp(stats.totalListings);
+  const activeListingsCount = useCountUp(stats.activeListings);
+  const totalBookingsCount = useCountUp(stats.totalBookings);
+  const pendingBookingsCount = useCountUp(stats.pendingBookings);
+  const totalRevenueCount = useCountUp(stats.totalRevenue);
 
   const liveStats = [
-    { ...STATS[0], value: `${upcomingCount}` },
-    { ...STATS[1], value: `${savedCount}` },
-    { ...STATS[2], value: `${unreadCount}` },
-    { ...STATS[3], value: `£${new Intl.NumberFormat("en-GB").format(spentCount)}` },
+    { icon: Plus, label: "Total Listings", value: `${totalListingsCount}`, sub: "Spaces in portfolio" },
+    { icon: Star, label: "Active Listings", value: `${activeListingsCount}`, sub: "Currently live" },
+    { icon: CalendarDays, label: "Total Bookings", value: `${totalBookingsCount}`, sub: "Across all listings" },
+    { icon: Clock, label: "Pending Requests", value: `${pendingBookingsCount}`, sub: "Awaiting action" },
+    { icon: PoundSterling, label: "Total Revenue", value: formatCurrency(totalRevenueCount), sub: "Completed bookings" },
   ];
 
   return (
@@ -130,7 +203,9 @@ export default function Dashboard() {
           <div>
             <h2 className="text-[18px] font-bold text-white md:text-[22px]">Good morning, {displayName}</h2>
             <p className="mt-1.5 text-[14px] text-white/70">
-              You have 2 upcoming bookings this week.
+              {loading
+                ? "Loading your host dashboard..."
+                : `You have ${stats.pendingBookings} pending booking request${stats.pendingBookings === 1 ? "" : "s"}.`}
             </p>
           </div>
           <Link
@@ -143,26 +218,34 @@ export default function Dashboard() {
       </motion.section>
 
       <section className="mb-7 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {liveStats.map((stat, index) => {
+        {(loading ? Array.from({ length: 5 }, (_, index) => ({ id: index })) : liveStats).map((stat, index) => {
           const Icon = stat.icon;
           return (
             <motion.div
-              key={stat.label}
+              key={stat.label || stat.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.45, delay: index * 0.1 }}
               className="rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-4 sm:px-5 sm:py-5"
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[rgba(48,92,222,0.2)] bg-[rgba(48,92,222,0.1)] text-[#305CDE]">
-                <Icon size={20} />
-              </div>
-              <p className="mt-4 text-[13px] text-[#6B7280]">{stat.label}</p>
-              <p className="mt-1 break-words text-[24px] font-extrabold text-[#0A1628] sm:text-[28px]">{stat.value}</p>
-              <p className="mt-1 text-[12px] text-[#6B7280]">{stat.sub}</p>
-              {stat.trend ? (
-                <p className="mt-1 text-[12px] font-medium text-[#16A34A]">{stat.trend}</p>
-              ) : null}
+              {loading ? (
+                <>
+                  <div className="h-11 w-11 rounded-xl bg-[#F3F4F6]" />
+                  <div className="mt-4 h-3 w-24 rounded-full bg-[#F3F4F6]" />
+                  <div className="mt-2 h-8 w-20 rounded-lg bg-[#F3F4F6]" />
+                  <div className="mt-2 h-3 w-28 rounded-full bg-[#F3F4F6]" />
+                </>
+              ) : (
+                <>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[rgba(48,92,222,0.2)] bg-[rgba(48,92,222,0.1)] text-[#305CDE]">
+                    <Icon size={20} />
+                  </div>
+                  <p className="mt-4 text-[13px] text-[#6B7280]">{stat.label}</p>
+                  <p className="mt-1 break-words text-[24px] font-extrabold text-[#0A1628] sm:text-[28px]">{stat.value}</p>
+                  <p className="mt-1 text-[12px] text-[#6B7280]">{stat.sub}</p>
+                </>
+              )}
             </motion.div>
           );
         })}
@@ -170,67 +253,171 @@ export default function Dashboard() {
 
       <section className="mb-7">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h3 className="text-[18px] font-bold text-[#0A1628]">Upcoming Bookings</h3>
+          <h3 className="text-[18px] font-bold text-[#0A1628]">Recent Bookings</h3>
           <Link to="/dashboard/bookings" className="text-[14px] font-medium text-[#305CDE]">
             View all →
           </Link>
         </div>
 
         <div className="space-y-3">
-          {UPCOMING.map((booking, index) => (
-            <motion.div
-              key={booking.id}
-              initial={{ opacity: 0, x: -24 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.45, delay: index * 0.08 }}
+          {loading ? (
+            Array.from({ length: 3 }, (_, index) => (
+              <div
+                key={`booking-skeleton-${index}`}
                 className="flex flex-col gap-4 rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-4 md:flex-row md:items-center md:px-5"
-            >
-              <img
-                src={booking.image}
-                alt={booking.space}
-                  className="h-14 w-14 rounded-[10px] object-cover md:h-[72px] md:w-[72px]"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-bold text-[#0A1628]">{booking.space}</p>
-                <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[#6B7280]">
-                  <MapPin size={12} />
-                  <span>{booking.location}</span>
+              >
+                <div className="h-14 w-14 rounded-[10px] bg-[#F3F4F6] md:h-[72px] md:w-[72px]" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-4 w-48 rounded-full bg-[#F3F4F6]" />
+                  <div className="mt-2 h-3 w-40 rounded-full bg-[#F3F4F6]" />
+                  <div className="mt-2 h-3 w-44 rounded-full bg-[#F3F4F6]" />
                 </div>
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                  <div className="h-4 w-20 rounded-full bg-[#F3F4F6]" />
+                  <div className="h-7 w-24 rounded-full bg-[#F3F4F6]" />
+                </div>
+              </div>
+            ))
+          ) : bookings.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 0" }} className="rounded-[14px] border border-[#E5E7EB] bg-white">
+              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📋</p>
+              <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
+                No bookings yet
+              </p>
+              <p style={{ color: "#6B7280", fontSize: "14px" }}>
+                Bookings for your spaces will appear here
+              </p>
+            </div>
+          ) : (
+            bookings.slice(0, 5).map((booking, index) => (
+              <motion.div
+                key={booking._id}
+                initial={{ opacity: 0, x: -24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.45, delay: index * 0.08 }}
+                className="flex flex-col gap-4 rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-4 md:flex-row md:items-center md:px-5"
+              >
+                {booking.guest?.profileImage ? (
+                  <img
+                    src={booking.guest.profileImage}
+                    alt={getCustomerName(booking)}
+                    className="h-14 w-14 rounded-[10px] object-cover md:h-[72px] md:w-[72px]"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[10px] bg-[#E5E7EB] text-[#6B7280] md:h-[72px] md:w-[72px]">
+                    <CalendarDays size={22} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[15px] font-bold text-[#0A1628]">
+                    {booking.property?.title || "Property"}
+                  </p>
+                  <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[#6B7280]">
+                    <MapPin size={12} />
+                    <span>{getCustomerName(booking)}</span>
+                  </div>
                   <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[#374151]">
-                  <Clock size={12} />
-                    <span className="whitespace-normal break-words">{booking.duration}</span>
+                    <Clock size={12} />
+                    <span className="whitespace-normal break-words">
+                      {formatDate(booking.checkIn)} - {formatDate(booking.checkOut)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-col items-start gap-2 md:items-end">
-                <p className="text-[16px] font-bold text-[#0A1628]">{booking.price}</p>
-                <StatusBadge status={booking.status} />
-                <Link
-                  to="/dashboard/bookings"
-                  className="text-[13px] font-medium text-[#305CDE] hover:underline"
-                >
-                  View Details
-                </Link>
-              </div>
-            </motion.div>
-          ))}
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                  <p className="text-[16px] font-bold text-[#0A1628]">{formatCurrency(booking.totalPrice)}</p>
+                  <StatusBadge status={booking.status} />
+                  {String(booking.status || "").toLowerCase() === "pending" ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleBookingAction(booking._id, "confirmed")}
+                        className="rounded-lg bg-[#0A1628] px-3 py-2 text-[12px] font-semibold text-white"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBookingAction(booking._id, "declined")}
+                        className="rounded-lg border border-[#E5E7EB] px-3 py-2 text-[12px] font-semibold text-[#0A1628]"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </motion.div>
+            ))
+          )}
         </div>
       </section>
 
       <section className="mb-7">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h3 className="text-[18px] font-bold text-[#0A1628]">Recently Viewed</h3>
-          <Link to="/dashboard/saved" className="text-[14px] font-medium text-[#305CDE]">
-            View saved →
+          <h3 className="text-[18px] font-bold text-[#0A1628]">Recent Listings</h3>
+          <Link to="/dashboard/my-listings" className="text-[14px] font-medium text-[#305CDE]">
+            View listings →
           </Link>
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {RECENT.map((space) => (
-            <div key={space.id} className="min-w-[220px] shrink-0 sm:min-w-[260px]">
-              <PropertyCard {...space} />
+          {loading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`listing-skeleton-${index}`} className="min-w-[220px] shrink-0 rounded-[14px] bg-[#F3F4F6] sm:min-w-[260px]" style={{ height: 320 }} />
+            ))
+          ) : listings.length === 0 ? (
+            <div className="w-full rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-8 text-center">
+              <p className="text-[15px] font-medium text-[#6B7280]">No listings yet</p>
+              <Link
+                to="/create-space"
+                className="mt-4 inline-flex rounded-lg bg-[#305CDE] px-4 py-2.5 text-[14px] font-semibold text-white"
+              >
+                Add New Space
+              </Link>
             </div>
-          ))}
+          ) : (
+            listings.slice(0, 4).map((listing) => (
+              <div
+                key={listing._id}
+                className="min-w-[220px] shrink-0 overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white sm:min-w-[260px]"
+              >
+                <Link to={`/property/${listing._id}`} className="block">
+                  <div className="relative">
+                    <img
+                      src={listing.coverImage}
+                      alt={listing.title}
+                      className="h-[180px] w-full object-cover"
+                    />
+                    <span
+                      className={`absolute left-3 top-3 rounded-full px-3 py-[5px] text-[11px] font-bold uppercase tracking-[0.5px] ${
+                        listing.isActive ? "bg-[#16A34A] text-white" : "bg-[#9CA3AF] text-white"
+                      }`}
+                    >
+                      {listing.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-1.5 text-[13px] text-[#6B7280]">
+                      <MapPin size={12} />
+                      <span>{getListingLocation(listing)}</span>
+                    </div>
+                    <h4 className="mt-2 text-[15px] font-semibold text-[#111827]">{listing.title}</h4>
+                    <p className="mt-3 text-[16px] font-bold text-[#111827]">
+                      {listing.pricing?.hourly ? `£${listing.pricing.hourly}/hr` : "POA"}
+                    </p>
+                  </div>
+                </Link>
+                <div className="border-t border-[#E5E7EB] p-4">
+                  <Link
+                    to={`/edit-space/${listing._id}`}
+                    className="inline-flex rounded-full border border-[#E5E7EB] px-4 py-2 text-sm font-medium text-[#0A1628] transition hover:border-[#305CDE] hover:bg-[#F8F6F0]"
+                  >
+                    Edit
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -190,15 +190,226 @@ const ICON_MAP = {
   Camera,
   Clock,
   Printer,
+  Check,
 };
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const OPEN_DAY_SHORT = {
+  Monday: "Mon",
+  Tuesday: "Tue",
+  Wednesday: "Wed",
+  Thursday: "Thu",
+  Friday: "Fri",
+  Saturday: "Sat",
+  Sunday: "Sun",
+};
 
 const SECTION_REVEAL = {
   initial: { opacity: 0, y: 28 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true, margin: "-80px" },
   transition: { duration: 0.55, ease: "easeOut" },
+};
+
+const getAmenityIcon = (amenity = "") => {
+  const value = amenity.toLowerCase();
+  if (value.includes("wifi")) return "Wifi";
+  if (value.includes("park")) return "Car";
+  if (value.includes("av") || value.includes("monitor") || value.includes("screen")) {
+    return "Monitor";
+  }
+  if (value.includes("kitchen") || value.includes("coffee") || value.includes("catering")) {
+    return "Coffee";
+  }
+  if (value.includes("reception")) return "UserCheck";
+  if (value.includes("air") || value.includes("vent")) return "Wind";
+  if (value.includes("disabled")) return "Accessibility";
+  if (value.includes("cctv") || value.includes("camera") || value.includes("security")) {
+    return "Camera";
+  }
+  if (value.includes("24/7") || value.includes("access")) return "Clock";
+  if (value.includes("print")) return "Printer";
+  return "Check";
+};
+
+const formatOpenDays = (openDays = []) => {
+  if (!openDays.length) return "Availability on request";
+
+  const normalized = openDays.map((day) => OPEN_DAY_SHORT[day] || day.slice(0, 3));
+  const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  const everyDay = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  if (normalized.join(",") === weekdays.join(",")) return "Mon - Fri";
+  if (normalized.join(",") === everyDay.join(",")) return "Mon - Sun";
+
+  return normalized.join(", ");
+};
+
+const getPricingValue = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (typeof value === "object") {
+    if (!value.enabled || value.price === null || value.price === undefined || value.price === "") {
+      return null;
+    }
+    const numericValue = Number(value.price);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const pickPricingValue = (...values) => {
+  for (const value of values) {
+    const parsedValue = getPricingValue(value);
+    if (parsedValue !== null) return parsedValue;
+  }
+
+  return null;
+};
+
+const buildPricingTiers = (pricing = {}) =>
+  [
+    {
+      unit: "hour",
+      price: pickPricingValue(pricing.hourly, pricing.hourlyPrice),
+      label: "Per Hour",
+      min: "1 hour minimum",
+    },
+    {
+      unit: "day",
+      price: pickPricingValue(pricing.daily, pricing.weekdayPrice),
+      label: "Per Day",
+      min: "Full day booking",
+    },
+    {
+      unit: "week",
+      price: pickPricingValue(pricing.weekly),
+      label: "Per Week",
+      min: "Weekly booking",
+    },
+    {
+      unit: "month",
+      price: pickPricingValue(pricing.monthly),
+      label: "Per Month",
+      min: "Rolling monthly",
+    },
+  ].filter((tier) => tier.price !== null && tier.price !== undefined && tier.price !== "");
+
+const normalizePropertyData = (property) => {
+  if (!property) return null;
+
+  const hostName =
+    property.host?.displayName ||
+    [property.host?.firstName, property.host?.lastName].filter(Boolean).join(" ") ||
+    property.host?.name ||
+    "VenCome Host";
+  const location = [
+    property.location?.address,
+    property.location?.city,
+    property.location?.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const imageList = [property.coverImage, ...(property.images || [])].filter(Boolean);
+  const pricing = buildPricingTiers(property.pricing || {});
+  const amenities = (property.features?.amenities || []).map((amenity) => ({
+    label: amenity,
+    icon: getAmenityIcon(amenity),
+  }));
+  const rules = property.houseRules
+    ? property.houseRules
+        .split(/\r?\n/)
+        .map((rule) => rule.trim())
+        .filter(Boolean)
+    : [];
+  const reviews = (property.reviews || []).map((review, index) => ({
+    id: review._id || review.id || `review-${index}`,
+    author:
+      review.author?.displayName ||
+      [review.author?.firstName, review.author?.lastName].filter(Boolean).join(" ") ||
+      review.user?.displayName ||
+      [review.user?.firstName, review.user?.lastName].filter(Boolean).join(" ") ||
+      "Guest",
+    avatar:
+      review.author?.profileImage ||
+      review.user?.profileImage ||
+      property.host?.profileImage ||
+      property.coverImage ||
+      "",
+    rating: review.rating || 0,
+    date: review.createdAt
+      ? new Date(review.createdAt).toLocaleDateString("en-GB", {
+          month: "short",
+          year: "numeric",
+        })
+      : "",
+    text: review.comment || review.text || "",
+  }));
+  const derivedRatingBreakdown = reviews.reduce(
+    (accumulator, review) => {
+      if (review.rating >= 1 && review.rating <= 5) {
+        accumulator[review.rating] += 1;
+      }
+      return accumulator;
+    },
+    { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  );
+  const reviewCount = property.reviewNumber || property.reviewCount || reviews.length || 0;
+  const rating = property.rating || "New";
+  const latitude = property.coordinates?.lat ?? property.coordinates?.latitude ?? null;
+  const longitude = property.coordinates?.lng ?? property.coordinates?.longitude ?? null;
+  const openDays = property.availability?.openDays || [];
+  const openTime = property.availability?.openTime || "";
+  const closeTime = property.availability?.closeTime || "";
+
+  return {
+    ...property,
+    title: property.title || "Untitled space",
+    location,
+    category: property.category?.name || property.category || "",
+    capacity:
+      property.features?.capacity ||
+      property.features?.maxGuests ||
+      property.features?.seatCapacity ||
+      1,
+    rating,
+    reviewCount,
+    badge: property.bookingSettings?.instantBook ? "Instant Book" : "Request to Book",
+    description: property.description || "",
+    images: imageList.length ? imageList : [""],
+    amenities,
+    pricing,
+    host: {
+      name: hostName,
+      company: property.host?.company || "VenCome Host",
+      avatar: property.host?.profileImage || property.host?.avatar || property.coverImage || "",
+      verified: Boolean(property.host?.verified || property.host?.isVerified),
+      responseRate: property.host?.responseRate || 0,
+      responseTime: property.host?.responseTime || "soon",
+      joinedYear:
+        property.host?.joinedYear ||
+        (property.host?.createdAt ? new Date(property.host.createdAt).getFullYear() : ""),
+      totalListings: property.host?.totalListings || 0,
+    },
+    reviews,
+    ratingBreakdown: property.ratingBreakdown || derivedRatingBreakdown,
+    rules,
+    location_detail: {
+      lat: latitude,
+      lng: longitude,
+      description:
+        location ||
+        "Location details will be shared after your booking is confirmed.",
+    },
+    availabilityLabel: formatOpenDays(openDays),
+    availabilityHours:
+      openTime && closeTime ? `${openTime} - ${closeTime}` : "Hours available on request",
+    bookingTypeLabel: property.bookingSettings?.instantBook
+      ? "Instant Book"
+      : "Request to Book",
+  };
 };
 
 const startOfDay = (date) =>
@@ -316,29 +527,230 @@ const getBookingMetrics = (tier, selectedDays) => {
   };
 };
 
+const DURATION_BY_UNIT = {
+  hour: "hourly",
+  day: "daily",
+  week: "weekly",
+  month: "monthly",
+};
+
+const formatInputDateValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatInputDateTimeValue = (date) => {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${formatInputDateValue(date)}T${hours}:${minutes}`;
+};
+
+const formatBookingInputValue = (date, duration, boundary = "start") => {
+  const nextDate = new Date(date);
+
+  if (duration === "hourly") {
+    if (nextDate.getHours() === 0 && nextDate.getMinutes() === 0) {
+      nextDate.setHours(boundary === "start" ? 9 : 17, 0, 0, 0);
+    }
+    return formatInputDateTimeValue(nextDate);
+  }
+
+  return formatInputDateValue(nextDate);
+};
+
+const parseBookingInputValue = (value, duration, boundary = "start") => {
+  if (!value) return null;
+  if (duration === "hourly") return new Date(value);
+  return new Date(`${value}T${boundary === "end" ? "23:59" : "00:00"}:00`);
+};
+
 export default function PropertyDetails() {
   const { id } = useParams();
-  const property = MOCK_PROPERTY;
   const today = startOfDay(new Date());
+  const [property, setProperty] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [lightboxDirection, setLightboxDirection] = useState(1);
   const [expandedDescription, setExpandedDescription] = useState(false);
   const [selectedPricingTier, setSelectedPricingTier] = useState(0);
+  const [selectedDuration, setSelectedDuration] = useState("hourly");
   const [visibleMonth, setVisibleMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1)
   );
+  const [selectedDurationType, setSelectedDurationType] = useState(null);
+  const [bookingMode, setBookingMode] = useState("single");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const [selectedDates, setSelectedDates] = useState([]);
+  const [recurringConfig, setRecurringConfig] = useState({
+    startDate: "",
+    frequency: "weekly",
+    occurrences: 1,
+  });
+  const [guests, setGuests] = useState(1);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState(null);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState(null);
   const [selectedEndDate, setSelectedEndDate] = useState(null);
-  const [capacity, setCapacity] = useState(8);
   const [expandedReviews, setExpandedReviews] = useState({});
   const [showAllReviews, setShowAllReviews] = useState(false);
 
   const bookingSidebarRef = useRef(null);
   const calendarRef = useRef(null);
+  const propertyView = useMemo(() => normalizePropertyData(property), [property]);
+  const enabledPricingOptions = property
+    ? ["hourly", "daily", "weekly", "monthly", "annual"]
+        .map((key) => {
+          const val = property.pricing?.[key];
+          if (!val) return null;
 
-  const selectedTier = property.pricing[selectedPricingTier];
+          let price = null;
+          let enabled = false;
+
+          if (typeof val === "object") {
+            enabled = val.enabled;
+            price = val.price;
+          } else if (typeof val === "number" && val > 0) {
+            enabled = true;
+            price = val;
+          } else if (typeof val === "string" && parseFloat(val) > 0) {
+            enabled = true;
+            price = val;
+          }
+
+          if (!enabled || !price) return null;
+
+          return {
+            key,
+            label: {
+              hourly: "Per Hour",
+              daily: "Per Day",
+              weekly: "Per Week",
+              monthly: "Per Month",
+              annual: "Per Year",
+            }[key],
+            price: parseFloat(price),
+            unit: {
+              hourly: "/hr",
+              daily: "/day",
+              weekly: "/week",
+              monthly: "/month",
+              annual: "/year",
+            }[key],
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  const getPriceForDisplay = (key) => {
+    const val = property?.pricing?.[key];
+    if (val === null || val === undefined) return null;
+    if (typeof val === "object") {
+      if (val.enabled && val.price && parseFloat(val.price) > 0) return parseFloat(val.price);
+      return null;
+    }
+    if (typeof val === "number" && val > 0) return val;
+    if (typeof val === "string" && parseFloat(val) > 0) return parseFloat(val);
+    return null;
+  };
+
+  const pricingOptions = useMemo(
+    () =>
+      [
+        {
+          unit: "hour",
+          price: getPriceForDisplay("hourly"),
+          label: "Per Hour",
+          min: "1 hour minimum",
+        },
+        {
+          unit: "day",
+          price: getPriceForDisplay("daily"),
+          label: "Per Day",
+          min: "Full day booking",
+        },
+        {
+          unit: "week",
+          price: getPriceForDisplay("weekly"),
+          label: "Per Week",
+          min: "Weekly booking",
+        },
+        {
+          unit: "month",
+          price: getPriceForDisplay("monthly"),
+          label: "Per Month",
+          min: "Rolling monthly",
+        },
+        {
+          unit: "year",
+          price: getPriceForDisplay("annual"),
+          label: "Per Year",
+          min: "Annual booking",
+        },
+      ].filter((tier) => tier.price !== null),
+    [property]
+  );
+
+  useEffect(() => {
+    const fetchProperty = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`);
+        if (!response.ok) throw new Error("Property not found");
+        const data = await response.json();
+        setProperty(data.property || data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) fetchProperty();
+  }, [id]);
+
+  useEffect(() => {
+    if (!propertyView) return;
+    setSelectedPricingTier(0);
+    setSelectedDuration(DURATION_BY_UNIT[pricingOptions?.[0]?.unit] || "hourly");
+    setCheckIn("");
+    setCheckOut("");
+    setSelectedStartDate(null);
+    setSelectedEndDate(null);
+    setGuests(1);
+    setBookingError(null);
+    setBookingSuccess(false);
+  }, [propertyView, pricingOptions]);
+
+  useEffect(() => {
+    if (
+      enabledPricingOptions.length > 0 &&
+      !enabledPricingOptions.some((option) => option.key === selectedDurationType)
+    ) {
+      setSelectedDurationType(enabledPricingOptions[0].key);
+    }
+  }, [property, enabledPricingOptions, selectedDurationType]);
+
+  const selectedTier = pricingOptions?.[selectedPricingTier] || pricingOptions?.[0];
+
+  useEffect(() => {
+    if (!selectedTier?.unit) return;
+    setSelectedDuration(DURATION_BY_UNIT[selectedTier.unit] || "hourly");
+  }, [selectedTier?.unit]);
+
+  useEffect(() => {
+    if (selectedStartDate) {
+      setCheckIn(formatBookingInputValue(selectedStartDate, selectedDuration, "start"));
+    }
+    if (selectedEndDate) {
+      setCheckOut(formatBookingInputValue(selectedEndDate, selectedDuration, "end"));
+    }
+  }, [selectedStartDate, selectedEndDate, selectedDuration]);
 
   const unavailableDates = useMemo(() => {
     const blockedDays = [3, 8, 9, 15, 22, 23];
@@ -366,16 +778,74 @@ export default function PropertyDetails() {
   const bookingTotal = bookingMetrics.subtotal + cleaningFee + platformFee;
 
   const displayedReviews = showAllReviews
-    ? property.reviews
-    : property.reviews.slice(0, 2);
+    ? propertyView?.reviews || []
+    : (propertyView?.reviews || []).slice(0, 2);
 
   const reviewPercentages = [5, 4, 3, 2, 1].map((score) => ({
     score,
-    count: property.ratingBreakdown[score],
+    count: propertyView?.ratingBreakdown?.[score] || 0,
     percentage: Math.round(
-      ((property.ratingBreakdown[score] || 0) / property.reviewCount) * 100
+      (((propertyView?.ratingBreakdown?.[score] || 0) / Math.max(propertyView?.reviewCount || 0, 1)) *
+        100)
     ),
   }));
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 24px" }}>
+          <div
+            style={{
+              background: "#f3f4f6",
+              borderRadius: "16px",
+              height: "400px",
+              marginBottom: "24px",
+            }}
+          />
+          <div
+            style={{
+              background: "#f3f4f6",
+              borderRadius: "8px",
+              height: "32px",
+              width: "60%",
+              marginBottom: "16px",
+            }}
+          />
+          <div
+            style={{
+              background: "#f3f4f6",
+              borderRadius: "8px",
+              height: "20px",
+              width: "40%",
+            }}
+          />
+        </div>
+      </>
+    );
+  }
+
+  if (error || !propertyView) {
+    return (
+      <>
+        <Navbar />
+        <div style={{ textAlign: "center", padding: "80px 24px" }}>
+          <p style={{ fontSize: "20px", color: "#111827", marginBottom: "8px" }}>
+            Property not found
+          </p>
+          <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "24px" }}>
+            This listing may have been removed or is no longer available.
+          </p>
+          <a
+            href="/search"
+            style={{ color: "#0A1628", fontWeight: "600", textDecoration: "underline" }}
+          >
+            Browse all spaces
+          </a>
+        </div>
+      </>
+    );
+  }
 
   const openImage = (index) => {
     setLightboxDirection(index >= activeImageIndex ? 1 : -1);
@@ -386,7 +856,7 @@ export default function PropertyDetails() {
   const changeImage = (direction) => {
     setLightboxDirection(direction);
     setActiveImageIndex((current) => {
-      const total = property.images.length;
+      const total = propertyView.images.length;
       return (current + direction + total) % total;
     });
   };
@@ -429,6 +899,113 @@ export default function PropertyDetails() {
     setSelectedEndDate(normalizedDate);
   };
 
+  const handleCheckInChange = (value) => {
+    setCheckIn(value);
+    setBookingError(null);
+    setBookingSuccess(false);
+    setSelectedStartDate(parseBookingInputValue(value, selectedDuration, "start"));
+  };
+
+  const handleCheckOutChange = (value) => {
+    setCheckOut(value);
+    setBookingError(null);
+    setBookingSuccess(false);
+    setSelectedEndDate(parseBookingInputValue(value, selectedDuration, "end"));
+  };
+
+  const handleBooking = async () => {
+    setBookingError(null);
+    setBookingLoading(true);
+
+    try {
+      const token = localStorage.getItem("vencome_token");
+      if (!token) {
+        window.location.href = "/login";
+        return;
+      }
+
+      let bookingsToCreate = [];
+
+      if (bookingMode === "single") {
+        if (!checkIn || !checkOut) {
+          setBookingError("Please select check-in and check-out dates");
+          setBookingLoading(false);
+          return;
+        }
+        bookingsToCreate = [{ checkIn, checkOut }];
+      }
+
+      if (bookingMode === "multiple") {
+        const valid = selectedDates.filter((dateRange) => dateRange.start && dateRange.end);
+        if (valid.length === 0) {
+          setBookingError("Please add at least one date range");
+          setBookingLoading(false);
+          return;
+        }
+        bookingsToCreate = valid.map((dateRange) => ({
+          checkIn: dateRange.start,
+          checkOut: dateRange.end,
+        }));
+      }
+
+      if (bookingMode === "recurring") {
+        if (!recurringConfig.startDate) {
+          setBookingError("Please select a start date");
+          setBookingLoading(false);
+          return;
+        }
+        const dates = [];
+        let current = new Date(recurringConfig.startDate);
+        for (let index = 0; index < recurringConfig.occurrences; index += 1) {
+          const start = new Date(current);
+          const end = new Date(current);
+          if (selectedDurationType === "daily") end.setDate(end.getDate() + 1);
+          else if (selectedDurationType === "weekly") end.setDate(end.getDate() + 7);
+          else if (selectedDurationType === "monthly") end.setMonth(end.getMonth() + 1);
+          else end.setDate(end.getDate() + 1);
+          dates.push({ checkIn: start.toISOString(), checkOut: end.toISOString() });
+          if (recurringConfig.frequency === "weekly") current.setDate(current.getDate() + 7);
+          else if (recurringConfig.frequency === "biweekly") {
+            current.setDate(current.getDate() + 14);
+          } else if (recurringConfig.frequency === "monthly") {
+            current.setMonth(current.getMonth() + 1);
+          }
+        }
+        bookingsToCreate = dates;
+      }
+
+      const results = await Promise.all(
+        bookingsToCreate.map(async ({ checkIn: bookingCheckIn, checkOut: bookingCheckOut }) => {
+          const formData = new FormData();
+          formData.append("propertyId", property._id);
+          formData.append("checkIn", bookingCheckIn);
+          formData.append("checkOut", bookingCheckOut);
+          formData.append("guests", guests);
+          formData.append("extras", JSON.stringify([]));
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
+          return response;
+        })
+      );
+
+      const failedResponse = results.find((response) => !response.ok);
+      if (failedResponse) {
+        const firstFailed = await failedResponse.json();
+        setBookingError(firstFailed?.error || "One or more bookings failed");
+        return;
+      }
+
+      setBookingSuccess(true);
+    } catch (err) {
+      setBookingError("Something went wrong. Please try again.");
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
   const toggleReviewExpansion = (reviewId) => {
     setExpandedReviews((current) => ({
       ...current,
@@ -447,7 +1024,7 @@ export default function PropertyDetails() {
 
       <div className="min-h-screen overflow-x-hidden bg-[#F8F6F0] pb-24 md:pb-0">
         <PhotoGallery
-          images={property.images}
+          images={propertyView.images}
           onOpen={openImage}
           onShowAll={() => openImage(0)}
         />
@@ -456,28 +1033,28 @@ export default function PropertyDetails() {
           <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.95fr)] lg:gap-16">
             <div className="min-w-0">
               <motion.section {...sectionProps(0)}>
-                <TitleBlock property={property} />
+                <TitleBlock property={propertyView} />
               </motion.section>
 
               <motion.section {...sectionProps(0.05)}>
-                <HostSection host={property.host} />
+                <HostSection host={propertyView.host} />
               </motion.section>
 
               <motion.section {...sectionProps(0.1)}>
                 <DescriptionSection
-                  description={property.description}
+                  description={propertyView.description}
                   expanded={expandedDescription}
                   onToggle={() => setExpandedDescription((current) => !current)}
                 />
               </motion.section>
 
               <motion.section {...sectionProps(0.15)}>
-                <AmenitiesSection amenities={property.amenities} />
+                <AmenitiesSection amenities={propertyView.amenities} />
               </motion.section>
 
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
-                  pricing={property.pricing}
+                  pricing={pricingOptions}
                   selectedPricingTier={selectedPricingTier}
                   onSelectTier={setSelectedPricingTier}
                 />
@@ -495,20 +1072,22 @@ export default function PropertyDetails() {
                   today={today}
                   selectedDays={selectedDays}
                   availabilityTotal={bookingMetrics.subtotal}
+                  openDaysLabel={propertyView.availabilityLabel}
+                  openHours={propertyView.availabilityHours}
                 />
               </motion.section>
 
               <motion.section {...sectionProps(0.3)}>
-                <HouseRulesSection rules={property.rules} />
+                <HouseRulesSection rules={propertyView.rules} />
               </motion.section>
 
               <motion.section {...sectionProps(0.35)}>
-                <LocationSection property={property} />
+                <LocationSection property={propertyView} />
               </motion.section>
 
               <motion.section id="reviews" {...sectionProps(0.4)}>
                 <ReviewsSection
-                  property={property}
+                  property={propertyView}
                   displayedReviews={displayedReviews}
                   showAllReviews={showAllReviews}
                   onToggleShowAll={() => setShowAllReviews((current) => !current)}
@@ -528,19 +1107,24 @@ export default function PropertyDetails() {
             >
               <BookingSidebar
                 property={property}
-                pricing={property.pricing}
-                selectedTier={selectedTier}
-                selectedPricingTier={selectedPricingTier}
-                onSelectTier={setSelectedPricingTier}
-                selectedStartDate={selectedStartDate}
-                selectedEndDate={selectedEndDate}
-                onFocusCalendar={focusCalendar}
-                capacity={capacity}
-                onCapacityChange={setCapacity}
-                bookingMetrics={bookingMetrics}
-                cleaningFee={cleaningFee}
-                platformFee={platformFee}
-                bookingTotal={bookingTotal}
+                enabledPricingOptions={enabledPricingOptions}
+                selectedDurationType={selectedDurationType}
+                onSelectDurationType={setSelectedDurationType}
+                bookingMode={bookingMode}
+                onBookingModeChange={setBookingMode}
+                checkIn={checkIn}
+                checkOut={checkOut}
+                onCheckInChange={setCheckIn}
+                onCheckOutChange={setCheckOut}
+                selectedDates={selectedDates}
+                onSelectedDatesChange={setSelectedDates}
+                recurringConfig={recurringConfig}
+                onRecurringConfigChange={setRecurringConfig}
+                guests={guests}
+                onGuestsChange={setGuests}
+                bookingLoading={bookingLoading}
+                bookingError={bookingError}
+                onBook={handleBooking}
               />
             </motion.aside>
           </div>
@@ -551,13 +1135,105 @@ export default function PropertyDetails() {
 
         <MobileBookingBar
           selectedTier={selectedTier}
-          rating={property.rating}
+          rating={propertyView.rating}
           onBookNow={focusBooking}
         />
       </div>
 
+      {bookingSuccess && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "48px 40px",
+              maxWidth: "480px",
+              width: "90%",
+              textAlign: "center",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "24px",
+                fontWeight: "700",
+                color: "#0A1628",
+                marginBottom: "12px",
+              }}
+            >
+              {property?.bookingSettings?.instantBook ? "Booking Confirmed!" : "Request Sent!"}
+            </h2>
+            <p
+              style={{
+                fontSize: "15px",
+                color: "#6B7280",
+                lineHeight: "1.6",
+                marginBottom: "8px",
+              }}
+            >
+              {property?.bookingSettings?.instantBook
+                ? `Your booking for ${property?.title} has been confirmed.`
+                : `Your request for ${property?.title} has been sent to the host.`}
+            </p>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#9CA3AF",
+                marginBottom: "32px",
+              }}
+            >
+              A confirmation email has been sent to you.
+            </p>
+            <div
+              style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}
+            >
+              <button
+                onClick={() => (window.location.href = "/customer/dashboard")}
+                style={{
+                  background: "#0A1628",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "14px 24px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                View My Bookings
+              </button>
+              <button
+                onClick={() => setBookingSuccess(false)}
+                style={{
+                  background: "transparent",
+                  color: "#0A1628",
+                  border: "1.5px solid #0A1628",
+                  borderRadius: "8px",
+                  padding: "14px 24px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Lightbox
-        images={property.images}
+        images={propertyView.images}
         activeImageIndex={activeImageIndex}
         direction={lightboxDirection}
         isOpen={lightboxOpen}
@@ -642,6 +1318,9 @@ function TitleBlock({ property }) {
       <div className="flex flex-wrap items-center gap-3">
         <span className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white">
           {property.category}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
+          {property.bookingTypeLabel}
         </span>
         {property.host.verified ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
@@ -750,7 +1429,7 @@ function AmenitiesSection({ amenities }) {
 
       <div className="mt-5 grid grid-cols-2 gap-[10px] md:gap-3">
         {amenities.map((amenity) => {
-          const Icon = ICON_MAP[amenity.icon];
+          const Icon = ICON_MAP[amenity.icon] || Check;
           return (
             <div
               key={amenity.label}
@@ -775,32 +1454,84 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Pricing Options</h2>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginTop: "16px" }}>
         {pricing.map((tier, index) => {
-          const selected = selectedPricingTier === index;
+          const keyMap = {
+            "Per Hour": "hourly",
+            "Per Day": "daily",
+            "Per Week": "weekly",
+            "Per Month": "monthly",
+            "Per Year": "annual",
+          };
+          const key = keyMap[tier.label];
+          const labels = {
+            hourly: "PER HOUR",
+            daily: "PER DAY",
+            weekly: "PER WEEK",
+            monthly: "PER MONTH",
+            annual: "PER YEAR",
+          };
+          const units = {
+            hourly: "/ hour",
+            daily: "/ day",
+            weekly: "/ week",
+            monthly: "/ month",
+            annual: "/ year",
+          };
+          const descriptions = {
+            hourly: "1 hour minimum",
+            daily: "Full day booking",
+            weekly: "Weekly arrangement",
+            monthly: "Monthly rolling",
+            annual: "Annual lease",
+          };
 
           return (
-            <button
-              key={tier.unit}
-              type="button"
+            <div
+              key={key || `${tier.unit}-${index}`}
               onClick={() => onSelectTier(index)}
-              className={`rounded-xl border p-3 text-left transition md:p-[18px] ${
-                selected
-                  ? "border-[#0A1628] shadow-[0_0_0_2px_#0A1628]"
-                  : "border-[#E5E7EB] bg-white"
-              }`}
+              style={{
+                border: "1px solid #E5E7EB",
+                borderRadius: "12px",
+                padding: "20px 24px",
+                minWidth: "160px",
+                flex: "1",
+                cursor: "pointer",
+              }}
             >
-              <p className="text-[11px] font-bold uppercase tracking-[1px] text-[#6B7280]">
-                {tier.label}
+              <p
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  color: "#6B7280",
+                  letterSpacing: "1px",
+                  marginBottom: "8px",
+                }}
+              >
+                {labels[key]}
               </p>
-              <p className="mt-3 text-[26px] font-extrabold text-[#0A1628]">
-                {formatCurrency(tier.price)}
-                <span className="ml-1 text-[14px] font-normal text-[#6B7280]">
-                  / {tier.unit}
+              <p
+                style={{
+                  fontSize: "24px",
+                  fontWeight: "800",
+                  color: "#0A1628",
+                  marginBottom: "4px",
+                }}
+              >
+                £{tier.price.toLocaleString()}
+                <span
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: "400",
+                    color: "#6B7280",
+                  }}
+                >
+                  {" "}
+                  {units[key]}
                 </span>
               </p>
-              <p className="mt-1 text-[12px] text-[#6B7280]">{tier.min}</p>
-            </button>
+              <p style={{ fontSize: "12px", color: "#9CA3AF" }}>{descriptions[key]}</p>
+            </div>
           );
         })}
       </div>
@@ -819,11 +1550,14 @@ function AvailabilitySection({
   today,
   selectedDays,
   availabilityTotal,
+  openDaysLabel,
+  openHours,
 }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Availability</h2>
-      <p className="mt-1 text-[13px] text-[#6B7280]">Select your dates</p>
+      <p className="mt-1 text-[13px] text-[#6B7280]">{openDaysLabel}</p>
+      <p className="mt-1 text-[13px] text-[#6B7280]">{openHours}</p>
 
       <div className="mt-5 rounded-[18px] border border-[#E5E7EB] bg-white p-4">
         <div className="mb-5 flex items-center justify-between">
@@ -937,18 +1671,35 @@ function HouseRulesSection({ rules }) {
 }
 
 function LocationSection({ property }) {
+  const hasCoordinates =
+    property.location_detail?.lat !== null &&
+    property.location_detail?.lat !== undefined &&
+    property.location_detail?.lng !== null &&
+    property.location_detail?.lng !== undefined;
+  const mapSrc = hasCoordinates
+    ? `https://www.google.com/maps?q=${property.location_detail.lat},${property.location_detail.lng}&z=15&output=embed`
+    : null;
+
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Location</h2>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#E5E7EB]">
-        <div className="flex h-[280px] flex-col items-center justify-center bg-[#0A1628] px-6 text-center text-white">
-          <Map size={48} className="text-[#305CDE]" />
-          <p className="mt-4 text-[18px] font-semibold">London Bridge, SE1 9SG</p>
-          <p className="mt-2 text-[14px] text-white/70">
-            Google Maps — backend integration phase
-          </p>
-        </div>
+        {hasCoordinates ? (
+          <iframe
+            title={`Map of ${property.location}`}
+            src={mapSrc}
+            className="h-[280px] w-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : (
+          <div className="flex h-[280px] flex-col items-center justify-center bg-[#0A1628] px-6 text-center text-white">
+            <Map size={48} className="text-[#305CDE]" />
+            <p className="mt-4 text-[18px] font-semibold">{property.location}</p>
+            <p className="mt-2 text-[14px] text-white/70">Map unavailable for this listing</p>
+          </div>
+        )}
       </div>
 
       <p className="mt-5 text-[14px] leading-7 text-[#6B7280]">
@@ -1058,179 +1809,589 @@ function ReviewsSection({
         })}
       </div>
 
-      <button
-        type="button"
-        onClick={onToggleShowAll}
-        className="mt-8 w-full rounded-[10px] border-[1.5px] border-[#0A1628] px-4 py-3 text-[14px] font-semibold text-[#0A1628] transition hover:bg-[#0A1628] hover:text-white"
-      >
-        {showAllReviews ? "Show fewer reviews" : `Show all ${property.reviewCount} reviews`}
-      </button>
+      {property.reviewCount > 0 ? (
+        <button
+          type="button"
+          onClick={onToggleShowAll}
+          className="mt-8 w-full rounded-[10px] border-[1.5px] border-[#0A1628] px-4 py-3 text-[14px] font-semibold text-[#0A1628] transition hover:bg-[#0A1628] hover:text-white"
+        >
+          {showAllReviews ? "Show fewer reviews" : `Show all ${property.reviewCount} reviews`}
+        </button>
+      ) : null}
     </div>
   );
 }
 
 function BookingSidebar({
   property,
-  pricing,
-  selectedTier,
-  selectedPricingTier,
-  onSelectTier,
-  selectedStartDate,
-  selectedEndDate,
-  onFocusCalendar,
-  capacity,
-  onCapacityChange,
-  bookingMetrics,
-  cleaningFee,
-  platformFee,
-  bookingTotal,
+  enabledPricingOptions,
+  selectedDurationType,
+  onSelectDurationType,
+  bookingMode,
+  onBookingModeChange,
+  checkIn,
+  checkOut,
+  onCheckInChange,
+  onCheckOutChange,
+  selectedDates,
+  onSelectedDatesChange,
+  recurringConfig,
+  onRecurringConfigChange,
+  guests,
+  onGuestsChange,
+  bookingLoading,
+  bookingError,
+  onBook,
 }) {
+  const minDateTime = new Date().toISOString().slice(0, 16);
+  const minDate = new Date().toISOString().slice(0, 10);
+  const selectedOption = enabledPricingOptions.find(
+    (option) => option.key === selectedDurationType
+  );
+
   return (
-    <div className="lg:sticky lg:top-[100px] rounded-[20px] border border-[#E5E7EB] bg-white p-5 shadow-[0_8px_32px_rgba(0,0,0,0.1)] md:p-7">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[28px] font-extrabold text-[#0A1628]">
-            {formatCurrency(selectedTier.price)}
-            <span className="ml-1 text-[15px] font-normal text-[#6B7280]">
-              / {selectedTier.unit}
-            </span>
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: "16px",
+        border: "1px solid #E5E7EB",
+        padding: "24px",
+        position: "sticky",
+        top: "100px",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+      }}
+    >
+      {enabledPricingOptions.length > 0 && (
+        <div style={{ marginBottom: "20px" }}>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "#6B7280",
+              marginBottom: "8px",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Duration Type
           </p>
-        </div>
-
-        <div className="text-right text-[13px] text-[#6B7280]">
-          <p className="inline-flex items-center gap-1">
-            <Star size={14} className="fill-[#305CDE] text-[#305CDE]" />
-            <span className="font-semibold text-[#111827]">{property.rating}</span>
-            <span>· {property.reviewCount} reviews</span>
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-2">
-        {pricing.map((tier, index) => {
-          const selected = selectedPricingTier === index;
-          return (
-            <button
-              key={tier.unit}
-              type="button"
-              onClick={() => onSelectTier(index)}
-              className={`rounded-full px-3 py-2 text-[12px] font-semibold transition ${
-                selected
-                  ? "bg-[#0A1628] text-white"
-                  : "border border-[#E5E7EB] bg-white text-[#111827]"
-              }`}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {enabledPricingOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => onSelectDurationType(option.key)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "9999px",
+                  border: `2px solid ${
+                    selectedDurationType === option.key ? "#0A1628" : "#E5E7EB"
+                  }`,
+                  background: selectedDurationType === option.key ? "#0A1628" : "#fff",
+                  color: selectedDurationType === option.key ? "#fff" : "#0A1628",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {selectedDurationType && selectedOption ? (
+            <p
+              style={{
+                marginTop: "8px",
+                fontSize: "22px",
+                fontWeight: "800",
+                color: "#0A1628",
+              }}
             >
-              {tier.unit}
-            </button>
-          );
-        })}
-      </div>
+              £{selectedOption.price}
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "400",
+                  color: "#6B7280",
+                }}
+              >
+                {" "}
+                {selectedOption.unit}
+              </span>
+            </p>
+          ) : null}
+        </div>
+      )}
 
-      <div className="mt-6 overflow-hidden rounded-[18px] border border-[#E5E7EB]">
-        <div className="grid grid-cols-2 divide-x divide-[#E5E7EB]">
+      <div style={{ marginBottom: "20px" }}>
+        <p
+          style={{
+            fontSize: "13px",
+            fontWeight: "600",
+            color: "#6B7280",
+            marginBottom: "8px",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+          }}
+        >
+          Booking Type
+        </p>
+        <div style={{ display: "flex", gap: "8px" }}>
           {[
-            { label: "Check-in", value: selectedStartDate },
-            { label: "Check-out", value: selectedEndDate },
-          ].map((field) => (
+            { key: "single", label: "Single" },
+            { key: "multiple", label: "Multiple Dates" },
+            { key: "recurring", label: "Recurring" },
+          ].map((mode) => (
             <button
-              key={field.label}
-              type="button"
-              onClick={onFocusCalendar}
-              className="px-4 py-3 text-left"
+              key={mode.key}
+              onClick={() => onBookingModeChange(mode.key)}
+              style={{
+                flex: 1,
+                padding: "8px 4px",
+                borderRadius: "8px",
+                border: `2px solid ${
+                  bookingMode === mode.key ? "#0A1628" : "#E5E7EB"
+                }`,
+                background: bookingMode === mode.key ? "#0A1628" : "#fff",
+                color: bookingMode === mode.key ? "#fff" : "#0A1628",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
             >
-              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#0A1628]">
-                {field.label}
-              </p>
-              <p className={`mt-1 text-[14px] ${field.value ? "text-[#111827]" : "text-[#6B7280]"}`}>
-                {field.value ? formatDateLabel(field.value) : "Add date"}
-              </p>
+              {mode.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 rounded-[18px] border border-[#E5E7EB] px-4 py-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#0A1628]">
-          Capacity
-        </p>
-        <div className="mt-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => onCapacityChange(Math.max(1, capacity - 1))}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#0A1628]"
-          >
-            -
-          </button>
-          <div className="text-center">
-            <p className="text-[18px] font-semibold text-[#111827]">{capacity}</p>
-            <p className="text-[12px] text-[#6B7280]">people / workstations</p>
+      {bookingMode === "single" && (
+        <div style={{ marginBottom: "16px" }}>
+          <div>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              {selectedDurationType === "hourly" ? "Start Date & Time" : "Check In"}
+            </label>
+            <input
+              type={selectedDurationType === "hourly" ? "datetime-local" : "date"}
+              value={checkIn}
+              onChange={(event) => onCheckInChange(event.target.value)}
+              min={new Date()
+                .toISOString()
+                .slice(0, selectedDurationType === "hourly" ? 16 : 10)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
+          <div style={{ marginTop: "12px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              {selectedDurationType === "hourly" ? "End Date & Time" : "Check Out"}
+            </label>
+            <input
+              type={selectedDurationType === "hourly" ? "datetime-local" : "date"}
+              value={checkOut}
+              onChange={(event) => onCheckOutChange(event.target.value)}
+              min={
+                checkIn ||
+                new Date().toISOString().slice(0, selectedDurationType === "hourly" ? 16 : 10)
+              }
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {bookingMode === "multiple" && (
+        <div style={{ marginBottom: "16px" }}>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "#374151",
+              marginBottom: "8px",
+            }}
+          >
+            Select Dates
+          </p>
+          <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px" }}>
+            Add each date or date range you want to book
+          </p>
+          {selectedDates.map((dateRange, index) => (
+            <div
+              key={`${dateRange.start}-${dateRange.end}-${index}`}
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginBottom: "8px",
+                alignItems: "center",
+              }}
+            >
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(event) => {
+                  const updated = [...selectedDates];
+                  updated[index] = { ...updated[index], start: event.target.value };
+                  onSelectedDatesChange(updated);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "8px",
+                  borderRadius: "8px",
+                  border: "1.5px solid #E5E7EB",
+                  fontSize: "13px",
+                  outline: "none",
+                }}
+              />
+              <span style={{ color: "#6B7280", fontSize: "12px" }}>to</span>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(event) => {
+                  const updated = [...selectedDates];
+                  updated[index] = { ...updated[index], end: event.target.value };
+                  onSelectedDatesChange(updated);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "8px",
+                  borderRadius: "8px",
+                  border: "1.5px solid #E5E7EB",
+                  fontSize: "13px",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={() =>
+                  onSelectedDatesChange(selectedDates.filter((_, i) => i !== index))
+                }
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#DC2626",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  padding: "4px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
           <button
-            type="button"
-            onClick={() => onCapacityChange(Math.min(property.capacity, capacity + 1))}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#0A1628]"
+            onClick={() => onSelectedDatesChange([...selectedDates, { start: "", end: "" }])}
+            style={{
+              width: "100%",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1.5px dashed #D1D5DB",
+              background: "#F9FAFB",
+              color: "#374151",
+              fontSize: "13px",
+              fontWeight: "600",
+              cursor: "pointer",
+              marginTop: "4px",
+            }}
+          >
+            + Add Date Range
+          </button>
+        </div>
+      )}
+
+      {bookingMode === "recurring" && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ marginBottom: "12px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={recurringConfig.startDate}
+              onChange={(event) =>
+                onRecurringConfigChange({
+                  ...recurringConfig,
+                  startDate: event.target.value,
+                })
+              }
+              min={minDate}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: "12px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Repeat Every
+            </label>
+            <select
+              value={recurringConfig.frequency}
+              onChange={(event) =>
+                onRecurringConfigChange({
+                  ...recurringConfig,
+                  frequency: event.target.value,
+                })
+              }
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                background: "#fff",
+                boxSizing: "border-box",
+              }}
+            >
+              <option value="weekly">Every Week</option>
+              <option value="biweekly">Every 2 Weeks</option>
+              <option value="monthly">Every Month</option>
+            </select>
+          </div>
+          <div>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Number of Occurrences
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <button
+                onClick={() =>
+                  onRecurringConfigChange({
+                    ...recurringConfig,
+                    occurrences: Math.max(1, recurringConfig.occurrences - 1),
+                  })
+                }
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  border: "1.5px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                −
+              </button>
+              <span
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  color: "#0A1628",
+                  minWidth: "32px",
+                  textAlign: "center",
+                }}
+              >
+                {recurringConfig.occurrences}
+              </span>
+              <button
+                onClick={() =>
+                  onRecurringConfigChange({
+                    ...recurringConfig,
+                    occurrences: Math.min(52, recurringConfig.occurrences + 1),
+                  })
+                }
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  border: "1.5px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                +
+              </button>
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "8px" }}>
+              {recurringConfig.startDate
+                ? `First booking: ${new Date(recurringConfig.startDate).toLocaleDateString(
+                    "en-GB",
+                    { day: "numeric", month: "short", year: "numeric" }
+                  )}`
+                : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginBottom: "20px" }}>
+        <label
+          style={{
+            fontSize: "13px",
+            fontWeight: "600",
+            color: "#374151",
+            display: "block",
+            marginBottom: "8px",
+          }}
+        >
+          People / Workstations
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button
+            onClick={() => onGuestsChange(Math.max(1, guests - 1))}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              border: "1.5px solid #E5E7EB",
+              background: "#fff",
+              fontSize: "18px",
+              cursor: "pointer",
+            }}
+          >
+            −
+          </button>
+          <span
+            style={{
+              fontSize: "18px",
+              fontWeight: "700",
+              color: "#0A1628",
+              minWidth: "32px",
+              textAlign: "center",
+            }}
+          >
+            {guests}
+          </span>
+          <button
+            onClick={() => onGuestsChange(guests + 1)}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              border: "1.5px solid #E5E7EB",
+              background: "#fff",
+              fontSize: "18px",
+              cursor: "pointer",
+            }}
           >
             +
           </button>
         </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {selectedStartDate && selectedEndDate ? (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="mt-6 space-y-3 text-[14px] text-[#111827]"
-          >
-            <div className="flex items-center justify-between">
-              <span>
-                {formatCurrency(selectedTier.price)} × {bookingMetrics.label}
-              </span>
-              <span>{formatCurrency(bookingMetrics.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Cleaning fee</span>
-              <span>{formatCurrency(cleaningFee)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Platform fee</span>
-              <span>{formatCurrency(platformFee)}</span>
-            </div>
-            <div className="border-t border-[#E5E7EB] pt-3">
-              <div className="flex items-center justify-between text-[16px] font-bold">
-                <span>Total</span>
-                <span>{formatCurrency(bookingTotal)}</span>
-              </div>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
       <button
-        type="button"
-        className="mt-6 w-full rounded-[10px] bg-[#305CDE] px-5 py-4 text-[16px] font-bold text-white transition hover:bg-[#254FC7]"
+        onClick={onBook}
+        disabled={bookingLoading}
+        style={{
+          width: "100%",
+          background: bookingLoading ? "#9CA3AF" : "#0A1628",
+          color: "#fff",
+          border: "none",
+          borderRadius: "10px",
+          padding: "16px",
+          fontSize: "16px",
+          fontWeight: "700",
+          cursor: bookingLoading ? "not-allowed" : "pointer",
+          marginBottom: "12px",
+        }}
       >
-        Book Instantly
+        {bookingLoading
+          ? "Processing..."
+          : property?.bookingSettings?.instantBook
+          ? "Book Now"
+          : "Request to Book"}
       </button>
 
+      {bookingError ? (
+        <p
+          style={{
+            color: "#EF4444",
+            fontSize: "13px",
+            textAlign: "center",
+            marginBottom: "8px",
+          }}
+        >
+          {bookingError}
+        </p>
+      ) : null}
+
       <button
-        type="button"
-        className="mt-3 w-full rounded-[10px] border-[1.5px] border-[#0A1628] bg-white px-5 py-4 text-[16px] font-semibold text-[#0A1628] transition hover:bg-[#0A1628] hover:text-white"
+        style={{
+          width: "100%",
+          background: "#fff",
+          color: "#0A1628",
+          border: "1.5px solid #0A1628",
+          borderRadius: "10px",
+          padding: "14px",
+          fontSize: "15px",
+          fontWeight: "600",
+          cursor: "pointer",
+          marginBottom: "16px",
+        }}
       >
         Send Enquiry
       </button>
 
-      <p className="mt-3 text-center text-[12px] text-[#6B7280]">
+      <p style={{ fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>
         You won't be charged yet
       </p>
-
-      <button
-        type="button"
-        className="mt-4 w-full text-center text-[12px] text-[#6B7280] transition hover:underline"
-      >
-        Report this listing
-      </button>
     </div>
   );
 }
@@ -1276,10 +2437,12 @@ function MobileBookingBar({ selectedTier, rating, onBookNow }) {
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-[14px] font-bold text-[#0A1628] md:text-[16px]">
-            {formatCurrency(selectedTier.price)}
-            <span className="ml-1 text-[13px] font-normal text-[#6B7280]">
-              / {selectedTier.unit}
-            </span>
+            {selectedTier ? formatCurrency(selectedTier.price) : "POA"}
+            {selectedTier ? (
+              <span className="ml-1 text-[13px] font-normal text-[#6B7280]">
+                / {selectedTier.unit}
+              </span>
+            ) : null}
           </p>
           <p className="mt-1 inline-flex items-center gap-1 text-[13px] text-[#6B7280]">
             <Star size={13} className="fill-[#305CDE] text-[#305CDE]" />

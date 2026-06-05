@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -20,61 +20,6 @@ import CustomerLayout from "../layouts/CustomerLayout";
 import PropertyCard from "../components/PropertyCard";
 import { getUser } from "../utils/auth";
 
-// ── MOCK DATA ─────────────────────────────────────────────────────────────────
-
-const MOCK_BOOKINGS = [
-  {
-    id: 1, tab: "upcoming",
-    space: "Canary Wharf Boardroom", location: "Canary Wharf, London",
-    category: "Meeting Rooms",
-    image: "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=400&q=80",
-    checkIn: "Mon 19 May 2026", duration: "9:00am – 1:00pm",
-    price: 480, status: "Confirmed", bookingRef: "VC-2026-001",
-    host: "Marcus Williams", canCancel: true,
-  },
-  {
-    id: 2, tab: "upcoming",
-    space: "DIFC Creative Studio", location: "DIFC, Dubai",
-    category: "Studio Space",
-    image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&q=80",
-    checkIn: "Fri 23 May 2026", duration: "9:00am – 6:00pm",
-    price: 250, status: "Pending Approval", bookingRef: "VC-2026-002",
-    host: "Aisha Rahman", canCancel: true,
-  },
-  {
-    id: 3, tab: "past",
-    space: "The Shard Executive Suite", location: "London Bridge, London",
-    category: "Office Space",
-    image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400&q=80",
-    checkIn: "Wed 1 May 2026", duration: "10:00am – 4:00pm",
-    price: 510, status: "Completed", bookingRef: "VC-2026-003",
-    host: "James Thornton", canCancel: false, hasReview: false,
-  },
-  {
-    id: 4, tab: "cancelled",
-    space: "Birmingham Conference Centre", location: "Digbeth, Birmingham",
-    category: "Meeting Rooms",
-    image: "https://images.unsplash.com/photo-1517502884422-41eaead166d4?w=400&q=80",
-    checkIn: "Thu 10 Apr 2026", duration: "2:00pm – 5:00pm",
-    price: 270, status: "Cancelled", bookingRef: "VC-2026-004",
-    host: "David Park", canCancel: false, refundStatus: "Refunded £270",
-  },
-];
-
-const MOCK_SAVED = [
-  { id: 1, title: "The Shard Executive Suite", location: "London Bridge, London", category: "Office Space", price: 85, priceUnit: "hour", rating: 4.92, reviewCount: 47, badge: "Featured", image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=600&q=80" },
-  { id: 2, title: "Shoreditch Event Space", location: "Shoreditch, London", category: "Event Venues", price: 450, priceUnit: "day", rating: 4.9, reviewCount: 58, badge: "Popular", image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80" },
-  { id: 3, title: "DIFC Creative Studio", location: "DIFC, Dubai", category: "Studio Space", price: 250, priceUnit: "day", rating: 4.97, reviewCount: 22, badge: "Verified", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&q=80" },
-  { id: 4, title: "Mayfair Private Members Office", location: "Mayfair, London", category: "Office Space", price: 5500, priceUnit: "month", rating: 4.95, reviewCount: 12, badge: "Featured", image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&q=80" },
-];
-
-const MOCK_RECOMMENDED = [
-  { id: 5, title: "Old Street Co-working Hub", location: "Old Street, London", category: "Co-working", price: 45, priceUnit: "day", rating: 4.88, reviewCount: 134, badge: "Popular", image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=80" },
-  { id: 6, title: "Riyadh Business Centre", location: "Al Olaya, Riyadh", category: "Office Space", price: 320, priceUnit: "day", rating: 4.85, reviewCount: 31, badge: "Verified", image: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=600&q=80" },
-  { id: 7, title: "Manchester Media City Studio", location: "Salford, Manchester", category: "Studio Space", price: 180, priceUnit: "day", rating: 4.91, reviewCount: 67, badge: "Featured", image: "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600&q=80" },
-  { id: 8, title: "Dubai Marina Event Hall", location: "Dubai Marina, Dubai", category: "Event Venues", price: 1200, priceUnit: "day", rating: 4.94, reviewCount: 28, badge: "Premium", image: "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80" },
-];
-
 const SECTION_TITLES = {
   overview: "Overview",
   bookings: "My Bookings",
@@ -88,19 +33,72 @@ const SECTION_TITLES = {
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(Number(amount) || 0);
 
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatStatusLabel = (status = "") => {
+  const normalized = String(status).toLowerCase();
+  if (normalized === "confirmed") return "Confirmed";
+  if (normalized === "pending") return "Pending";
+  if (normalized === "cancelled") return "Cancelled";
+  if (normalized === "completed") return "Completed";
+  if (normalized === "declined") return "Declined";
+  return status || "Pending";
+};
+
+const getBookingTab = (booking) => {
+  const status = String(booking.status || "").toLowerCase();
+  const checkIn = booking.checkIn ? new Date(booking.checkIn) : null;
+  const checkOut = booking.checkOut ? new Date(booking.checkOut) : null;
+  const now = new Date();
+
+  if (status === "cancelled") return "cancelled";
+  if (checkIn && checkIn > now) return "upcoming";
+  if (checkIn && checkOut && checkIn <= now && checkOut >= now) return "current";
+  return "past";
+};
+
+const getBookingLocation = (booking) =>
+  booking.property?.location?.city || "";
+
+const getListingLocation = (listing) =>
+  [listing.location?.city, listing.location?.country].filter(Boolean).join(", ");
+
+const getListingCardProps = (listing) => ({
+  id: listing._id,
+  image: listing.coverImage,
+  title: listing.title,
+  location: listing.location?.city || "",
+  category: listing.category?.name || "",
+  price: listing.pricing?.hourly || 0,
+  priceUnit: listing.pricing?.hourly ? "hr" : "POA",
+  rating: listing.rating || 0,
+  reviewCount: listing.reviewNumber || 0,
+});
+
 // ── STATUS BADGE ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }) {
   const map = {
-    Confirmed: { bg: "rgba(22,163,74,0.1)", text: "#16A34A" },
-    "Pending Approval": { bg: "rgba(217,119,6,0.1)", text: "#D97706" },
-    Completed: { bg: "rgba(10,22,40,0.08)", text: "#0A1628" },
-    Cancelled: { bg: "rgba(220,38,38,0.08)", text: "#DC2626" },
+    pending: { bg: "#FEF9C3", text: "#854D0E" },
+    confirmed: { bg: "#F0FDF4", text: "#166534" },
+    cancelled: { bg: "#FEF2F2", text: "#991B1B" },
+    completed: { bg: "#F3F4F6", text: "#374151" },
+    declined: { bg: "#FEF2F2", text: "#991B1B" },
   };
-  const s = map[status] || map.Cancelled;
+  const normalized = String(status || "").toLowerCase();
+  const s = map[normalized] || map.pending;
   return (
     <span style={{ background: s.bg, color: s.text, borderRadius: 9999, padding: "4px 10px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-      {status}
+      {formatStatusLabel(status)}
     </span>
   );
 }
@@ -158,13 +156,11 @@ function DashboardSearch() {
 
 // ── OVERVIEW SECTION ──────────────────────────────────────────────────────────
 
-function OverviewSection({ displayName }) {
-  const upcoming = MOCK_BOOKINGS.filter(b => b.tab === "upcoming");
-
-  const stats = [
-    { icon: CalendarDays, label: "Upcoming Bookings", value: "2", sub: "Next: Mon 19 May" },
-    { icon: Heart, label: "Saved Spaces", value: "4", sub: "1 new match" },
-    { icon: MessageSquare, label: "Unread Messages", value: "3", sub: "2 from hosts" },
+function OverviewSection({ displayName, bookings, savedListings, stats, loading }) {
+  const statCards = [
+    { icon: CalendarDays, label: "Total Bookings", value: stats.totalBookings, sub: "All bookings" },
+    { icon: Clock, label: "Upcoming", value: stats.upcomingBookings, sub: "Confirmed ahead" },
+    { icon: Heart, label: "Saved Spaces", value: stats.savedSpaces, sub: "Ready to revisit" },
   ];
 
   return (
@@ -189,66 +185,123 @@ function OverviewSection({ displayName }) {
       {/* 3 Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}
         className="grid-cols-1 sm:grid-cols-3">
-        {stats.map((item, i) => {
+        {(loading ? Array.from({ length: 3 }, (_, index) => ({ id: index })) : statCards).map((item, i) => {
           const Icon = item.icon;
           return (
-            <motion.div key={item.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+            <motion.div key={item.label || item.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
               style={{ background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: "20px 24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(46,88,236,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon size={20} color="#2E58EC" />
+              {loading ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "#F3F4F6", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ width: "50%", height: 12, borderRadius: 9999, background: "#F3F4F6" }} />
+                    <div style={{ width: "35%", height: 28, borderRadius: 8, background: "#F3F4F6", marginTop: 8 }} />
+                    <div style={{ width: "55%", height: 10, borderRadius: 9999, background: "#F3F4F6", marginTop: 8 }} />
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 13, color: "#6B7280", fontWeight: 500 }}>{item.label}</p>
-                  <p style={{ fontSize: 28, fontWeight: 800, color: "#0A1628", lineHeight: 1.2 }}>{item.value}</p>
-                  <p style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>{item.sub}</p>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(46,88,236,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={20} color="#2E58EC" />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, color: "#6B7280", fontWeight: 500 }}>{item.label}</p>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: "#0A1628", lineHeight: 1.2 }}>{item.value}</p>
+                    <p style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>{item.sub}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
           );
         })}
       </div>
 
-      {/* Upcoming Bookings */}
+      {/* Recent Bookings */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Upcoming Bookings</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Recent Bookings</h2>
           <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View all →</Link>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {upcoming.slice(0, 2).map((booking, i) => (
-            <motion.div key={booking.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
-              style={{ display: "flex", gap: 16, background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: 16, alignItems: "center" }}>
-              <img src={booking.image} alt={booking.space} style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} className="hidden sm:block" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{booking.space}</p>
-                <div style={{ display: "flex", gap: 16, marginTop: 6, flexWrap: "wrap" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "#6B7280" }}><MapPin size={13} />{booking.location}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "#6B7280" }}><Clock size={13} />{booking.duration}</span>
+          {loading ? (
+            Array.from({ length: 3 }, (_, index) => (
+              <div key={`booking-skeleton-${index}`} style={{ display: "flex", gap: 16, background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: 16, alignItems: "center" }}>
+                <div style={{ width: 72, height: 72, borderRadius: 10, background: "#F3F4F6", flexShrink: 0 }} className="hidden sm:block" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ width: "45%", height: 14, borderRadius: 9999, background: "#F3F4F6" }} />
+                  <div style={{ width: "60%", height: 12, borderRadius: 9999, background: "#F3F4F6", marginTop: 10 }} />
+                  <div style={{ width: "50%", height: 12, borderRadius: 9999, background: "#F3F4F6", marginTop: 8 }} />
+                </div>
+                <div style={{ width: 110, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                  <div style={{ width: "70%", height: 14, borderRadius: 9999, background: "#F3F4F6" }} />
+                  <div style={{ width: "80%", height: 26, borderRadius: 9999, background: "#F3F4F6" }} />
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
-                <p style={{ fontSize: 16, fontWeight: 700, color: "#0A1628" }}>{formatCurrency(booking.price)}</p>
-                <StatusBadge status={booking.status} />
-                <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recommended Spaces */}
-      <div style={{ marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Recommended for You</h2>
-          <Link to="/search" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>Browse all →</Link>
-        </div>
-        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {MOCK_RECOMMENDED.map(space => (
-            <div key={space.id} style={{ minWidth: 240, flexShrink: 0 }}>
-              <PropertyCard {...space} />
+            ))
+          ) : bookings.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 0", background: "white", borderRadius: 14, border: "1px solid #E5E7EB" }}>
+              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📅</p>
+              <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
+                No bookings yet
+              </p>
+              <p style={{ color: "#6B7280", fontSize: "14px", marginBottom: "24px" }}>
+                Find and book your first commercial space
+              </p>
+              <a
+                href="/search"
+                style={{
+                  background: "#0A1628",
+                  color: "#fff",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                }}
+              >
+                Browse Spaces
+              </a>
             </div>
-          ))}
+          ) : (
+            bookings.slice(0, 5).map((booking, i) => (
+              <motion.div key={booking._id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 }}
+                style={{ display: "flex", gap: 16, background: "white", borderRadius: 14, border: "1px solid #E5E7EB", padding: 16, alignItems: "center" }}>
+                {booking.property?.coverImage ? (
+                  <img
+                    src={booking.property.coverImage}
+                    alt={booking.property?.title || "Property"}
+                    style={{ width: 72, height: 72, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}
+                    className="hidden sm:block"
+                  />
+                ) : (
+                  <div
+                    style={{ width: 72, height: 72, borderRadius: 10, background: "#E5E7EB", flexShrink: 0 }}
+                    className="hidden sm:block"
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {booking.property?.title || "Property"}
+                  </p>
+                  <div style={{ display: "flex", gap: 16, marginTop: 6, flexWrap: "wrap" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "#6B7280" }}>
+                      <MapPin size={13} />
+                      {getBookingLocation(booking)}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "#6B7280" }}>
+                      <Clock size={13} />
+                      {formatDate(booking.checkIn)} - {formatDate(booking.checkOut)}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "#0A1628" }}>{formatCurrency(booking.totalPrice)}</p>
+                  <StatusBadge status={booking.status} />
+                  <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
+                </div>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
 
@@ -259,11 +312,24 @@ function OverviewSection({ displayName }) {
           <Link to="/customer/saved" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View all →</Link>
         </div>
         <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {MOCK_SAVED.map(space => (
-            <div key={space.id} style={{ minWidth: 240, flexShrink: 0 }}>
-              <PropertyCard {...space} />
+          {loading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`saved-skeleton-${index}`} style={{ minWidth: 240, flexShrink: 0, height: 310, borderRadius: 18, background: "#F3F4F6" }} />
+            ))
+          ) : savedListings.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 16px", textAlign: "center", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", minWidth: "100%" }}>
+              <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginTop: 4 }}>No saved spaces yet</p>
+              <Link to="/search" style={{ marginTop: 20, padding: "12px 24px", borderRadius: 9999, background: "#2E58EC", color: "white", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+                Browse Spaces
+              </Link>
             </div>
-          ))}
+          ) : (
+            savedListings.slice(0, 4).map((listing) => (
+              <Link key={listing._id} to={`/property/${listing._id}`} style={{ minWidth: 240, flexShrink: 0, textDecoration: "none" }}>
+                <PropertyCard {...getListingCardProps(listing)} />
+              </Link>
+            ))
+          )}
         </div>
       </div>
 
@@ -273,15 +339,15 @@ function OverviewSection({ displayName }) {
 
 // ── BOOKINGS SECTION ──────────────────────────────────────────────────────────
 
-function BookingsSection() {
+function BookingsSection({ bookings, loading }) {
   const TABS = [
-    { id: "upcoming", label: "Upcoming (2)" },
-    { id: "current", label: "Current" },
-    { id: "past", label: "Past (1)" },
-    { id: "cancelled", label: "Cancelled (1)" },
+    { id: "upcoming", label: `Upcoming (${bookings.filter((b) => getBookingTab(b) === "upcoming").length})` },
+    { id: "current", label: `Current (${bookings.filter((b) => getBookingTab(b) === "current").length})` },
+    { id: "past", label: `Past (${bookings.filter((b) => getBookingTab(b) === "past").length})` },
+    { id: "cancelled", label: `Cancelled (${bookings.filter((b) => getBookingTab(b) === "cancelled").length})` },
   ];
   const [activeTab, setActiveTab] = useState("upcoming");
-  const list = MOCK_BOOKINGS.filter(b => b.tab === activeTab);
+  const list = bookings.filter((booking) => getBookingTab(booking) === activeTab);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
@@ -295,55 +361,121 @@ function BookingsSection() {
           ))}
         </div>
       </div>
-      {list.length === 0 ? (
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={`full-booking-skeleton-${index}`} style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+              <div style={{ display: "flex", flexDirection: "column" }} className="md:flex-row">
+                <div style={{ width: "100%", height: 160, background: "#F3F4F6" }} className="md:w-[160px] md:h-[140px]" />
+                <div style={{ flex: 1, padding: 20 }}>
+                  <div style={{ width: "45%", height: 16, borderRadius: 9999, background: "#F3F4F6" }} />
+                  <div style={{ width: "60%", height: 12, borderRadius: 9999, background: "#F3F4F6", marginTop: 12 }} />
+                  <div style={{ width: "50%", height: 12, borderRadius: 9999, background: "#F3F4F6", marginTop: 8 }} />
+                  <div style={{ width: "20%", height: 24, borderRadius: 9999, background: "#F3F4F6", marginTop: 18 }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 16px", textAlign: "center" }}>
-          <CalendarX size={48} color="#E5E7EB" />
-          <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginTop: 16 }}>No {activeTab} bookings</p>
-          <p style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>Nothing to show here right now.</p>
-          {activeTab === "upcoming" && (
-            <Link to="/search" style={{ marginTop: 24, padding: "12px 24px", borderRadius: 9999, background: "#2E58EC", color: "white", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
-              Find a Space
-            </Link>
+          {bookings.length === 0 ? (
+            <>
+              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📅</p>
+              <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
+                No bookings yet
+              </p>
+              <p style={{ color: "#6B7280", fontSize: "14px", marginBottom: "24px" }}>
+                Find and book your first commercial space
+              </p>
+              <a
+                href="/search"
+                style={{
+                  background: "#0A1628",
+                  color: "#fff",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                }}
+              >
+                Browse Spaces
+              </a>
+            </>
+          ) : (
+            <>
+              <CalendarX size={48} color="#E5E7EB" />
+              <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginTop: 16 }}>
+                No {activeTab} bookings
+              </p>
+              <p style={{ fontSize: 14, color: "#6B7280", marginTop: 8 }}>Nothing to show here right now.</p>
+              {activeTab === "upcoming" && (
+                <Link
+                  to="/search"
+                  style={{
+                    marginTop: 24,
+                    padding: "12px 24px",
+                    borderRadius: 9999,
+                    background: "#2E58EC",
+                    color: "white",
+                    textDecoration: "none",
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  Find a Space
+                </Link>
+              )}
+            </>
           )}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {list.map(booking => (
-            <div key={booking.id} style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+            <div key={booking._id} style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
               <div style={{ display: "flex", flexDirection: "column" }} className="md:flex-row">
-                <img src={booking.image} alt={booking.space} style={{ width: "100%", height: 160, objectFit: "cover" }} className="md:w-[160px] md:h-[140px]" />
+                {booking.property?.coverImage ? (
+                  <img
+                    src={booking.property.coverImage}
+                    alt={booking.property?.title || "Property"}
+                    style={{ width: "100%", height: 160, objectFit: "cover" }}
+                    className="md:w-[160px] md:h-[140px]"
+                  />
+                ) : (
+                  <div
+                    style={{ width: "100%", height: 160, background: "#E5E7EB" }}
+                    className="md:w-[160px] md:h-[140px]"
+                  />
+                )}
                 <div style={{ flex: 1, padding: 20, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{booking.space}</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {booking.property?.title || "Property"}
+                      </p>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B7280" }}><MapPin size={13} />{booking.location}</span>
-                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B7280" }}><Clock size={13} />{booking.checkIn} · {booking.duration}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B7280" }}><MapPin size={13} />{getBookingLocation(booking)}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B7280" }}><Clock size={13} />{formatDate(booking.checkIn)} · {formatDate(booking.checkOut)}</span>
                       </div>
                     </div>
                     <StatusBadge status={booking.status} />
                   </div>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", marginTop: 16 }}>{formatCurrency(booking.price)}</p>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", marginTop: 16 }}>{formatCurrency(booking.totalPrice)}</p>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8F6F0", padding: "12px 20px", flexWrap: "wrap", gap: 12 }}>
-                <p style={{ fontSize: 12, color: "#6B7280" }}>Ref: {booking.bookingRef}</p>
+                <p style={{ fontSize: 12, color: "#6B7280" }}>Ref: {booking.bookingReference || booking._id}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                   <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
-                  {booking.tab === "upcoming" && (
+                  {getBookingTab(booking) === "upcoming" && (
                     <Link to="/customer/messages" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>Message Host</Link>
                   )}
-                  {booking.tab === "upcoming" && booking.canCancel && (
-                    <button type="button" style={{ fontSize: 13, fontWeight: 600, color: "#DC2626", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
-                  )}
-                  {booking.tab === "past" && !booking.hasReview && (
+                  {getBookingTab(booking) === "past" && !booking.hasReview && (
                     <Link to="/customer/reviews" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>Leave a Review</Link>
                   )}
-                  {booking.tab === "past" && (
+                  {getBookingTab(booking) === "past" && (
                     <Link to="/search" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>Book Again</Link>
-                  )}
-                  {booking.refundStatus && (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#16A34A" }}>{booking.refundStatus}</span>
                   )}
                 </div>
               </div>
@@ -357,16 +489,35 @@ function BookingsSection() {
 
 // ── SAVED SECTION ─────────────────────────────────────────────────────────────
 
-function SavedSection() {
+function SavedSection({ savedListings, loading }) {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0A1628" }}>Saved Spaces ({MOCK_SAVED.length})</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0A1628" }}>Saved Spaces ({savedListings.length})</h2>
         <Link to="/search" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>Find more spaces →</Link>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
-        {MOCK_SAVED.map(space => <PropertyCard key={space.id} {...space} />)}
-      </div>
+      {loading ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={`saved-grid-skeleton-${index}`} style={{ height: 310, borderRadius: 18, background: "#F3F4F6" }} />
+          ))}
+        </div>
+      ) : savedListings.length === 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 16px", textAlign: "center", background: "white", borderRadius: 16, border: "1px solid #E5E7EB" }}>
+          <p style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginTop: 4 }}>No saved spaces yet</p>
+          <Link to="/search" style={{ marginTop: 24, padding: "12px 24px", borderRadius: 9999, background: "#2E58EC", color: "white", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+            Browse Spaces
+          </Link>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
+          {savedListings.slice(0, 4).map((listing) => (
+            <Link key={listing._id} to={`/property/${listing._id}`} style={{ textDecoration: "none" }}>
+              <PropertyCard {...getListingCardProps(listing)} />
+            </Link>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -508,18 +659,75 @@ function SettingsSection() {
 // ── MAIN EXPORT ───────────────────────────────────────────────────────────────
 
 export default function CustomerDashboard({ section = "overview" }) {
-  const currentUser = getUser();
-  const displayName = currentUser?.firstName
-    ? `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
-    : currentUser?.email?.split("@")[0] || "there";
+  const token = localStorage.getItem("vencome_token");
+  const user = JSON.parse(localStorage.getItem("vencome_user") || "{}");
+  const [bookings, setBookings] = useState([]);
+  const [savedListings, setSavedListings] = useState([]);
+  const [stats, setStats] = useState({
+    totalBookings: 0,
+    upcomingBookings: 0,
+    savedSpaces: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const displayName = user.displayName || user.firstName || user.email || "there";
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [bookingsRes, savedRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/bookings`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/users/saved-listings`, { headers }),
+        ]);
+
+        if (bookingsRes.ok) {
+          const bookingsData = await bookingsRes.json();
+          const allBookings = Array.isArray(bookingsData) ? bookingsData : bookingsData.bookings || [];
+          setBookings(allBookings);
+          setStats((prev) => ({
+            ...prev,
+            totalBookings: allBookings.length,
+            upcomingBookings: allBookings.filter(
+              (booking) =>
+                String(booking.status || "").toLowerCase() === "confirmed" &&
+                booking.checkIn &&
+                new Date(booking.checkIn) > new Date()
+            ).length,
+          }));
+        }
+
+        if (savedRes.ok) {
+          const savedData = await savedRes.json();
+          const saved = savedData.savedListings || savedData.listings || [];
+          setSavedListings(saved);
+          setStats((prev) => ({ ...prev, savedSpaces: saved.length }));
+        }
+      } catch (err) {
+        console.error("Dashboard fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [token]);
 
   const resolvedSection = SECTION_TITLES[section] ? section : "overview";
 
   return (
     <CustomerLayout title={SECTION_TITLES[resolvedSection]}>
-      {resolvedSection === "overview" && <OverviewSection displayName={displayName} />}
-      {resolvedSection === "bookings" && <BookingsSection />}
-      {resolvedSection === "saved" && <SavedSection />}
+      {resolvedSection === "overview" && (
+        <OverviewSection
+          displayName={displayName}
+          bookings={bookings}
+          savedListings={savedListings}
+          stats={stats}
+          loading={loading}
+        />
+      )}
+      {resolvedSection === "bookings" && <BookingsSection bookings={bookings} loading={loading} />}
+      {resolvedSection === "saved" && <SavedSection savedListings={savedListings} loading={loading} />}
       {resolvedSection === "messages" && <MessagesSection />}
       {resolvedSection === "reviews" && <ReviewsSection />}
       {resolvedSection === "profile" && <ProfileSection />}

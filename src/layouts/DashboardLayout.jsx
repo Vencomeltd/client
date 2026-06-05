@@ -19,12 +19,34 @@ import {
   User,
   X,
 } from "lucide-react";
+import { getUser } from "../utils/auth";
 
-const USER = {
-  name: "James Thornton",
-  role: "Professional Tenant",
-  avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&q=80",
-};
+const getDisplayName = (user) =>
+  user?.displayName ||
+  [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+  user?.name ||
+  user?.email?.split("@")[0] ||
+  "User";
+
+const getInitials = (name) =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "U";
+
+function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]" }) {
+  return (
+    <div
+      className={`flex ${size} items-center justify-center rounded-full bg-[rgba(48,92,222,0.18)] font-bold text-[#9FB5FF] ${textSize}`}
+      aria-label={name}
+      title={name}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
 
 const MAIN_ITEMS = [
   { label: "Overview", path: "/dashboard", icon: LayoutDashboard },
@@ -43,7 +65,16 @@ const HOSTING_ITEMS = [
 ];
 
 function SidebarContent({ pathname, onNavigate }) {
+  const currentUser = getUser();
+  const displayName = getDisplayName(currentUser);
+  const roleLabel = currentUser?.isHost ? "Host" : "Member";
   const isActive = (path) => pathname === path || pathname.startsWith(`${path}/`);
+  const handleLogout = () => {
+    localStorage.removeItem("vencome_token");
+    localStorage.removeItem("vencome_refresh");
+    localStorage.removeItem("vencome_user");
+    window.location.href = "/";
+  };
 
   const renderItem = (item) => {
     const Icon = item.icon;
@@ -96,14 +127,10 @@ function SidebarContent({ pathname, onNavigate }) {
 
       <div className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <img
-            src={USER.avatar}
-            alt={USER.name}
-            className="h-11 w-11 rounded-full object-cover"
-          />
+          <UserInitialsAvatar name={displayName} />
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-semibold text-white">{USER.name}</p>
-            <p className="text-[12px] text-white/50">{USER.role}</p>
+            <p className="truncate text-[14px] font-semibold text-white">{displayName}</p>
+            <p className="text-[12px] text-white/50">{roleLabel}</p>
             <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-[rgba(48,92,222,0.3)] bg-[rgba(48,92,222,0.15)] px-2 py-0.5 text-[10px] font-bold text-[#305CDE]">
               <Check size={12} />
               Verified
@@ -135,8 +162,8 @@ function SidebarContent({ pathname, onNavigate }) {
           <button
             type="button"
             onClick={() => {
-              console.log("logout");
               onNavigate?.();
+              handleLogout();
             }}
             className="mx-[-12px] mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-[11px] text-left text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
           >
@@ -152,6 +179,8 @@ function SidebarContent({ pathname, onNavigate }) {
 export default function DashboardLayout({ children, title }) {
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const currentUser = getUser();
+  const displayName = getDisplayName(currentUser);
 
   return (
     <div className="flex min-h-screen bg-[#F8F6F0]">
@@ -217,11 +246,7 @@ export default function DashboardLayout({ children, title }) {
               <Bell size={20} />
               <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
             </button>
-            <img
-              src={USER.avatar}
-              alt={USER.name}
-              className="h-8 w-8 rounded-full object-cover"
-            />
+            <UserInitialsAvatar name={displayName} size="h-8 w-8" textSize="text-[12px]" />
           </div>
         </header>
 

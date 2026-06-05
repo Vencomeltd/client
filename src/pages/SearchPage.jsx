@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -12,7 +12,6 @@ import {
   Coffee,
   Map,
   Monitor,
-  SearchX,
   SlidersHorizontal,
   UserCheck,
   Users,
@@ -70,192 +69,6 @@ const SORT_OPTIONS = [
   "Top Rated",
 ];
 
-const MOCK_RESULTS = [
-  {
-    id: 1,
-    title: "The Shard Executive Suite",
-    location: "London Bridge, London",
-    category: "Office Space",
-    price: 85,
-    priceUnit: "hour",
-    rating: 4.92,
-    reviewCount: 47,
-    badge: "Featured",
-    image:
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=600&q=80",
-    capacity: 8,
-    amenities: ["Wifi", "Parking", "AV Equipment", "Reception", "Air Con"],
-  },
-  {
-    id: 2,
-    title: "Canary Wharf Boardroom",
-    location: "Canary Wharf, London",
-    category: "Meeting Rooms",
-    price: 120,
-    priceUnit: "hour",
-    rating: 4.85,
-    reviewCount: 31,
-    badge: "Popular",
-    image:
-      "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=600&q=80",
-    capacity: 18,
-    amenities: ["Wifi", "AV Equipment", "Parking", "Meeting Rooms"],
-  },
-  {
-    id: 3,
-    title: "DIFC Creative Studio",
-    location: "DIFC, Dubai",
-    category: "Studio Space",
-    price: 250,
-    priceUnit: "day",
-    rating: 4.97,
-    reviewCount: 22,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&q=80",
-    capacity: 24,
-    amenities: ["Wifi", "Kitchen", "Air Con", "24/7 Access"],
-  },
-  {
-    id: 4,
-    title: "King Abdullah District Office",
-    location: "Riyadh, Saudi Arabia",
-    category: "Office Space",
-    price: 3200,
-    priceUnit: "month",
-    rating: 4.78,
-    reviewCount: 14,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=600&q=80",
-    capacity: 42,
-    amenities: ["Wifi", "Parking", "Reception", "Air Con", "24/7 Access"],
-  },
-  {
-    id: 5,
-    title: "Shoreditch Event Space",
-    location: "Shoreditch, London",
-    category: "Event Venues",
-    price: 450,
-    priceUnit: "day",
-    rating: 4.9,
-    reviewCount: 58,
-    badge: "Popular",
-    image:
-      "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80",
-    capacity: 120,
-    amenities: ["Wifi", "AV Equipment", "Kitchen", "CCTV", "Meeting Rooms"],
-  },
-  {
-    id: 6,
-    title: "Media City Flex Desk",
-    location: "Salford, Manchester",
-    category: "Co-working",
-    price: 35,
-    priceUnit: "day",
-    rating: 4.75,
-    reviewCount: 89,
-    badge: null,
-    image:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&q=80",
-    capacity: 4,
-    amenities: ["Wifi", "Coffee", "24/7 Access", "Air Con"].map((item) =>
-      item === "Coffee" ? "Kitchen" : item
-    ),
-  },
-  {
-    id: 7,
-    title: "Birmingham Conference Centre",
-    location: "Digbeth, Birmingham",
-    category: "Meeting Rooms",
-    price: 90,
-    priceUnit: "hour",
-    rating: 4.6,
-    reviewCount: 33,
-    badge: null,
-    image:
-      "https://images.unsplash.com/photo-1517502884422-41eaead166d4?w=600&q=80",
-    capacity: 30,
-    amenities: ["Wifi", "AV Equipment", "Parking", "Disabled Access"],
-  },
-  {
-    id: 8,
-    title: "Edinburgh Photography Studio",
-    location: "Leith, Edinburgh",
-    category: "Studio Space",
-    price: 65,
-    priceUnit: "hour",
-    rating: 4.88,
-    reviewCount: 19,
-    badge: null,
-    isNew: true,
-    image:
-      "https://images.unsplash.com/photo-1542744094-3a31f272c490?w=600&q=80",
-    capacity: 10,
-    amenities: ["Wifi", "Kitchen", "Air Con"],
-  },
-  {
-    id: 9,
-    title: "Abu Dhabi Business Hub",
-    location: "Al Maryah Island, Abu Dhabi",
-    category: "Co-working",
-    price: 180,
-    priceUnit: "day",
-    rating: 4.72,
-    reviewCount: 41,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=80",
-    capacity: 14,
-    amenities: ["Wifi", "Parking", "Reception", "24/7 Access"],
-  },
-  {
-    id: 10,
-    title: "Mayfair Private Members Office",
-    location: "Mayfair, London",
-    category: "Office Space",
-    price: 5500,
-    priceUnit: "month",
-    rating: 4.95,
-    reviewCount: 12,
-    badge: "Featured",
-    image:
-      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&q=80",
-    capacity: 20,
-    amenities: ["Wifi", "Reception", "Parking", "Air Con", "CCTV"],
-  },
-  {
-    id: 11,
-    title: "Leeds Warehouse Event Space",
-    location: "South Bank, Leeds",
-    category: "Event Venues",
-    price: 320,
-    priceUnit: "day",
-    rating: 4.65,
-    reviewCount: 27,
-    badge: null,
-    image:
-      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80",
-    capacity: 160,
-    amenities: ["Parking", "CCTV", "Disabled Access", "24/7 Access"],
-  },
-  {
-    id: 12,
-    title: "Doha Medical Consulting Room",
-    location: "West Bay, Doha",
-    category: "Medical",
-    price: 200,
-    priceUnit: "day",
-    rating: 4.8,
-    reviewCount: 8,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&q=80",
-    capacity: 6,
-    amenities: ["Wifi", "Reception", "Air Con", "Disabled Access"],
-  },
-];
-
 const getPaginationItems = (currentPage, totalPages) => {
   if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -282,12 +95,10 @@ export default function SearchPage() {
   const initialCategory = searchParams.get("category") || "";
 
   const [selectedCity, setSelectedCity] = useState(initialCity);
-  const [selectedCategories, setSelectedCategories] = useState(
-    initialCategory ? [initialCategory] : []
-  );
-  const [selectedDuration, setSelectedDuration] = useState("Any");
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [selectedDuration, setSelectedDuration] = useState("");
   const [minPrice, setMinPrice] = useState(0);
-  const [maxPrice, setMaxPrice] = useState(500);
+  const [maxPrice, setMaxPrice] = useState(10000);
   const [minCapacity, setMinCapacity] = useState(1);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [sortBy, setSortBy] = useState("Relevance");
@@ -295,73 +106,109 @@ export default function SearchPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [savedIds, setSavedIds] = useState([]);
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+
+  const fetchListings = async () => {
+    setLoading(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (selectedCity) queryParams.set("location", selectedCity);
+      if (selectedCategory) queryParams.set("category", selectedCategory);
+      if (minPrice > 0) queryParams.set("minPrice", minPrice);
+      if (maxPrice < 10000) queryParams.set("maxPrice", maxPrice);
+
+      const url = queryParams.toString()
+        ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
+        : `${import.meta.env.VITE_API_URL}/properties?limit=20`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+      let results = data.properties || [];
+
+      if (selectedDuration && selectedDuration !== "any") {
+        results = results.filter((listing) => {
+          const val = listing.pricing?.[selectedDuration];
+          if (!val) return false;
+          if (typeof val === "object") return val.enabled && val.price;
+          return val > 0;
+        });
+      }
+
+      if (minCapacity > 1) {
+        results = results.filter((listing) => {
+          const cap = listing.features?.capacity || listing.features?.maxGuests || 0;
+          return cap >= minCapacity;
+        });
+      }
+
+      if (selectedAmenities.length > 0) {
+        results = results.filter((listing) => {
+          const amenities = listing.features?.amenities || [];
+          return selectedAmenities.every((amenity) => amenities.includes(amenity));
+        });
+      }
+
+      setListings(results);
+      setTotal(results.length);
+    } catch (err) {
+      console.error("Failed to fetch listings:", err);
+      setListings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const nextCity = searchParams.get("city") || searchParams.get("location") || "";
     const nextCategory = searchParams.get("category") || "";
     setSelectedCity(nextCity);
-    setSelectedCategories(nextCategory ? [nextCategory] : []);
-    setSelectedDuration("Any");
+    setSelectedCategory(nextCategory);
+    setSelectedDuration("");
     setMinPrice(0);
-    setMaxPrice(500);
+    setMaxPrice(10000);
     setMinCapacity(1);
     setSelectedAmenities([]);
     setCurrentPage(1);
   }, [searchParams]);
 
   useEffect(() => {
+    fetchListings();
     setCurrentPage(1);
   }, [
     selectedCity,
-    selectedCategories,
+    selectedCategory,
     selectedDuration,
     minPrice,
     maxPrice,
     minCapacity,
     selectedAmenities,
-    sortBy,
   ]);
 
   const filteredResults = useMemo(() => {
-    const sorted = MOCK_RESULTS.filter(
-      (space) =>
-        selectedCategories.length === 0 ||
-        selectedCategories.includes(space.category)
-    )
-      .filter(
-        (space) =>
-          selectedDuration === "Any" ||
-          space.priceUnit === DURATION_VALUE_MAP[selectedDuration]
-      )
-      .filter((space) => space.price >= minPrice && space.price <= maxPrice)
-      .filter((space) => space.capacity >= minCapacity)
-      .filter(
-        (space) =>
-          selectedAmenities.length === 0 ||
-          selectedAmenities.every((amenity) => space.amenities.includes(amenity))
-      )
-      .filter(
-        (space) =>
-          !selectedCity ||
-          space.location.toLowerCase().includes(selectedCity.toLowerCase())
-      )
-      .sort((a, b) => {
-        if (sortBy === "Price: Low to High") return a.price - b.price;
-        if (sortBy === "Price: High to Low") return b.price - a.price;
-        if (sortBy === "Top Rated") return b.rating - a.rating;
-        if (sortBy === "Newest") return b.id - a.id;
-        return 0;
-      });
+    const getListingPrice = (listing) =>
+      Number(
+        listing.pricing?.hourly ??
+          listing.pricing?.hourlyPrice ??
+          listing.pricing?.daily ??
+          listing.pricing?.weekdayPrice ??
+          0
+      );
+
+    const sorted = [...listings].sort((a, b) => {
+      if (sortBy === "Price: Low to High") return getListingPrice(a) - getListingPrice(b);
+      if (sortBy === "Price: High to Low") return getListingPrice(b) - getListingPrice(a);
+      if (sortBy === "Top Rated") return Number(b.rating || 0) - Number(a.rating || 0);
+      if (sortBy === "Newest") {
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
+      return 0;
+    });
 
     return sorted;
   }, [
-    selectedCategories,
-    selectedDuration,
-    minPrice,
-    maxPrice,
-    minCapacity,
-    selectedAmenities,
-    selectedCity,
+    listings,
     sortBy,
   ]);
 
@@ -374,18 +221,17 @@ export default function SearchPage() {
 
   const activeTags = [
     ...(selectedCity ? [{ key: "city", label: selectedCity }] : []),
-    ...selectedCategories.map((category) => ({
-      key: `category-${category}`,
-      label: category,
-    })),
-    ...(selectedDuration !== "Any"
+    ...(selectedCategory
+      ? [{ key: `category-${selectedCategory}`, label: selectedCategory }]
+      : []),
+    ...(selectedDuration
       ? [{ key: "duration", label: selectedDuration }]
       : []),
-    ...(minPrice !== 0 || maxPrice !== 500
+    ...(minPrice !== 0 || maxPrice !== 10000
       ? [
           {
             key: "price",
-            label: `Â£${minPrice} - Â£${maxPrice}${maxPrice >= 1000 ? "+" : ""}`,
+            label: `Â£${minPrice} - Â£${maxPrice}${maxPrice >= 10000 ? "+" : ""}`,
           },
         ]
       : []),
@@ -400,7 +246,7 @@ export default function SearchPage() {
 
   const filters = {
     selectedCity,
-    selectedCategories,
+    selectedCategory,
     selectedDuration,
     minPrice,
     maxPrice,
@@ -411,11 +257,7 @@ export default function SearchPage() {
 
   const handleFilterChange = (type, value) => {
     if (type === "toggle-category") {
-      setSelectedCategories((current) =>
-        current.includes(value)
-          ? current.filter((item) => item !== value)
-          : [...current, value]
-      );
+      setSelectedCategory((current) => (current === value ? "" : value));
       return;
     }
 
@@ -431,7 +273,7 @@ export default function SearchPage() {
     }
 
     if (type === "set-max-price") {
-      const nextMax = clamp(Number(value) || 0, minPrice, 1000);
+      const nextMax = clamp(Number(value) || 0, minPrice, 10000);
       setMaxPrice(nextMax);
       return;
     }
@@ -456,16 +298,16 @@ export default function SearchPage() {
   };
 
   const clearFilters = () => {
-    setSelectedCity("");
-    setSelectedCategories([]);
-    setSelectedDuration("Any");
+    setSelectedCategory("");
+    setSelectedDuration("");
     setMinPrice(0);
-    setMaxPrice(500);
+    setMaxPrice(10000);
     setMinCapacity(1);
     setSelectedAmenities([]);
   };
 
   const handleApplyFilters = () => {
+    fetchListings();
     setIsDrawerOpen(false);
     resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -477,13 +319,13 @@ export default function SearchPage() {
     }
 
     if (key === "duration") {
-      setSelectedDuration("Any");
+      setSelectedDuration("");
       return;
     }
 
     if (key === "price") {
       setMinPrice(0);
-      setMaxPrice(500);
+      setMaxPrice(10000);
       return;
     }
 
@@ -493,8 +335,7 @@ export default function SearchPage() {
     }
 
     if (key.startsWith("category-")) {
-      const value = key.replace("category-", "");
-      setSelectedCategories((current) => current.filter((item) => item !== value));
+      setSelectedCategory("");
       return;
     }
 
@@ -577,7 +418,7 @@ export default function SearchPage() {
             <div className="mb-6 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <p className="text-[15px] font-semibold text-[#0A1628]">
-                  {filteredResults.length} spaces found
+                  {total} spaces found
                 </p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -646,31 +487,41 @@ export default function SearchPage() {
               ) : null}
             </AnimatePresence>
 
-            {filteredResults.length === 0 ? (
+            {loading ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3"
+              >
+                {Array.from({ length: 6 }, (_, index) => (
+                  <motion.div
+                    key={`skeleton-${index}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <PropertyCard isLoading />
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : filteredResults.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-[#E5E7EB] bg-white px-6 text-center"
               >
-                <SearchX size={48} className="text-[#6B7280]" />
-                <h2 className="mt-4 text-[20px] font-bold text-[#0A1628]">
-                  No spaces found
-                </h2>
-                <p className="mt-2 text-sm text-[#6B7280]">
-                  Try adjusting your filters or search in a different location.
-                </p>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="mt-5 text-sm font-medium text-[#305CDE] underline underline-offset-4"
-                >
-                  Clear all filters
-                </button>
+                <div style={{ textAlign: "center", padding: "80px 0", color: "#6B7280" }}>
+                  <p style={{ fontSize: "18px", marginBottom: "8px" }}>No spaces found</p>
+                  <p style={{ fontSize: "14px" }}>
+                    Try adjusting your filters or search a different location
+                  </p>
+                </div>
               </motion.div>
             ) : (
               <>
                 <motion.div
-                  key={JSON.stringify(paginatedResults.map((result) => result.id))}
+                  key={JSON.stringify(paginatedResults.map((result) => result._id))}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
@@ -678,24 +529,36 @@ export default function SearchPage() {
                 >
                   {paginatedResults.map((result, index) => (
                     <motion.div
-                      key={result.id}
+                      key={result._id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
                       <PropertyCard
-                        id={result.id}
-                        image={result.image}
+                        id={result._id}
+                        image={result.coverImage}
                         title={result.title}
-                        location={result.location}
-                        category={result.category}
-                        price={result.price}
-                        priceUnit={result.priceUnit}
-                        rating={result.rating}
-                        reviewCount={result.reviewCount}
-                        badge={result.badge}
-                        isNew={result.isNew}
-                        isSaved={savedIds.includes(result.id)}
+                        location={`${result.location?.city || ""}, ${
+                          result.location?.country || ""
+                        }`}
+                        category={result.category?.name || ""}
+                        price={
+                          result.pricing?.hourly ??
+                          result.pricing?.hourlyPrice ??
+                          result.pricing?.daily ??
+                          result.pricing?.weekdayPrice ??
+                          0
+                        }
+                        priceUnit={
+                          result.pricing?.hourly || result.pricing?.hourlyPrice
+                            ? "hr"
+                            : result.pricing?.daily || result.pricing?.weekdayPrice
+                            ? "day"
+                            : "POA"
+                        }
+                        rating={result.rating || 0}
+                        reviewCount={result.reviewNumber || result.reviewCount || 0}
+                        isSaved={savedIds.includes(result._id)}
                         onSave={handleSave}
                       />
                     </motion.div>
@@ -807,7 +670,7 @@ export default function SearchPage() {
 
 function FilterSidebar({ filters, onChange, onClear, onApply }) {
   const {
-    selectedCategories,
+    selectedCategory,
     selectedDuration,
     minPrice,
     maxPrice,
@@ -815,8 +678,8 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
     selectedAmenities,
   } = filters;
 
-  const minThumbPercent = (minPrice / 1000) * 100;
-  const maxThumbPercent = (maxPrice / 1000) * 100;
+  const minThumbPercent = (minPrice / 10000) * 100;
+  const maxThumbPercent = (maxPrice / 10000) * 100;
 
   return (
     <div className="flex flex-col gap-7 rounded-2xl border border-[#E5E7EB] bg-white p-6">
@@ -837,7 +700,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
         </p>
         <div className="flex flex-wrap gap-2">
           {CATEGORY_OPTIONS.map((category) => {
-            const selected = selectedCategories.includes(category);
+            const selected = selectedCategory === category;
             return (
               <button
                 key={category}
@@ -862,12 +725,13 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
         </p>
         <div>
           {DURATION_OPTIONS.map((option) => {
-            const selected = selectedDuration === option;
+            const durationValue = option === "Any" ? "" : option.toLowerCase();
+            const selected = selectedDuration === durationValue;
             return (
               <button
                 key={option}
                 type="button"
-                onClick={() => onChange("set-duration", option)}
+                onClick={() => onChange("set-duration", durationValue)}
                 className="flex w-full items-center justify-between border-b border-[#F3F4F6] py-2.5 text-left last:border-b-0"
               >
                 <span className="text-[14px] text-[#111827]">{option}</span>
@@ -891,7 +755,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
           <p className="text-[13px] font-medium text-[#111827]">Price Range</p>
           <span className="text-[13px] text-[#6B7280]">
             Â£{minPrice} - Â£{maxPrice}
-            {maxPrice >= 1000 ? "+" : ""}
+            {maxPrice >= 10000 ? "+" : ""}
           </span>
         </div>
 
@@ -907,7 +771,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
           <input
             type="range"
             min="0"
-            max="1000"
+            max="10000"
             step="10"
             value={minPrice}
             onChange={(event) =>
@@ -918,7 +782,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
           <input
             type="range"
             min="0"
-            max="1000"
+            max="10000"
             step="10"
             value={maxPrice}
             onChange={(event) =>
@@ -941,7 +805,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
           <input
             type="number"
             min={minPrice}
-            max="1000"
+            max="10000"
             value={maxPrice}
             onChange={(event) => onChange("set-max-price", event.target.value)}
             className="w-20 rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-[13px] outline-none"

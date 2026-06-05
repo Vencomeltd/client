@@ -32,6 +32,7 @@ import PropertyDetails from "./pages/PropertyDetails";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import CreateSpace from "./pages/CreateSpace";
+import EditSpace from "./pages/EditSpace";
 import MyListings from "./pages/MyListings";
 import HostProfile from "./pages/HostProfile";
 import CategoryPage from "./pages/CategoryPage";
@@ -77,6 +78,7 @@ function AppContent() {
     location.pathname.startsWith("/bookings/") ||
     location.pathname.startsWith("/availability/") ||
     location.pathname === "/create-space" ||
+    location.pathname.startsWith("/edit-space/") ||
     location.pathname === "/my-listings" ||
     location.pathname === "/property-availability";
 
@@ -122,9 +124,9 @@ function AppContent() {
         <Route
           path="/customer/bookings"
           element={
-            <PrivateRoute>
-              <CustomerDashboard section="bookings" />
-            </PrivateRoute>
+            <CustomerRoute>
+              <MyBookings />
+            </CustomerRoute>
           }
         />
         <Route
@@ -171,7 +173,7 @@ function AppContent() {
           path="/dashboard/bookings"
           element={
             <PrivateRoute>
-              <MyBookings />
+              <HostBookings />
             </PrivateRoute>
           }
         />
@@ -270,6 +272,14 @@ function AppContent() {
           element={
             <HostRoute>
               <CreateSpace />
+            </HostRoute>
+          }
+        />
+        <Route
+          path="/edit-space/:id"
+          element={
+            <HostRoute>
+              <EditSpace />
             </HostRoute>
           }
         />

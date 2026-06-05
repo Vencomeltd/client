@@ -62,87 +62,6 @@ const CATEGORY_ITEMS = [
   { icon: Sparkles, label: "Other" },
 ];
 
-const MOCK_SPACES = [
-  {
-    id: 1,
-    title: "The Shard Executive Suite",
-    location: "London Bridge, London",
-    category: "Office Space",
-    price: 85,
-    priceUnit: "hour",
-    rating: 4.92,
-    reviewCount: 47,
-    badge: "Featured",
-    image:
-      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=600&q=80",
-  },
-  {
-    id: 2,
-    title: "Canary Wharf Boardroom",
-    location: "Canary Wharf, London",
-    category: "Meeting Rooms",
-    price: 120,
-    priceUnit: "hour",
-    rating: 4.85,
-    reviewCount: 31,
-    badge: "Popular",
-    image:
-      "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=600&q=80",
-  },
-  {
-    id: 3,
-    title: "DIFC Creative Studio",
-    location: "DIFC, Dubai",
-    category: "Studio Space",
-    price: 250,
-    priceUnit: "day",
-    rating: 4.97,
-    reviewCount: 22,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&q=80",
-  },
-  {
-    id: 4,
-    title: "King Abdullah District Office",
-    location: "Riyadh, Saudi Arabia",
-    category: "Office Space",
-    price: 3200,
-    priceUnit: "month",
-    rating: 4.78,
-    reviewCount: 14,
-    badge: "Verified",
-    image:
-      "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=600&q=80",
-  },
-  {
-    id: 5,
-    title: "Shoreditch Event Space",
-    location: "Shoreditch, London",
-    category: "Event Venues",
-    price: 450,
-    priceUnit: "day",
-    rating: 4.9,
-    reviewCount: 58,
-    badge: "Popular",
-    image:
-      "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600&q=80",
-  },
-  {
-    id: 6,
-    title: "Media City Flex Desk",
-    location: "Salford, Manchester",
-    category: "Co-working",
-    price: 35,
-    priceUnit: "day",
-    rating: 4.75,
-    reviewCount: 89,
-    badge: null,
-    image:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=600&q=80",
-  },
-];
-
 const CITY_GROUPS = [
   {
     icon: Landmark,
@@ -430,8 +349,13 @@ function CategoryStrip() {
   );
 }
 
-function FeaturedSpaces() {
+function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) {
   const scrollRef = useRef(null);
+  const listingsToRender = popularListings.length > 0 ? popularListings : featuredListings;
+
+  if (!loadingListings && listingsToRender.length === 0) {
+    return null;
+  }
 
   const scrollByAmount = (direction) => {
     if (!scrollRef.current) return;
@@ -474,13 +398,42 @@ function FeaturedSpaces() {
             ref={scrollRef}
             className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:none]"
           >
-            {MOCK_SPACES.map((space) => (
+            {(loadingListings
+              ? Array.from({ length: 4 }, (_, index) => ({
+                  id: `skeleton-${index}`,
+                  isLoading: true,
+                }))
+              : listingsToRender
+            ).map((listing) => (
               <div
-                key={space.id}
+                key={listing.id || listing._id}
                 className="min-w-[260px] shrink-0 md:min-w-[300px]"
                 style={{ scrollSnapAlign: "start" }}
               >
-                <PropertyCard property={space} variant="homepage" />
+                <PropertyCard
+                  id={listing._id}
+                  image={listing.coverImage}
+                  title={listing.title}
+                  location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
+                  price={
+                    listing.pricing?.hourlyPrice ??
+                    listing.pricing?.hourly ??
+                    listing.pricing?.weekdayPrice ??
+                    listing.pricing?.daily ??
+                    0
+                  }
+                  priceUnit={
+                    listing.pricing?.hourlyPrice || listing.pricing?.hourly
+                      ? "hr"
+                      : listing.pricing?.weekdayPrice || listing.pricing?.daily
+                      ? "day"
+                      : "POA"
+                  }
+                  category={listing.category?.name || ""}
+                  isLoading={listing.isLoading}
+                  property={listing}
+                  variant="homepage"
+                />
               </div>
             ))}
           </div>
@@ -712,6 +665,27 @@ function TrustSignals() {
 
 export default function Homepage() {
   const [activeTab, setActiveTab] = useState("spaces");
+  const [featuredListings, setFeaturedListings] = useState([]);
+  const [popularListings, setPopularListings] = useState([]);
+  const [loadingListings, setLoadingListings] = useState(true);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/properties?limit=8`);
+        const data = await response.json();
+        const properties = data.properties || [];
+        setFeaturedListings(properties.slice(0, 4));
+        setPopularListings(properties.slice(0, 8));
+      } catch (err) {
+        console.error("Failed to fetch listings:", err);
+      } finally {
+        setLoadingListings(false);
+      }
+    };
+
+    fetchListings();
+  }, []);
 
   return (
     <>
@@ -731,7 +705,11 @@ export default function Homepage() {
       <main className="bg-[#F8F6F0] text-[#111827]">
         <HeroSection />
         <CategoryStrip />
-        <FeaturedSpaces />
+        <FeaturedSpaces
+          featuredListings={featuredListings}
+          popularListings={popularListings}
+          loadingListings={loadingListings}
+        />
         <BrowseByCity />
         <HowItWorks />
         <BecomeAHost />

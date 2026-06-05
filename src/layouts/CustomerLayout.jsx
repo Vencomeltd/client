@@ -18,13 +18,34 @@ import {
   User,
   X,
 } from "lucide-react";
+import { getUser } from "../utils/auth";
 
-const USER = {
-  name: "James Thornton",
-  role: "Customer",
-  avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&q=80",
-  verified: true,
-};
+const getDisplayName = (user) =>
+  user?.displayName ||
+  [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+  user?.name ||
+  user?.email?.split("@")[0] ||
+  "User";
+
+const getInitials = (name) =>
+  name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "U";
+
+function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]" }) {
+  return (
+    <div
+      className={`flex ${size} items-center justify-center rounded-full bg-[rgba(201,168,76,0.2)] font-bold text-[#F6D98B] ${textSize}`}
+      aria-label={name}
+      title={name}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
 
 const MAIN_ITEMS = [
   { label: "Overview", path: "/customer/dashboard", icon: LayoutDashboard },
@@ -43,6 +64,8 @@ const QUICK_ITEMS = [
 
 function SidebarContent({ pathname, onNavigate }) {
   const navigate = useNavigate();
+  const currentUser = getUser();
+  const displayName = getDisplayName(currentUser);
   const isActive = (path) => pathname === path || pathname.startsWith(`${path}/`);
 
   const renderItem = (item) => {
@@ -91,15 +114,11 @@ function SidebarContent({ pathname, onNavigate }) {
 
       <div className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <img
-            src={USER.avatar}
-            alt={USER.name}
-            className="h-11 w-11 rounded-full object-cover"
-          />
+          <UserInitialsAvatar name={displayName} />
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-semibold text-white">{USER.name}</p>
-            <p className="text-[12px] text-white/50">{USER.role}</p>
-            {USER.verified ? (
+            <p className="truncate text-[14px] font-semibold text-white">{displayName}</p>
+            <p className="text-[12px] text-white/50">Customer</p>
+            {currentUser ? (
               <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-[rgba(201,168,76,0.3)] bg-[rgba(201,168,76,0.15)] px-2 py-0.5 text-[10px] font-bold text-[#C9A84C]">
                 <Check size={12} />
                 Verified
@@ -140,6 +159,9 @@ function SidebarContent({ pathname, onNavigate }) {
 }
 
 function TopBar({ title, onOpenSidebar }) {
+  const currentUser = getUser();
+  const displayName = getDisplayName(currentUser);
+
   return (
     <header className="flex h-16 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 md:px-8">
       <div className="flex min-w-0 items-center gap-3">
@@ -165,7 +187,7 @@ function TopBar({ title, onOpenSidebar }) {
           <Bell size={20} />
           <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
         </button>
-        <img src={USER.avatar} alt={USER.name} className="h-8 w-8 rounded-full object-cover" />
+        <UserInitialsAvatar name={displayName} size="h-8 w-8" textSize="text-[12px]" />
       </div>
     </header>
   );
