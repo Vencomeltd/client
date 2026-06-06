@@ -17,6 +17,7 @@ import {
   Monitor,
   Printer,
   Star,
+  Users,
   UserCheck,
   Wifi,
   Wind,
@@ -574,6 +575,7 @@ export default function PropertyDetails() {
   const [error, setError] = useState(null);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [hideNavbarForLightbox, setHideNavbarForLightbox] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [lightboxDirection, setLightboxDirection] = useState(1);
   const [expandedDescription, setExpandedDescription] = useState(false);
@@ -600,6 +602,7 @@ export default function PropertyDetails() {
   const [selectedEndDate, setSelectedEndDate] = useState(null);
   const [expandedReviews, setExpandedReviews] = useState({});
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [similarSpaces, setSimilarSpaces] = useState([]);
 
   const bookingSidebarRef = useRef(null);
   const calendarRef = useRef(null);
@@ -607,24 +610,27 @@ export default function PropertyDetails() {
   const enabledPricingOptions = property
     ? ["hourly", "daily", "weekly", "monthly", "annual"]
         .map((key) => {
-          const val = property.pricing?.[key];
-          if (!val) return null;
-
           let price = null;
-          let enabled = false;
 
-          if (typeof val === "object") {
-            enabled = val.enabled;
-            price = val.price;
+          const val = property.pricing?.[key];
+          if (typeof val === "object" && val !== null) {
+            if (val.enabled && val.price && parseFloat(val.price) > 0) {
+              price = parseFloat(val.price);
+            }
           } else if (typeof val === "number" && val > 0) {
-            enabled = true;
             price = val;
           } else if (typeof val === "string" && parseFloat(val) > 0) {
-            enabled = true;
-            price = val;
+            price = parseFloat(val);
           }
 
-          if (!enabled || !price) return null;
+          if (!price && key === "hourly" && property.pricing?.hourlyPrice > 0) {
+            price = property.pricing.hourlyPrice;
+          }
+          if (!price && key === "daily" && property.pricing?.weekdayPrice > 0) {
+            price = property.pricing.weekdayPrice;
+          }
+
+          if (!price) return null;
 
           return {
             key,
@@ -635,7 +641,7 @@ export default function PropertyDetails() {
               monthly: "Per Month",
               annual: "Per Year",
             }[key],
-            price: parseFloat(price),
+            price,
             unit: {
               hourly: "/hr",
               daily: "/day",
@@ -649,14 +655,20 @@ export default function PropertyDetails() {
     : [];
 
   const getPriceForDisplay = (key) => {
-    const val = property?.pricing?.[key];
-    if (val === null || val === undefined) return null;
-    if (typeof val === "object") {
+    const pricing = property?.pricing;
+    if (!pricing) return null;
+
+    const val = pricing[key];
+    if (typeof val === "object" && val !== null) {
       if (val.enabled && val.price && parseFloat(val.price) > 0) return parseFloat(val.price);
       return null;
     }
     if (typeof val === "number" && val > 0) return val;
     if (typeof val === "string" && parseFloat(val) > 0) return parseFloat(val);
+
+    if (key === "hourly" && pricing.hourlyPrice > 0) return pricing.hourlyPrice;
+    if (key === "daily" && pricing.weekdayPrice > 0) return pricing.weekdayPrice;
+
     return null;
   };
 
@@ -713,6 +725,137 @@ export default function PropertyDetails() {
 
     if (id) fetchProperty();
   }, [id]);
+
+  useEffect(() => {
+    if (!property) return;
+
+    const lat = property?.coordinates?.lat || property?.coordinates?.latitude;
+    const lng = property?.coordinates?.lng || property?.coordinates?.longitude;
+
+    const address = [property?.location?.address, property?.location?.city, property?.location?.country]
+      .filter(Boolean)
+      .join(", ");
+
+    if (!lat && !lng && !address) return;
+
+    let cancelled = false;
+
+    const waitForDivAndInit = () => {
+      const mapDiv = document.getElementById("property-detail-map");
+      if (!mapDiv) {
+        if (!cancelled) setTimeout(waitForDivAndInit, 100);
+        return;
+      }
+
+      const initMap = () => {
+        if (cancelled) return;
+        try {
+          const center =
+            lat && lng
+              ? { lat: parseFloat(lat), lng: parseFloat(lng) }
+              : { lat: 51.5074, lng: -0.1278 };
+
+          const map = new window.google.maps.Map(mapDiv, {
+            center,
+            zoom: 15,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+          });
+
+          setTimeout(() => {
+            window.google.maps.event.trigger(map, "resize");
+            map.setCenter(center);
+          }, 100);
+
+          if (lat && lng) {
+            new window.google.maps.Marker({
+              position: center,
+              map,
+              title: property?.title || "Property",
+            });
+          } else {
+            const geocoder = new window.google.maps.Geocoder();
+            geocoder.geocode({ address }, (results, status) => {
+              if (status === "OK" && results[0]) {
+                const loc = results[0].geometry.location;
+                map.setCenter(loc);
+                new window.google.maps.Marker({ position: loc, map });
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Map init error:", err);
+        }
+      };
+
+      if (window.google?.maps) {
+        initMap();
+      } else {
+        const existingScript = document.getElementById("google-maps-script");
+        if (existingScript) {
+          existingScript.addEventListener("load", initMap);
+        } else {
+          const script = document.createElement("script");
+          script.id = "google-maps-script";
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places,geocoding`;
+          script.async = true;
+          script.defer = true;
+          script.onload = initMap;
+          document.head.appendChild(script);
+        }
+      }
+    };
+
+    waitForDivAndInit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [property]);
+
+  useEffect(() => {
+    const fetchSimilarSpaces = async () => {
+      if (!property) return;
+      try {
+        const categoryId = property.category?._id || property.category;
+        const url = categoryId
+          ? `${import.meta.env.VITE_API_URL}/properties?limit=6`
+          : `${import.meta.env.VITE_API_URL}/properties?limit=6`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const all = data.properties || [];
+        const filtered = all.filter((space) => space._id !== property._id).slice(0, 3);
+        setSimilarSpaces(filtered);
+      } catch (err) {
+        console.error("Failed to fetch similar spaces:", err);
+      }
+    };
+
+    fetchSimilarSpaces();
+  }, [property]);
+
+  useEffect(() => {
+    const navbar =
+      document.querySelector("nav") ||
+      document.querySelector("header") ||
+      document.querySelector('[class*="Navbar"]') ||
+      document.querySelector('[class*="navbar"]');
+
+    if (navbar) {
+      navbar.style.position = "fixed";
+      navbar.style.top = "0";
+      navbar.style.left = "0";
+      navbar.style.right = "0";
+      navbar.style.zIndex = "1000";
+    }
+
+    return () => {
+      if (navbar) {
+        navbar.style.zIndex = "";
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!propertyView) return;
@@ -847,9 +990,10 @@ export default function PropertyDetails() {
     );
   }
 
-  const openImage = (index) => {
+  const openImage = (index, hideNavbar = false) => {
     setLightboxDirection(index >= activeImageIndex ? 1 : -1);
     setActiveImageIndex(index);
+    setHideNavbarForLightbox(hideNavbar);
     setLightboxOpen(true);
   };
 
@@ -1026,7 +1170,7 @@ export default function PropertyDetails() {
         <PhotoGallery
           images={propertyView.images}
           onOpen={openImage}
-          onShowAll={() => openImage(0)}
+          onShowAll={() => openImage(0, true)}
         />
 
         <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6 md:py-12">
@@ -1037,7 +1181,7 @@ export default function PropertyDetails() {
               </motion.section>
 
               <motion.section {...sectionProps(0.05)}>
-                <HostSection host={propertyView.host} />
+                <HostSection property={property} />
               </motion.section>
 
               <motion.section {...sectionProps(0.1)}>
@@ -1049,7 +1193,7 @@ export default function PropertyDetails() {
               </motion.section>
 
               <motion.section {...sectionProps(0.15)}>
-                <AmenitiesSection amenities={propertyView.amenities} />
+                <AmenitiesSection property={property} />
               </motion.section>
 
               <motion.section {...sectionProps(0.2)}>
@@ -1078,7 +1222,7 @@ export default function PropertyDetails() {
               </motion.section>
 
               <motion.section {...sectionProps(0.3)}>
-                <HouseRulesSection rules={propertyView.rules} />
+                <HouseRulesSection property={property} />
               </motion.section>
 
               <motion.section {...sectionProps(0.35)}>
@@ -1130,7 +1274,7 @@ export default function PropertyDetails() {
           </div>
         </div>
 
-        <SimilarSpaces spaces={SIMILAR_SPACES} />
+        <SimilarSpaces spaces={similarSpaces} />
         <Footer />
 
         <MobileBookingBar
@@ -1237,7 +1381,11 @@ export default function PropertyDetails() {
         activeImageIndex={activeImageIndex}
         direction={lightboxDirection}
         isOpen={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
+        hideNavbar={hideNavbarForLightbox}
+        onClose={() => {
+          setLightboxOpen(false);
+          setHideNavbarForLightbox(false);
+        }}
         onChangeImage={changeImage}
       />
     </>
@@ -1352,47 +1500,123 @@ function TitleBlock({ property }) {
           </button>
         </div>
       </div>
+
+      {property?.capacity ? (
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            background: "#F8F6F0",
+            border: "1px solid #E5E7EB",
+            borderRadius: "9999px",
+            padding: "6px 14px",
+            fontSize: "13px",
+            color: "#374151",
+            fontWeight: "500",
+            marginTop: "8px",
+          }}
+        >
+          <Users size={14} />
+          <span>Up to {property.capacity} people</span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function HostSection({ host }) {
-  return (
-    <div className="border-b border-[#E5E7EB] py-6">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="relative">
+function HostSection({ property }) {
+  return (() => {
+    const hostName = property?.host?.displayName ||
+      (property?.host?.firstName && property?.host?.lastName
+        ? `${property.host.firstName} ${property.host.lastName}`
+        : property?.host?.firstName || property?.host?.email?.split("@")[0] || "VenCome Host");
+
+    const hostInitials = hostName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    const hasRealAvatar = property?.host?.profileImage &&
+      !property.host.profileImage.includes("gravatar") &&
+      !property.host.profileImage.includes("00000000000000000000000000000000");
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "16px",
+          padding: "20px 0",
+          borderTop: "1px solid #E5E7EB",
+          borderBottom: "1px solid #E5E7EB",
+          margin: "24px 0",
+        }}
+      >
+        <div
+          style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            overflow: "hidden",
+            flexShrink: 0,
+            background: hasRealAvatar ? "transparent" : "#0A1628",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {hasRealAvatar ? (
             <img
-              src={host.avatar}
-              alt={host.name}
-              className="h-14 w-14 rounded-full object-cover"
+              src={property.host.profileImage}
+              alt={hostName}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
-            {host.verified ? (
-              <span className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-[#305CDE] text-white shadow-sm">
-                <Check size={12} />
-              </span>
-            ) : null}
-          </div>
-
-          <div>
-            <p className="text-[16px] font-bold text-[#0A1628]">{host.name}</p>
-            <p className="text-[13px] text-[#6B7280]">{host.company}</p>
-            <p className="mt-2 text-[12px] leading-6 text-[#6B7280]">
-              {host.responseRate}% response rate · Responds {host.responseTime} ·
-              Hosting since {host.joinedYear}
-            </p>
-          </div>
+          ) : (
+            <span style={{ color: "#fff", fontSize: "18px", fontWeight: "700" }}>
+              {hostInitials}
+            </span>
+          )}
         </div>
-
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
+            {hostName}
+          </p>
+          <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>
+            {property?.host?.isVerified ? "✓ Verified Host" : "VenCome Host"} · Hosting since{" "}
+            {new Date(property?.host?.createdAt || property?.createdAt).toLocaleDateString(
+              "en-GB",
+              { month: "long", year: "numeric" }
+            )}
+          </p>
+        </div>
         <button
-          type="button"
-          className="min-h-[44px] w-full rounded-lg border-[1.5px] border-[#0A1628] px-5 py-2.5 text-[13px] font-semibold text-[#0A1628] transition hover:bg-[#0A1628] hover:text-white md:w-auto"
+          onClick={() => {
+            const token = localStorage.getItem("vencome_token");
+            if (!token) {
+              window.location.href = "/login";
+              return;
+            }
+            window.location.href = `/chat?hostId=${property?.host?._id}&propertyId=${property?._id}`;
+          }}
+          style={{
+            padding: "10px 20px",
+            borderRadius: "8px",
+            border: "1.5px solid #0A1628",
+            background: "#fff",
+            color: "#0A1628",
+            fontSize: "14px",
+            fontWeight: "600",
+            cursor: "pointer",
+          }}
         >
           Contact Host
         </button>
       </div>
-    </div>
-  );
+    );
+  })();
 }
 
 function DescriptionSection({ description, expanded, onToggle }) {
@@ -1422,28 +1646,61 @@ function DescriptionSection({ description, expanded, onToggle }) {
   );
 }
 
-function AmenitiesSection({ amenities }) {
+function AmenitiesSection({ property }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">What's Included</h2>
 
-      <div className="mt-5 grid grid-cols-2 gap-[10px] md:gap-3">
-        {amenities.map((amenity) => {
-          const Icon = ICON_MAP[amenity.icon] || Check;
-          return (
-            <div
-              key={amenity.label}
-              className="flex items-center gap-3 rounded-[10px] border border-[#E5E7EB] bg-white p-3"
-            >
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[rgba(10,22,40,0.06)] text-[#0A1628]">
-                <Icon size={20} />
-              </span>
-              <span className="text-[14px] font-medium text-[#111827]">
-                {amenity.label}
-              </span>
-            </div>
-          );
-        })}
+      <div className="mt-5">
+        {property?.whatsIncluded ? (
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {property.whatsIncluded.split(",").map((item, index) => (
+              <li
+                key={index}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  fontSize: "14px",
+                  color: "#374151",
+                }}
+              >
+                <span
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    background: "#F0FDF4",
+                    border: "1px solid #86EFAC",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    fontSize: "11px",
+                    color: "#16A34A",
+                    fontWeight: "700",
+                  }}
+                >
+                  ✓
+                </span>
+                {item.trim()}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ fontSize: "14px", color: "#9CA3AF", fontStyle: "italic" }}>
+            Details provided on request
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1653,58 +1910,64 @@ function AvailabilitySection({
   );
 }
 
-function HouseRulesSection({ rules }) {
+function HouseRulesSection({ property }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
-      <h2 className="text-[20px] font-bold text-[#0A1628]">House Rules</h2>
+      <h2 className="text-[20px] font-bold text-[#0A1628]">Space Rules</h2>
 
-      <div className="mt-5 space-y-4">
-        {rules.map((rule) => (
-          <div key={rule} className="flex items-start gap-3">
-            <AlertCircle size={16} className="mt-1 shrink-0 text-[#305CDE]" />
-            <p className="text-[14px] leading-7 text-[#111827]">{rule}</p>
-          </div>
-        ))}
+      <div className="mt-5">
+        {(() => {
+          const rules =
+            property?.features?.houseRules ||
+            property?.features?.spaceRules ||
+            property?.spaceRules ||
+            property?.houseRules;
+          return rules ? (
+            <p
+              style={{
+                fontSize: "15px",
+                color: "#374151",
+                lineHeight: "1.8",
+                whiteSpace: "pre-line",
+              }}
+            >
+              {rules}
+            </p>
+          ) : (
+            <p style={{ fontSize: "14px", color: "#9CA3AF", fontStyle: "italic" }}>
+              No specific rules provided
+            </p>
+          );
+        })()}
       </div>
     </div>
   );
 }
 
 function LocationSection({ property }) {
-  const hasCoordinates =
-    property.location_detail?.lat !== null &&
-    property.location_detail?.lat !== undefined &&
-    property.location_detail?.lng !== null &&
-    property.location_detail?.lng !== undefined;
-  const mapSrc = hasCoordinates
-    ? `https://www.google.com/maps?q=${property.location_detail.lat},${property.location_detail.lng}&z=15&output=embed`
-    : null;
-
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Location</h2>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#E5E7EB]">
-        {hasCoordinates ? (
-          <iframe
-            title={`Map of ${property.location}`}
-            src={mapSrc}
-            className="h-[280px] w-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        ) : (
-          <div className="flex h-[280px] flex-col items-center justify-center bg-[#0A1628] px-6 text-center text-white">
-            <Map size={48} className="text-[#305CDE]" />
-            <p className="mt-4 text-[18px] font-semibold">{property.location}</p>
-            <p className="mt-2 text-[14px] text-white/70">Map unavailable for this listing</p>
-          </div>
-        )}
+        <div
+          id="property-detail-map"
+          style={{
+            width: "100%",
+            height: "320px",
+            borderRadius: "16px",
+            overflow: "hidden",
+            border: "1px solid #E5E7EB",
+            background: "#f3f4f6",
+          }}
+        />
       </div>
 
-      <p className="mt-5 text-[14px] leading-7 text-[#6B7280]">
-        {property.location_detail.description}
-      </p>
+      {property.location_detail?.description ? (
+        <p className="mt-5 text-[14px] leading-7 text-[#6B7280]">
+          {property.location_detail.description}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -1845,6 +2108,11 @@ function BookingSidebar({
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
+  const maxCapacity =
+    property?.features?.capacity ||
+    property?.features?.seatCapacity ||
+    property?.features?.maxGuests ||
+    100;
   const selectedOption = enabledPricingOptions.find(
     (option) => option.key === selectedDurationType
   );
@@ -2320,20 +2588,27 @@ function BookingSidebar({
             {guests}
           </span>
           <button
-            onClick={() => onGuestsChange(guests + 1)}
+            onClick={() => onGuestsChange(Math.min(maxCapacity, guests + 1))}
+            disabled={guests >= maxCapacity}
             style={{
               width: "36px",
               height: "36px",
               borderRadius: "50%",
               border: "1.5px solid #E5E7EB",
-              background: "#fff",
+              background: guests >= maxCapacity ? "#F3F4F6" : "#fff",
               fontSize: "18px",
-              cursor: "pointer",
+              cursor: guests >= maxCapacity ? "not-allowed" : "pointer",
+              color: guests >= maxCapacity ? "#9CA3AF" : "#0A1628",
             }}
           >
             +
           </button>
         </div>
+        {guests >= maxCapacity ? (
+          <p style={{ fontSize: "12px", color: "#D97706", marginTop: "6px", fontWeight: "500" }}>
+            Maximum capacity reached ({maxCapacity} people)
+          </p>
+        ) : null}
       </div>
 
       <button
@@ -2397,6 +2672,8 @@ function BookingSidebar({
 }
 
 function SimilarSpaces({ spaces }) {
+  if (!spaces.length) return null;
+
   return (
     <section className="mx-auto max-w-[1280px] px-4 pb-16 pt-4 md:px-6">
       <h2 className="text-[24px] font-bold text-[#0A1628]">
@@ -2404,28 +2681,90 @@ function SimilarSpaces({ spaces }) {
       </h2>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
-        {spaces.map((space, index) => (
-          <motion.div
-            key={space.id}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: index * 0.08, duration: 0.45 }}
-          >
-            <PropertyCard
-              id={space.id}
-              image={space.image}
-              title={space.title}
-              location={space.location}
-              category={space.category}
-              price={space.price}
-              priceUnit={space.priceUnit}
-              rating={space.rating}
-              reviewCount={space.reviewCount}
-              badge={space.badge}
-            />
-          </motion.div>
-        ))}
+        {spaces.length > 0
+          ? spaces.map((space) => {
+              const price =
+                space.pricing?.hourly ||
+                space.pricing?.hourlyPrice ||
+                space.pricing?.daily ||
+                space.pricing?.weekdayPrice ||
+                0;
+              const unit =
+                space.pricing?.hourly || space.pricing?.hourlyPrice ? "/hr" : "/day";
+
+              return (
+                <div
+                  key={space._id}
+                  onClick={() => {
+                    window.location.href = `/property/${space._id}`;
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    border: "1px solid #E5E7EB",
+                    background: "#fff",
+                    transition: "box-shadow 0.2s ease",
+                  }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <img
+                    src={space.coverImage}
+                    alt={space.title}
+                    style={{ width: "100%", height: "200px", objectFit: "cover" }}
+                  />
+                  <div style={{ padding: "16px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+                        {space.location?.city}, {space.location?.country}
+                      </p>
+                      <p style={{ fontSize: "13px", color: "#374151", margin: 0 }}>
+                        ★ {space.rating > 0 ? space.rating.toFixed(2) : "New"}
+                      </p>
+                    </div>
+                    <p
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: "700",
+                        color: "#0A1628",
+                        margin: "4px 0",
+                      }}
+                    >
+                      {space.title}
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#6B7280", margin: "0 0 8px" }}>
+                      {space.category?.name || ""}
+                    </p>
+                    <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
+                      £{price.toLocaleString()}
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: "400",
+                          color: "#6B7280",
+                        }}
+                      >
+                        {" "}
+                        {unit}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          : null}
       </div>
     </section>
   );
@@ -2468,7 +2807,54 @@ const LIGHTBOX_VARIANTS = {
   exit: (dir) => ({ x: dir * -300, opacity: 0 }),
 };
 
-function Lightbox({ images, activeImageIndex, direction, isOpen, onClose, onChangeImage }) {
+function Lightbox({
+  images,
+  activeImageIndex,
+  direction,
+  isOpen,
+  hideNavbar,
+  onClose,
+  onChangeImage,
+}) {
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const currentLightboxImage = images[activeImageIndex];
+
+  useEffect(() => {
+    const navbar =
+      document.querySelector("nav") ||
+      document.querySelector("header") ||
+      document.querySelector('[class*="navbar"]') ||
+      document.querySelector('[class*="Navbar"]');
+
+    if (navbar) {
+      navbar.style.zIndex = isOpen && hideNavbar ? "-1" : "1000";
+      navbar.style.visibility = isOpen && hideNavbar ? "hidden" : "";
+    }
+
+    document.body.style.overflow = isOpen ? "hidden" : "";
+
+    return () => {
+      if (navbar) {
+        navbar.style.zIndex = "1000";
+        navbar.style.visibility = "";
+      }
+      document.body.style.overflow = "";
+    };
+  }, [hideNavbar, isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) setZoomLevel(1);
+  }, [isOpen]);
+
   return (
     <AnimatePresence>
       {isOpen ? (
@@ -2479,11 +2865,27 @@ function Lightbox({ images, activeImageIndex, direction, isOpen, onClose, onChan
           className="fixed inset-0 z-[500] bg-black/90"
         >
           <button
-            type="button"
             onClick={onClose}
-            className="absolute right-5 top-5 z-20 text-white"
+            style={{
+              position: "fixed",
+              top: "20px",
+              right: "20px",
+              width: "44px",
+              height: "44px",
+              borderRadius: "50%",
+              background: "rgba(0,0,0,0.6)",
+              border: "none",
+              color: "#fff",
+              fontSize: "20px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10001,
+              backdropFilter: "blur(4px)",
+            }}
           >
-            <X size={28} />
+            ✕
           </button>
 
           <button
@@ -2504,25 +2906,114 @@ function Lightbox({ images, activeImageIndex, direction, isOpen, onClose, onChan
 
           <div className="flex h-full items-center justify-center px-6">
             <AnimatePresence mode="wait">
-              <motion.img
-                key={images[activeImageIndex]}
+              <motion.div
+                key={currentLightboxImage}
                 custom={direction}
-                src={images[activeImageIndex]}
-                alt={`Property image ${activeImageIndex + 1}`}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                onDragEnd={(_, info) => {
-                  if (info.offset.x > 80) onChangeImage(-1);
-                  if (info.offset.x < -80) onChangeImage(1);
-                }}
                 variants={LIGHTBOX_VARIANTS}
                 initial="enter"
                 animate="center"
                 exit="exit"
                 transition={{ type: "spring", stiffness: 220, damping: 24 }}
-                className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
-              />
+              >
+                <div
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                    height: "100%",
+                  }}
+                >
+                  <motion.img
+                    src={currentLightboxImage}
+                    alt={`Property image ${activeImageIndex + 1}`}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    onDragEnd={(_, info) => {
+                      if (info.offset.x > 80) onChangeImage(-1);
+                      if (info.offset.x < -80) onChangeImage(1);
+                    }}
+                    style={{
+                      maxWidth: zoomLevel === 1 ? "90vw" : "none",
+                      maxHeight: zoomLevel === 1 ? "90vh" : "none",
+                      width: zoomLevel > 1 ? `${zoomLevel * 60}vw` : "auto",
+                      transform: `scale(${zoomLevel})`,
+                      transformOrigin: "center",
+                      borderRadius: zoomLevel === 1 ? "12px" : "0",
+                      transition: "transform 0.2s ease",
+                      cursor: zoomLevel > 1 ? "zoom-out" : "zoom-in",
+                      userSelect: "none",
+                    }}
+                    onClick={() =>
+                      setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))
+                    }
+                  />
+                </div>
+              </motion.div>
             </AnimatePresence>
+          </div>
+
+          <div
+            style={{
+              position: "fixed",
+              bottom: "24px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              gap: "12px",
+              zIndex: 10001,
+            }}
+          >
+            <button
+              onClick={() => setZoomLevel((prev) => Math.max(1, prev - 1))}
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                background: "rgba(0,0,0,0.6)",
+                border: "none",
+                color: "#fff",
+                fontSize: "20px",
+                cursor: "pointer",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              -
+            </button>
+            <button
+              onClick={() => setZoomLevel(1)}
+              style={{
+                padding: "0 16px",
+                height: "40px",
+                borderRadius: "20px",
+                background: "rgba(0,0,0,0.6)",
+                border: "none",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {Math.round(zoomLevel * 100)}%
+            </button>
+            <button
+              onClick={() => setZoomLevel((prev) => Math.min(3, prev + 1))}
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                background: "rgba(0,0,0,0.6)",
+                border: "none",
+                color: "#fff",
+                fontSize: "20px",
+                cursor: "pointer",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              +
+            </button>
           </div>
 
           <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[14px] text-white">

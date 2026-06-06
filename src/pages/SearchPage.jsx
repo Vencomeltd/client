@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -231,7 +231,9 @@ export default function SearchPage() {
       ? [
           {
             key: "price",
-            label: `Â£${minPrice} - Â£${maxPrice}${maxPrice >= 10000 ? "+" : ""}`,
+            label: `£${minPrice.toLocaleString()} - £${maxPrice.toLocaleString()}${
+              maxPrice >= 10000 ? "+" : ""
+            }`,
           },
         ]
       : []),
@@ -754,7 +756,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
         <div className="mb-3 flex items-center justify-between gap-3">
           <p className="text-[13px] font-medium text-[#111827]">Price Range</p>
           <span className="text-[13px] text-[#6B7280]">
-            Â£{minPrice} - Â£{maxPrice}
+            £{minPrice.toLocaleString()} - £{maxPrice.toLocaleString()}
             {maxPrice >= 10000 ? "+" : ""}
           </span>
         </div>

@@ -711,7 +711,7 @@ function LeaseSignModal({
                   <p className="mb-2">
                     <strong>Terms:</strong> The Guest agrees to occupy the
                     property during the specified dates and comply with all
-                    house rules.
+                    space rules.
                   </p>
                   <p className="mb-2">
                     <strong>Payment:</strong> The Guest agrees to pay the total

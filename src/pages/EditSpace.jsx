@@ -103,11 +103,15 @@ export default function EditSpace() {
           },
           capacity:
             p.features?.capacity?.toString() ||
-            p.features?.maxGuests?.toString() ||
             p.features?.seatCapacity?.toString() ||
             "",
           amenities: p.features?.amenities || [],
-          rules: p.features?.houseRules || p.houseRules || "",
+          rules:
+            p.features?.houseRules ||
+            p.features?.spaceRules ||
+            p.houseRules ||
+            p.spaceRules ||
+            "",
         });
       } catch (err) {
         setError(err.message);
@@ -134,7 +138,7 @@ export default function EditSpace() {
       const payload = new FormData();
       payload.append("title", formData.title);
       payload.append("description", formData.description);
-      payload.append("whatsIncluded", formData.whatsIncluded);
+      payload.append("whatsIncluded", formData.whatsIncluded || "");
       payload.append("pricing", JSON.stringify(flatPricing));
       payload.append(
         "location",
@@ -156,8 +160,8 @@ export default function EditSpace() {
         "features",
         JSON.stringify({
           capacity: parseInt(formData.capacity, 10) || 0,
-          amenities: formData.amenities,
-          houseRules: formData.rules,
+          amenities: formData.amenities || [],
+          houseRules: formData.rules || "",
         })
       );
       payload.append(
@@ -181,6 +185,18 @@ export default function EditSpace() {
       formData.photos.forEach((photo) => {
         payload.append("images", photo);
       });
+
+      console.log(
+        "Sending features:",
+        JSON.stringify({
+          capacity: parseInt(formData.capacity) || 0,
+          amenities: formData.amenities || [],
+          houseRules: formData.rules || "",
+        })
+      );
+      console.log("Sending whatsIncluded:", formData.whatsIncluded);
+      console.log("formData.rules value:", formData.rules);
+      console.log("formData.capacity value:", formData.capacity);
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
         method: "PUT",
@@ -618,7 +634,7 @@ export default function EditSpace() {
                 marginBottom: "6px",
               }}
             >
-              House Rules
+              Space Rules
             </label>
             <textarea
               value={formData.rules}

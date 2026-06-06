@@ -14,6 +14,7 @@ const refreshAccessToken = async () => {
     localStorage.removeItem("vencome_token");
     localStorage.removeItem("vencome_refresh");
     localStorage.removeItem("vencome_user");
+    localStorage.removeItem("vencome_login_time");
     window.location.href = "/login";
     throw new Error("Session expired");
   }
@@ -28,7 +29,7 @@ const isTokenExpired = (token) => {
   try {
     const base64 = token.split(".")[1];
     const decoded = JSON.parse(atob(base64));
-    return decoded.exp * 1000 < Date.now() + 60000;
+    return decoded.exp * 1000 < Date.now() + 300000;
   } catch {
     return true;
   }

@@ -154,6 +154,7 @@ export default function LoginPage({ mode = "login" }) {
       localStorage.setItem("vencome_token", data.token);
       localStorage.setItem("vencome_refresh", data.refreshToken);
       localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+      localStorage.setItem("vencome_login_time", Date.now().toString());
       localStorage.setItem("token", data.token);
       localStorage.setItem("refreshToken", data.refreshToken);
       localStorage.setItem("user", JSON.stringify(resolvedUser));
@@ -491,6 +492,7 @@ export default function LoginPage({ mode = "login" }) {
                             localStorage.setItem("vencome_token", data.token);
                             localStorage.setItem("vencome_refresh", data.refreshToken);
                             localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+                            localStorage.setItem("vencome_login_time", Date.now().toString());
                             localStorage.setItem("token", data.token);
                             localStorage.setItem("refreshToken", data.refreshToken);
                             localStorage.setItem("user", JSON.stringify(resolvedUser));

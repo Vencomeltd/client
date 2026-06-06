@@ -190,6 +190,7 @@ const defaultState = {
   photos: [],
   images: [],
   photoUrls: [],
+  coverImageIndex: 0,
   pricing: {
     hourly: { enabled: false, price: "" },
     daily: { enabled: false, price: "" },
@@ -198,7 +199,7 @@ const defaultState = {
     annual: { enabled: false, price: "" },
   },
   minHours: "",
-  minNotice: "",
+  minNotice: "24hours",
   availability: "",
   availabilityDays: [],
   startTime: "",
@@ -518,6 +519,8 @@ export default function CreateSpace() {
             city,
             country,
             postcode,
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
             latitude: place.geometry.location.lat(),
             longitude: place.geometry.location.lng(),
           }));
@@ -652,8 +655,10 @@ export default function CreateSpace() {
       formData.append(
         "coordinates",
         JSON.stringify({
-          latitude: form.latitude || 0,
-          longitude: form.longitude || 0,
+          lat: form.lat || form.latitude || 0,
+          lng: form.lng || form.longitude || 0,
+          latitude: form.lat || form.latitude || 0,
+          longitude: form.lng || form.longitude || 0,
         })
       );
       formData.append(
@@ -663,17 +668,16 @@ export default function CreateSpace() {
       formData.append(
         "features",
         JSON.stringify({
-          wifi: form.wifi || false,
-          seatCapacity: form.capacity || 0,
-          sizeSQM: form.size || 0,
-          naturalLight: form.naturalLight || false,
-          restrooms: form.restrooms || 0,
+          capacity: parseInt(form.capacity) || 0,
+          amenities: form.amenities || [],
+          houseRules: form.houseRules || "",
         })
       );
       formData.append(
         "bookingSettings",
         JSON.stringify({
           instantBook: form.instantBook || false,
+          minNotice: form.minNotice || "24hours",
           approveAllBookings: !form.instantBook,
           refundPolicy: form.refundPolicy || "moderate",
         })
@@ -682,6 +686,7 @@ export default function CreateSpace() {
         "availability",
         form.availability || JSON.stringify(form.availabilityDays || []) || "all"
       );
+      formData.append("coverImageIndex", form.coverImageIndex ?? 0);
 
       if (form.category) {
         formData.append("category", form.category);
@@ -694,7 +699,6 @@ export default function CreateSpace() {
           }
         });
       }
-
       const res = await apiFetch("/properties", {
         method: "POST",
         body: formData,
@@ -992,20 +996,30 @@ export default function CreateSpace() {
                     />
                   </div>
 
-                  {form.latitude && form.longitude ? (
-                    <p style={{ fontSize: 12, color: "#6B7280", textAlign: "center" }}>
+                  {form.city ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginTop: "12px",
+                        padding: "12px 16px",
+                        background: "#F0FDF4",
+                        borderRadius: "10px",
+                        border: "1px solid #86EFAC",
+                      }}
+                    >
+                      <span style={{ color: "#16A34A", fontSize: "16px" }}>✓</span>
                       <span
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
+                          fontSize: "14px",
+                          color: "#15803D",
+                          fontWeight: "500",
                         }}
                       >
-                        <MapPin size={12} />
-                        {Number(form.latitude).toFixed(6)},{" "}
+                        {[form.address, form.city, form.country].filter(Boolean).join(", ")}
                       </span>
-                      {Number(form.longitude).toFixed(6)}
-                    </p>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -1044,7 +1058,7 @@ export default function CreateSpace() {
                     />
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div>
                     <div>
                       <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                         Capacity
@@ -1055,21 +1069,6 @@ export default function CreateSpace() {
                         value={form.capacity}
                         onChange={(event) => updateField("capacity", event.target.value)}
                       />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
-                        Minimum notice
-                      </label>
-                      <select
-                        className={inputClassName}
-                        value={form.minNotice}
-                        onChange={(event) => updateField("minNotice", event.target.value)}
-                      >
-                        <option>24 hours</option>
-                        <option>48 hours</option>
-                        <option>72 hours</option>
-                      </select>
                     </div>
                   </div>
 
@@ -1109,6 +1108,19 @@ export default function CreateSpace() {
                         lineHeight: "1.6",
                         boxSizing: "border-box",
                       }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Space Rules
+                    </label>
+                    <textarea
+                      rows={5}
+                      className={textareaClassName}
+                      value={form.houseRules}
+                      onChange={(event) => updateField("houseRules", event.target.value)}
+                      placeholder="e.g. No smoking, No events after 10pm, All equipment must be returned after use"
                     />
                   </div>
                 </div>
@@ -1192,7 +1204,6 @@ export default function CreateSpace() {
                         >
                           {form.images.length} photo{form.images.length !== 1 ? "s" : ""}{" "}
                           selected
-                          {form.images.length > 0 ? " - first photo is cover image" : ""}
                         </p>
                         <button
                           type="button"
@@ -1226,10 +1237,7 @@ export default function CreateSpace() {
                                 position: "relative",
                                 borderRadius: 12,
                                 overflow: "hidden",
-                                border:
-                                  index === 0
-                                    ? "2px solid #305CDE"
-                                    : "1.5px solid #E5E7EB",
+                                border: "1.5px solid #E5E7EB",
                               }}
                             >
                               <img
@@ -1242,23 +1250,6 @@ export default function CreateSpace() {
                                   display: "block",
                                 }}
                               />
-                              {index === 0 ? (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    top: 6,
-                                    left: 6,
-                                    background: "#305CDE",
-                                    color: "white",
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    padding: "3px 8px",
-                                    borderRadius: 9999,
-                                  }}
-                                >
-                                  COVER
-                                </div>
-                              ) : null}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1291,6 +1282,83 @@ export default function CreateSpace() {
                       </div>
                     </div>
                   ) : null}
+
+                  {(form.images?.length > 0 || form.photoUrls?.length > 0) && (
+                    <div style={{ marginTop: "28px" }}>
+                      <p
+                        style={{
+                          fontSize: "15px",
+                          fontWeight: "600",
+                          color: "#0A1628",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        Select Cover Image
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          color: "#6B7280",
+                          marginBottom: "16px",
+                        }}
+                      >
+                        This is the main photo shown on your listing card. Click a photo to
+                        set it as cover.
+                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+                        {(form.images?.length > 0 ? form.images : form.photoUrls || []).map(
+                          (photo, index) => {
+                            const src =
+                              typeof photo === "string" ? photo : URL.createObjectURL(photo);
+                            const isSelected = (form.coverImageIndex ?? 0) === index;
+
+                            return (
+                              <div
+                                key={index}
+                                onClick={() => updateField("coverImageIndex", index)}
+                                style={{
+                                  position: "relative",
+                                  width: "110px",
+                                  height: "82px",
+                                  borderRadius: "10px",
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  border: `3px solid ${isSelected ? "#0A1628" : "#E5E7EB"}`,
+                                  transition: "border-color 0.15s ease",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <img
+                                  src={src}
+                                  alt={`Photo ${index + 1}`}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                                {isSelected && (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      bottom: "0",
+                                      left: "0",
+                                      right: "0",
+                                      background: "rgba(10,22,40,0.75)",
+                                      color: "#fff",
+                                      fontSize: "10px",
+                                      fontWeight: "700",
+                                      padding: "4px",
+                                      textAlign: "center",
+                                      letterSpacing: "0.5px",
+                                    }}
+                                  >
+                                    COVER
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div
                     style={{
@@ -1587,8 +1655,8 @@ export default function CreateSpace() {
             {step === 6 ? (
               <div>
                 <SectionHeader
-                  title="Availability & House Rules"
-                  subtitle="Define when your listing can be booked and share the key rules guests should know before checkout."
+                  title="Availability"
+                  subtitle="Define when your listing can be booked and how much notice guests need before checkout."
                 />
 
                 <div className="space-y-6">
@@ -1640,6 +1708,57 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
+                  <div style={{ marginTop: "24px" }}>
+                    <label
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: "600",
+                        color: "#0A1628",
+                        display: "block",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Minimum Notice Period
+                    </label>
+                    <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "12px" }}>
+                      How much notice do you need before a booking starts?
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                      {[
+                        { value: "none", label: "No minimum" },
+                        { value: "1hour", label: "1 hour" },
+                        { value: "2hours", label: "2 hours" },
+                        { value: "6hours", label: "6 hours" },
+                        { value: "12hours", label: "12 hours" },
+                        { value: "24hours", label: "24 hours" },
+                        { value: "48hours", label: "48 hours" },
+                        { value: "72hours", label: "3 days" },
+                        { value: "7days", label: "7 days" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateField("minNotice", option.value)}
+                          style={{
+                            padding: "10px 18px",
+                            borderRadius: "9999px",
+                            border: `2px solid ${
+                              form.minNotice === option.value ? "#0A1628" : "#E5E7EB"
+                            }`,
+                            background: form.minNotice === option.value ? "#0A1628" : "#fff",
+                            color: form.minNotice === option.value ? "#fff" : "#0A1628",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className={`${optionCardClassName} p-5`}>
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -1666,17 +1785,6 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
-                      House rules
-                    </label>
-                    <textarea
-                      rows={5}
-                      className={textareaClassName}
-                      value={form.houseRules}
-                      onChange={(event) => updateField("houseRules", event.target.value)}
-                    />
-                  </div>
                 </div>
               </div>
             ) : null}
