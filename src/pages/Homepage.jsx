@@ -147,9 +147,22 @@ const buildSearchHref = (params) => {
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
 };
- 
- 
- 
+
+const getListingPrice = (listing) => {
+  const p = listing?.pricing;
+  if (!p) return { price: "POA", unit: "" };
+
+  if (p.hourly && p.hourly > 0) return { price: `£${p.hourly}`, unit: "/hr" };
+  if (p.daily && p.daily > 0) return { price: `£${p.daily}`, unit: "/day" };
+  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week" };
+  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month" };
+
+  if (p.hourlyPrice && p.hourlyPrice > 0) return { price: `£${p.hourlyPrice}`, unit: "/hr" };
+  if (p.weekdayPrice && p.weekdayPrice > 0)
+    return { price: `£${p.weekdayPrice}`, unit: "/day" };
+
+  return { price: "POA", unit: "" };
+};
 
 function HeroSection() {
   const { scrollY } = useScroll();
@@ -405,36 +418,30 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
                 }))
               : listingsToRender
             ).map((listing) => (
-              <div
-                key={listing.id || listing._id}
-                className="min-w-[260px] shrink-0 md:min-w-[300px]"
-                style={{ scrollSnapAlign: "start" }}
-              >
-                <PropertyCard
-                  id={listing._id}
-                  image={listing.coverImage}
-                  title={listing.title}
-                  location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
-                  price={
-                    listing.pricing?.hourlyPrice ??
-                    listing.pricing?.hourly ??
-                    listing.pricing?.weekdayPrice ??
-                    listing.pricing?.daily ??
-                    0
-                  }
-                  priceUnit={
-                    listing.pricing?.hourlyPrice || listing.pricing?.hourly
-                      ? "hr"
-                      : listing.pricing?.weekdayPrice || listing.pricing?.daily
-                      ? "day"
-                      : "POA"
-                  }
-                  category={listing.category?.name || ""}
-                  isLoading={listing.isLoading}
-                  property={listing}
-                  variant="homepage"
-                />
-              </div>
+              (() => {
+                const { price, unit } = getListingPrice(listing);
+
+                return (
+                  <div
+                    key={listing.id || listing._id}
+                    className="min-w-[260px] shrink-0 md:min-w-[300px]"
+                    style={{ scrollSnapAlign: "start" }}
+                  >
+                    <PropertyCard
+                      id={listing._id}
+                      image={listing.coverImage}
+                      title={listing.title}
+                      location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
+                      price={price}
+                      priceUnit={unit}
+                      category={listing.category?.name || ""}
+                      isLoading={listing.isLoading}
+                      property={listing}
+                      variant="homepage"
+                    />
+                  </div>
+                );
+              })()
             ))}
           </div>
 

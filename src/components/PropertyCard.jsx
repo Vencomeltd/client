@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
@@ -12,6 +12,22 @@ const BADGE_STYLES = {
 
 const formatPrice = (value) =>
   new Intl.NumberFormat("en-GB").format(Number(value) || 0);
+
+const getListingPrice = (listing) => {
+  const p = listing?.pricing;
+  if (!p) return { price: "POA", unit: "" };
+
+  if (p.hourly && p.hourly > 0) return { price: `£${p.hourly}`, unit: "/hr" };
+  if (p.daily && p.daily > 0) return { price: `£${p.daily}`, unit: "/day" };
+  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week" };
+  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month" };
+
+  if (p.hourlyPrice && p.hourlyPrice > 0) return { price: `£${p.hourlyPrice}`, unit: "/hr" };
+  if (p.weekdayPrice && p.weekdayPrice > 0)
+    return { price: `£${p.weekdayPrice}`, unit: "/day" };
+
+  return { price: "POA", unit: "" };
+};
 
 const getLegacyPrice = (property) => {
   if (property?.price !== undefined && property?.price !== null) {
@@ -52,6 +68,7 @@ const resolveListingData = ({
   isLoading,
 }) => {
   const source = property || {};
+  const listingPrice = getListingPrice(source);
 
   return {
     id: id ?? source._id ?? source.id ?? "listing",
@@ -68,8 +85,8 @@ const resolveListingData = ({
       source.location ??
       "Location unavailable",
     category: category ?? source.category ?? "Commercial Space",
-    price: price ?? getLegacyPrice(source),
-    priceUnit: priceUnit ?? getLegacyPriceUnit(source),
+    price: price ?? listingPrice.price ?? getLegacyPrice(source),
+    priceUnit: priceUnit ?? listingPrice.unit ?? getLegacyPriceUnit(source),
     rating: rating ?? source.rating ?? 0,
     reviewCount: reviewCount ?? source.reviewCount ?? 0,
     badge: badge ?? source.badge ?? null,
@@ -161,6 +178,15 @@ export default function PropertyCard({
   const displayBadge = listing.badge || (listing.isNew ? "New" : null);
   const badgeClassName =
     BADGE_STYLES[displayBadge] || "bg-[#0A1628] text-white";
+  const displayPrice =
+    typeof listing.price === "number"
+      ? `£${formatPrice(listing.price)}`
+      : listing.price || "POA";
+  const displayUnit = listing.priceUnit
+    ? listing.priceUnit.startsWith("/")
+      ? listing.priceUnit
+      : `/${listing.priceUnit}`
+    : "";
 
   const handleSave = (event) => {
     event.preventDefault();
@@ -276,12 +302,13 @@ export default function PropertyCard({
 
               <p className="mt-2.5 text-left">
                 <span className="text-[16px] font-bold text-[#111827]">
-                  {`\u00A3${formatPrice(listing.price)}`}
+                  {displayPrice}
                 </span>
-                <span className="text-[13px] font-normal text-[#6B7280]">
-                  {" "}
-                  / {listing.priceUnit}
-                </span>
+                {displayUnit ? (
+                  <span className="text-[13px] font-normal text-[#6B7280]">
+                    {displayUnit}
+                  </span>
+                ) : null}
               </p>
             </div>
           </Link>
