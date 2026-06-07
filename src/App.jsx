@@ -38,19 +38,30 @@ import HostProfile from "./pages/HostProfile";
 import CategoryPage from "./pages/CategoryPage";
 import HostBookings from "./pages/HostBookings";
 import MyBookings from "./pages/MyBookings";
-import BlogList from "./components/BlogList";
+import BlogList from "./pages/BlogList";
 import BlogDetails from "./pages/BlogDetails";
 import SearchPage from "./pages/SearchPage";
 import ChatPage from "./pages/ChatPage";
 import Conversation from "./pages/Conversation";
 import FAQ from "./pages/FAQ";
-import TermsAndConditions from "./pages/TermsAndCondition";
+import TermsAndConditions from "./pages/TermsAndConditions";
 import HelpSupport from "./pages/HelpSupport";
 import PropertyAvailability from "./pages/PropertyAvailability";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
 import BookingDetails from "./pages/BookingDetails";
+import About from "./pages/About";
+import Careers from "./pages/Careers";
+import Press from "./pages/Press";
+import Partners from "./pages/Partners";
+import HelpCenter from "./pages/HelpCenter";
+import SafetyInformation from "./pages/SafetyInformation";
+import CancellationOptions from "./pages/CancellationOptions";
+import ContactUs from "./pages/ContactUs";
+import Accessibility from "./pages/Accessibility";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Sitemap from "./pages/Sitemap";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -80,7 +91,22 @@ function AppContent() {
     location.pathname === "/create-space" ||
     location.pathname.startsWith("/edit-space/") ||
     location.pathname === "/my-listings" ||
-    location.pathname === "/property-availability";
+    location.pathname === "/property-availability" ||
+    location.pathname === "/about" ||
+    location.pathname === "/careers" ||
+    location.pathname === "/press" ||
+    location.pathname === "/partners" ||
+    location.pathname === "/help-center" ||
+    location.pathname === "/help" ||
+    location.pathname === "/safety" ||
+    location.pathname === "/cancellation-options" ||
+    location.pathname === "/contact" ||
+    location.pathname === "/accessibility" ||
+    location.pathname === "/faq" ||
+    location.pathname === "/privacy" ||
+    location.pathname === "/terms-and-conditions" ||
+    location.pathname === "/sitemap" ||
+    location.pathname === "/blogs";
 
   return (
     <>
@@ -98,10 +124,22 @@ function AppContent() {
         <Route path="/category/:id" element={<CategoryPage />} />
         <Route path="/host/:id" element={<HostProfile />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/careers" element={<Careers />} />
+        <Route path="/press" element={<Press />} />
+        <Route path="/partners" element={<Partners />} />
+        <Route path="/help-center" element={<HelpCenter />} />
+        <Route path="/help" element={<HelpCenter />} />
+        <Route path="/safety" element={<SafetyInformation />} />
+        <Route path="/cancellation-options" element={<CancellationOptions />} />
+        <Route path="/contact" element={<ContactUs />} />
+        <Route path="/accessibility" element={<Accessibility />} />
         <Route path="/blogs" element={<BlogList />} />
         <Route path="/blog/:slug" element={<BlogDetails />} />
         <Route path="/faq" element={<FAQ />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+        <Route path="/sitemap" element={<Sitemap />} />
         <Route path="/help-support" element={<HelpSupport />} />
 
         {/* Auth required */}

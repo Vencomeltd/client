@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowRight,
   CalendarDays,
   CalendarX,
   Check,
@@ -220,7 +221,21 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Recent Bookings</h2>
-          <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View all →</Link>
+          <Link
+            to="/customer/bookings"
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#C9A84C",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            View all
+            <ArrowRight size={14} />
+          </Link>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {loading ? (
@@ -240,7 +255,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
             ))
           ) : bookings.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 0", background: "white", borderRadius: 14, border: "1px solid #E5E7EB" }}>
-              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📅</p>
+              <CalendarDays size={40} color="#E5E7EB" style={{ marginBottom: "12px" }} />
               <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
                 No bookings yet
               </p>
@@ -309,7 +324,21 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Saved Spaces</h2>
-          <Link to="/customer/saved" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View all →</Link>
+          <Link
+            to="/customer/saved"
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#C9A84C",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            View all
+            <ArrowRight size={14} />
+          </Link>
         </div>
         <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {loading ? (
@@ -381,7 +410,7 @@ function BookingsSection({ bookings, loading }) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 16px", textAlign: "center" }}>
           {bookings.length === 0 ? (
             <>
-              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📅</p>
+              <CalendarDays size={40} color="#E5E7EB" style={{ marginBottom: "12px" }} />
               <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
                 No bookings yet
               </p>
@@ -494,7 +523,21 @@ function SavedSection({ savedListings, loading }) {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0A1628" }}>Saved Spaces ({savedListings.length})</h2>
-        <Link to="/search" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>Find more spaces →</Link>
+        <Link
+          to="/search"
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#C9A84C",
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          Find more spaces
+          <ArrowRight size={14} />
+        </Link>
       </div>
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>

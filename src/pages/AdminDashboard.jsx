@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowRight,
   BarChart2,
   Bell,
   Building2,
@@ -1226,9 +1227,10 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
             <button
               type="button"
               onClick={() => onSectionChange("listings")}
-              className="text-[13px] text-[#305CDE] hover:underline"
+              className="inline-flex items-center gap-1 text-[13px] text-[#305CDE] hover:underline"
             >
-              View all →
+              View all
+              <ArrowRight size={14} />
             </button>
           </div>
 
@@ -1275,9 +1277,10 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
             <button
               type="button"
               onClick={() => onSectionChange("disputes")}
-              className="text-[13px] text-[#305CDE] hover:underline"
+              className="inline-flex items-center gap-1 text-[13px] text-[#305CDE] hover:underline"
             >
-              View all →
+              View all
+              <ArrowRight size={14} />
             </button>
           </div>
 
@@ -2047,7 +2050,7 @@ function PaymentsSection({
                 {[
                   "Transaction ID",
                   "Booking",
-                  "Customer → Host",
+                  "Customer to Host",
                   "Amount",
                   "Commission",
                   "Host Payout",
@@ -2079,7 +2082,11 @@ function PaymentsSection({
                     <p className="max-w-[220px] truncate text-[12px] text-[#6B7280]">{transaction.space}</p>
                   </td>
                   <td className="px-4 py-3.5 text-[12px] text-[#374151]">
-                    {transaction.customer} → {transaction.host}
+                    <span className="inline-flex items-center gap-2">
+                      <span>{transaction.customer}</span>
+                      <ArrowRight size={13} />
+                      <span>{transaction.host}</span>
+                    </span>
                   </td>
                   <td className="px-4 py-3.5 text-[14px] font-bold text-[#0A1628]">
                     {formatCurrency(transaction.amount)}
@@ -2217,7 +2224,7 @@ function DisputesSection({
                     <User size={14} />
                     {dispute.customer}
                   </span>
-                  <span className="text-[#6B7280]">→</span>
+                  <ArrowRight size={14} className="text-[#6B7280]" />
                   <span className="inline-flex items-center gap-2 rounded-lg bg-[rgba(10,22,40,0.06)] px-3 py-2 text-[13px] text-[#111827]">
                     <Building2 size={14} />
                     {dispute.host}

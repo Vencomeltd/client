@@ -59,7 +59,7 @@ export default function Footer() {
                 <Link to="/safety">Safety Information</Link>
               </li>
               <li>
-                <Link to="/cancellation">Cancellation Options</Link>
+                <Link to="/cancellation-options">Cancellation Options</Link>
               </li>
               <li>
                 <Link to="/contact">Contact Us</Link>
@@ -74,19 +74,19 @@ export default function Footer() {
             <div className="font-semibold mb-2">Resources</div>
             <ul className="text-gray-500 text-sm space-y-1">
               <li>
-                <Link to="/help-support">Help Center</Link>
-              </li>
-              <li>
                 <Link to="/faq">FAQs</Link>
               </li>
               <li>
-                <Link to="/cancellation">Cancellation Options</Link>
+                <Link to="/privacy">Privacy</Link>
               </li>
               <li>
-                <Link to="/contact">Contact Us</Link>
+                <Link to="/terms-and-conditions">Terms</Link>
               </li>
               <li>
-                <Link to="/accessibility">Accessibility</Link>
+                <Link to="/sitemap">Sitemap</Link>
+              </li>
+              <li>
+                <Link to="/blogs">Blog</Link>
               </li>
             </ul>
           </div>

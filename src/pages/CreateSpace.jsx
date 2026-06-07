@@ -410,6 +410,9 @@ export default function CreateSpace() {
   const [categories, setCategories] = useState([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [locationInputValue, setLocationInputValue] = useState("");
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const mapContainerRef = useRef(null);
@@ -432,6 +435,57 @@ export default function CreateSpace() {
       }
     };
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    if (!locationInputValue || locationInputValue.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    const fetchPredictions = async () => {
+      try {
+        if (!window.google?.maps?.places) return;
+        const service = new window.google.maps.places.AutocompleteService();
+        service.getPlacePredictions(
+          {
+            input: locationInputValue,
+            types: ["establishment", "geocode"],
+          },
+          (predictions, status) => {
+            if (
+              status === window.google.maps.places.PlacesServiceStatus.OK &&
+              predictions
+            ) {
+              setLocationSuggestions(predictions.slice(0, 6));
+              setShowLocationDropdown(true);
+            } else {
+              setLocationSuggestions([]);
+              setShowLocationDropdown(false);
+            }
+          }
+        );
+      } catch (err) {
+        setLocationSuggestions([]);
+      }
+    };
+
+    const debounce = setTimeout(fetchPredictions, 300);
+    return () => clearTimeout(debounce);
+  }, [locationInputValue, step]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (
+        !e.target.closest("#location-search") &&
+        !e.target.closest("[data-location-dropdown]")
+      ) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => {
@@ -524,6 +578,11 @@ export default function CreateSpace() {
             latitude: place.geometry.location.lat(),
             longitude: place.geometry.location.lng(),
           }));
+          setLocationInputValue(
+            place.name || place.formatted_address || place.formatted_address || ""
+          );
+          setLocationSuggestions([]);
+          setShowLocationDropdown(false);
         });
       };
 
@@ -915,26 +974,271 @@ export default function CreateSpace() {
                       Search location
                     </label>
                     <div style={{ position: "relative" }}>
-                      <MapPin
-                        size={16}
-                        color="#6B7280"
-                        style={{
-                          position: "absolute",
-                          left: 14,
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                        }}
-                      />
-                      <input
-                        id="location-search"
-                        ref={locationInputRef}
-                        className={inputClassName}
-                        style={{ paddingLeft: 40 }}
-                        placeholder="Start typing your address..."
-                        defaultValue={form.locationName}
-                        onChange={(e) => updateField("locationName", e.target.value)}
-                      />
+                      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                        <svg
+                          style={{ position: "absolute", left: "14px", flexShrink: 0 }}
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                        >
+                          <path
+                            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                            fill="#6B7280"
+                          />
+                        </svg>
+                        <input
+                          id="location-search"
+                          ref={locationInputRef}
+                          type="text"
+                          placeholder="Search for your space address..."
+                          value={locationInputValue}
+                          onChange={(e) => {
+                            setLocationInputValue(e.target.value);
+                            updateField("locationName", e.target.value);
+                            setShowLocationDropdown(true);
+                          }}
+                          onFocus={() => setShowLocationDropdown(true)}
+                          style={{
+                            width: "100%",
+                            padding: "14px 16px 14px 44px",
+                            borderRadius: "12px",
+                            border: "1.5px solid #E5E7EB",
+                            fontSize: "15px",
+                            color: "#111827",
+                            outline: "none",
+                            boxSizing: "border-box",
+                            background: "#fff",
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setShowLocationDropdown(false);
+                          }}
+                        />
+                        {locationInputValue ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLocationInputValue("");
+                              setLocationSuggestions([]);
+                              setShowLocationDropdown(false);
+                              setForm((prev) => ({
+                                ...prev,
+                                locationName: "",
+                                address: "",
+                                city: "",
+                                country: "",
+                                postcode: "",
+                                lat: null,
+                                lng: null,
+                                latitude: null,
+                                longitude: null,
+                              }));
+                              if (markerRef.current) {
+                                markerRef.current.setMap(null);
+                                markerRef.current = new window.google.maps.Marker({
+                                  map: mapRef.current || null,
+                                });
+                              }
+                            }}
+                            style={{
+                              position: "absolute",
+                              right: "14px",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#6B7280",
+                              fontSize: "18px",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                          >
+                            x
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {showLocationDropdown && locationSuggestions.length > 0 ? (
+                        <div
+                          data-location-dropdown
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 8px)",
+                            left: 0,
+                            right: 0,
+                            background: "#fff",
+                            borderRadius: "16px",
+                            border: "1px solid #E5E7EB",
+                            boxShadow: "0 8px 32px rgba(10,22,40,0.12)",
+                            zIndex: 9999,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {locationSuggestions.map((suggestion, index) => (
+                            <button
+                              key={suggestion.place_id}
+                              type="button"
+                              onClick={() => {
+                                setLocationInputValue(
+                                  suggestion.structured_formatting?.main_text ||
+                                    suggestion.description
+                                );
+                                setShowLocationDropdown(false);
+                                setLocationSuggestions([]);
+
+                                if (window.google?.maps?.places) {
+                                  const placesService =
+                                    new window.google.maps.places.PlacesService(
+                                      document.getElementById("location-map") ||
+                                        document.createElement("div")
+                                    );
+                                  placesService.getDetails(
+                                    {
+                                      placeId: suggestion.place_id,
+                                      fields: [
+                                        "geometry",
+                                        "formatted_address",
+                                        "address_components",
+                                        "name",
+                                      ],
+                                    },
+                                    (place, status) => {
+                                      if (
+                                        status ===
+                                          window.google.maps.places.PlacesServiceStatus.OK &&
+                                        place
+                                      ) {
+                                        let address = "";
+                                        let city = "";
+                                        let country = "";
+                                        let postcode = "";
+
+                                        place.address_components?.forEach((component) => {
+                                          const types = component.types;
+                                          if (
+                                            types.includes("street_number") ||
+                                            types.includes("route")
+                                          ) {
+                                            address += `${component.long_name} `;
+                                          }
+                                          if (
+                                            types.includes("postal_town") ||
+                                            types.includes("locality")
+                                          ) {
+                                            city = component.long_name;
+                                          }
+                                          if (types.includes("country")) {
+                                            country = component.long_name;
+                                          }
+                                          if (types.includes("postal_code")) {
+                                            postcode = component.long_name;
+                                          }
+                                        });
+
+                                        const lat = place.geometry.location.lat();
+                                        const lng = place.geometry.location.lng();
+
+                                        setForm((prev) => ({
+                                          ...prev,
+                                          locationName:
+                                            place.name ||
+                                            place.formatted_address ||
+                                            suggestion.description,
+                                          address: address.trim() || place.formatted_address,
+                                          city,
+                                          country,
+                                          postcode,
+                                          lat,
+                                          lng,
+                                          latitude: lat,
+                                          longitude: lng,
+                                        }));
+
+                                        if (mapRef.current) {
+                                          mapRef.current.setCenter({ lat, lng });
+                                          mapRef.current.setZoom(16);
+                                        }
+                                        if (markerRef.current) {
+                                          markerRef.current.setPosition({ lat, lng });
+                                        }
+                                      }
+                                    }
+                                  );
+                                }
+                              }}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "14px",
+                                width: "100%",
+                                padding: "14px 16px",
+                                border: "none",
+                                background: "none",
+                                cursor: "pointer",
+                                textAlign: "left",
+                                borderBottom:
+                                  index < locationSuggestions.length - 1
+                                    ? "1px solid #F3F4F6"
+                                    : "none",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#F8F6F0";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "none";
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "40px",
+                                  height: "40px",
+                                  borderRadius: "10px",
+                                  background: "#F0F4FF",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                  <path
+                                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+                                    fill="#2E58EC"
+                                  />
+                                </svg>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: "600",
+                                    color: "#111827",
+                                    marginBottom: "2px",
+                                  }}
+                                >
+                                  {suggestion.structured_formatting?.main_text ||
+                                    suggestion.description.split(",")[0]}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#6B7280",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {suggestion.structured_formatting?.secondary_text ||
+                                    suggestion.description
+                                      .split(",")
+                                      .slice(1)
+                                      .join(",")
+                                      .trim()}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -1009,7 +1313,7 @@ export default function CreateSpace() {
                         border: "1px solid #86EFAC",
                       }}
                     >
-                      <span style={{ color: "#16A34A", fontSize: "16px" }}>✓</span>
+                      <Check size={16} color="#16A34A" />
                       <span
                         style={{
                           fontSize: "14px",
@@ -1551,15 +1855,7 @@ export default function CreateSpace() {
                             }}
                           >
                             {form.pricing[key]?.enabled && (
-                              <span
-                                style={{
-                                  color: "#fff",
-                                  fontSize: "14px",
-                                  lineHeight: 1,
-                                }}
-                              >
-                                ✓
-                              </span>
+                              <Check size={14} color="#fff" />
                             )}
                           </div>
                         </div>

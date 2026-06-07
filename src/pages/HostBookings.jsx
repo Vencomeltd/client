@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Check, ClipboardList, X } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import VencomeLoader from "../components/Loader";
 
@@ -98,7 +99,7 @@ const HostBookings = () => {
 
       {filteredBookings.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "#6B7280" }}>
-          <p style={{ fontSize: "40px", marginBottom: "12px" }}>📋</p>
+          <ClipboardList size={40} color="#9CA3AF" style={{ marginBottom: "12px" }} />
           <p style={{ fontWeight: "600", fontSize: "16px", color: "#111827", marginBottom: "8px" }}>
             No bookings yet
           </p>
@@ -177,7 +178,10 @@ const HostBookings = () => {
                           cursor: "pointer",
                         }}
                       >
-                        ✓ Approve
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <Check size={14} />
+                          Approve
+                        </span>
                       </button>
                       <button
                         onClick={() => handleBookingAction(booking._id, "declined")}
@@ -193,7 +197,10 @@ const HostBookings = () => {
                           cursor: "pointer",
                         }}
                       >
-                        ✕ Decline
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <X size={14} />
+                          Decline
+                        </span>
                       </button>
                     </div>
                   )}

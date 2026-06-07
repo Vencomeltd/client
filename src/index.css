@@ -94,8 +94,7 @@ body {
 }
 
 .pac-container {
-  z-index: 9999 !important;
-  pointer-events: all !important;
+  display: none !important;
 }
 
 .pac-item {

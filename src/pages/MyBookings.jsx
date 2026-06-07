@@ -294,7 +294,7 @@ export default function MyBookings() {
             onChange={(event) => setSortBy(event.target.value)}
             className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[14px] text-[#111827] outline-none"
           >
-            <option value="newest">Sort by date ▾</option>
+            <option value="newest">Sort by date</option>
             <option value="oldest">Oldest first</option>
           </select>
         </div>

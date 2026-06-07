@@ -1585,7 +1585,21 @@ function HostSection({ property }) {
             {hostName}
           </p>
           <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>
-            {property?.host?.isVerified ? "✓ Verified Host" : "VenCome Host"} · Hosting since{" "}
+            {property?.host?.isVerified ? (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <Check size={12} />
+                Verified Host
+              </span>
+            ) : (
+              "VenCome Host"
+            )}{" "}
+            · Hosting since{" "}
             {new Date(property?.host?.createdAt || property?.createdAt).toLocaleDateString(
               "en-GB",
               { month: "long", year: "numeric" }
@@ -1640,7 +1654,7 @@ function DescriptionSection({ description, expanded, onToggle }) {
         onClick={onToggle}
         className="mt-4 text-[14px] font-semibold text-[#305CDE]"
       >
-        {expanded ? "Show less ▲" : "Show more ▼"}
+        {expanded ? "Show less" : "Show more"}
       </button>
     </div>
   );
@@ -1690,7 +1704,7 @@ function AmenitiesSection({ property }) {
                     fontWeight: "700",
                   }}
                 >
-                  ✓
+                  <Check size={12} />
                 </span>
                 {item.trim()}
               </li>
@@ -2373,7 +2387,7 @@ function BookingSidebar({
                   padding: "4px",
                 }}
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
           ))}
@@ -2730,8 +2744,18 @@ function SimilarSpaces({ spaces }) {
                       <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
                         {space.location?.city}, {space.location?.country}
                       </p>
-                      <p style={{ fontSize: "13px", color: "#374151", margin: 0 }}>
-                        ★ {space.rating > 0 ? space.rating.toFixed(2) : "New"}
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          color: "#374151",
+                          margin: 0,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <Star size={13} fill="currentColor" />
+                        {space.rating > 0 ? space.rating.toFixed(2) : "New"}
                       </p>
                     </div>
                     <p
@@ -2885,7 +2909,7 @@ function Lightbox({
               backdropFilter: "blur(4px)",
             }}
           >
-            ✕
+            <X size={20} />
           </button>
 
           <button

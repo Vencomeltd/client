@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AnimatePresence,
   motion,
@@ -155,6 +155,32 @@ function Toggle({ enabled, onChange }) {
 
 export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const navigate = useNavigate();
+  const location_path = useLocation();
+  const isHomePage = location_path.pathname === "/";
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("vencome_user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const isLoggedIn = !!currentUser && !!localStorage.getItem("vencome_token");
+  const isHost = currentUser?.isHost === true;
+  const userInitials = currentUser
+    ? (
+        (
+          currentUser.displayName ||
+          `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim() ||
+          currentUser.email ||
+          ""
+        )
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
+      ) || "U"
+    : "";
   const navRef = useRef(null);
   const searchBarRef = useRef(null);
   const menuRef = useRef(null);
@@ -184,8 +210,20 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
     return () => document.removeEventListener("scroll", handleNativeScroll, true);
   }, []);
 
-  const navBg = scrolled ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.12)";
-  const navShadow = scrolled ? "0 2px 12px rgba(0,0,0,0.08)" : "0 0px 0px rgba(0,0,0,0)";
+  useEffect(() => {
+    if (!isHomePage) {
+      setPillExpanded(false);
+    }
+  }, [isHomePage]);
+
+  useEffect(() => {
+    if (!isHomePage) {
+      setScrolled(true);
+    }
+  }, []);
+
+  const navBg = (scrolled || !isHomePage) ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.12)";
+  const navShadow = (scrolled || !isHomePage) ? "0 2px 12px rgba(0,0,0,0.08)" : "0 0px 0px rgba(0,0,0,0)";
 
   // ── UI STATE ───────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(activeTabProp ?? "spaces");
@@ -195,6 +233,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const [globeTab, setGlobeTab] = useState("language");
   const [activeField, setActiveField] = useState(null);
   const [location, setLocation] = useState("");
+  const [googleSuggestions, setGoogleSuggestions] = useState([]);
   const [when, setWhen] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedType, setSelectedType] = useState("");
@@ -208,13 +247,61 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
     if (activeTabProp) setActiveTab(activeTabProp);
   }, [activeTabProp]);
 
+  useEffect(() => {
+    if (window.google?.maps?.places) return;
+    const existingScript = document.getElementById("google-maps-script");
+    if (existingScript) return;
+    const script = document.createElement("script");
+    script.id = "google-maps-script";
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!location || location.length < 2) {
+      setGoogleSuggestions([]);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      try {
+        if (!window.google?.maps?.places) return;
+        const service = new window.google.maps.places.AutocompleteService();
+        service.getPlacePredictions(
+          {
+            input: location,
+            types: ["(cities)"],
+            componentRestrictions: null,
+          },
+          (predictions, status) => {
+            if (
+              status === window.google.maps.places.PlacesServiceStatus.OK &&
+              predictions
+            ) {
+              setGoogleSuggestions(predictions.slice(0, 5));
+            } else {
+              setGoogleSuggestions([]);
+            }
+          }
+        );
+      } catch (err) {
+        setGoogleSuggestions([]);
+      }
+    };
+
+    const debounce = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(debounce);
+  }, [location]);
+
   // ── WHAT TO SHOW ───────────────────────────────────────────────────────────
   // Not scrolled → show full expanded bar + tabs (hero state)
   // Scrolled + pill not expanded → show collapsed pill only
   // Scrolled + pill expanded → show full expanded bar + tabs (no collapse on tab switch)
-  const isHeroState = !scrolled;
-  const isExpandedState = scrolled && pillExpanded;
-  const isCollapsedState = scrolled && !pillExpanded;
+  const isHeroState = isHomePage && !scrolled;
+  const isExpandedState = (!isHomePage || scrolled) && pillExpanded;
+  const isCollapsedState = (!isHomePage && !pillExpanded) || (scrolled && !pillExpanded);
   const showCenterTabs = isHeroState || isExpandedState;
   const showFullSearchBar = isHeroState || isExpandedState;
   const showCollapsedPill = isCollapsedState;
@@ -333,28 +420,76 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              style={{ ...dropdownBaseStyle, maxHeight: "min(70vh, calc(100vh - 140px))", overflowY: "auto", overflowX: "hidden" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, marginBottom: 12 }}>Suggested destinations</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {CITY_SUGGESTIONS.filter(c => c.name.toLowerCase().includes(location.toLowerCase())).map(city => {
-                  const CityIcon = city.Icon;
-                  return (
-                    <button key={city.name} type="button"
-                      onClick={() => { setLocation(city.name); setActiveField(null); }}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "#F8F6F0"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <CityIcon size={18} color="#2E58EC" />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{city.name}</div>
-                        <div style={{ fontSize: 12, color: "#6B7280" }}>{city.desc}</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              style={{ ...dropdownBaseStyle, maxHeight: "min(70vh, calc(100vh - 140px))", overflowY: "auto", overflowX: "hidden" }}
+            >
+              {/* Suggested cities — show when input is empty or matches */}
+              {CITY_SUGGESTIONS.filter(c =>
+                !location || c.name.toLowerCase().includes(location.toLowerCase())
+              ).length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, marginBottom: 12, letterSpacing: 1 }}>
+                    Suggested Destinations
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: googleSuggestions.length > 0 ? 16 : 0 }}>
+                    {CITY_SUGGESTIONS.filter(c =>
+                      !location || c.name.toLowerCase().includes(location.toLowerCase())
+                    ).map(city => {
+                      const CityIcon = city.Icon;
+                      return (
+                        <button key={city.name} type="button"
+                          onClick={() => { setLocation(city.name); setGoogleSuggestions([]); setActiveField(null); }}
+                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "#F8F6F0"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <CityIcon size={18} color="#2E58EC" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{city.name}</div>
+                            <div style={{ fontSize: 12, color: "#6B7280" }}>{city.desc}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Google Places results — show when user is typing */}
+              {googleSuggestions.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, marginBottom: 12, letterSpacing: 1 }}>
+                    Search Results
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {googleSuggestions.map(suggestion => (
+                      <button key={suggestion.place_id} type="button"
+                        onClick={() => {
+                          setLocation(suggestion.structured_formatting?.main_text || suggestion.description);
+                          setGoogleSuggestions([]);
+                          setActiveField(null);
+                        }}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#F8F6F0"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "none"; }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#2E58EC" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
+                            {suggestion.structured_formatting?.main_text || suggestion.description.split(",")[0]}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#6B7280" }}>
+                            {suggestion.structured_formatting?.secondary_text || suggestion.description.split(",").slice(1).join(",").trim()}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -527,7 +662,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
             {/* Logo */}
             <Link to="/" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
               <img src="/logo-blue.png" alt="VenCome"
-                style={{ height: 40, width: "auto", objectFit: "contain", filter: scrolled ? "none" : "brightness(0) invert(1)", transition: "filter 0.3s ease" }} />
+                style={{ height: 40, width: "auto", objectFit: "contain", filter: (scrolled || !isHomePage) ? "none" : "brightness(0) invert(1)", transition: "filter 0.3s ease" }} />
             </Link>
 
             {/* Center — tabs when hero state OR expanded state | pill when collapsed */}
@@ -552,24 +687,76 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
 
             {/* Right actions */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              <motion.div animate={{ opacity: scrolled ? 1 : 0, pointerEvents: scrolled ? "auto" : "none" }} transition={{ duration: 0.2 }} className="hidden md:block">
-                <Link to="/create-space"
-                  style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy, textDecoration: "none", padding: "8px 14px", borderRadius: 8, display: "inline-flex", alignItems: "center", minHeight: 38 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,22,40,0.06)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                  Publish your space
-                </Link>
+
+              {/* Publish your space / Find a space */}
+              <motion.div
+                animate={{ opacity: (scrolled || !isHomePage) ? 1 : 0, pointerEvents: (scrolled || !isHomePage) ? "auto" : "none" }}
+                transition={{ duration: 0.2 }}
+                className="hidden md:block"
+              >
+                {isLoggedIn ? (
+                  isHost ? (
+                    <Link to="/create-space"
+                      style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy, textDecoration: "none", padding: "8px 14px", borderRadius: 8, display: "inline-flex", alignItems: "center", minHeight: 38 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,22,40,0.06)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                      Publish your space
+                    </Link>
+                  ) : (
+                    <Link to="/search"
+                      style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy, textDecoration: "none", padding: "8px 14px", borderRadius: 8, display: "inline-flex", alignItems: "center", minHeight: 38 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,22,40,0.06)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                      Find a Space
+                    </Link>
+                  )
+                ) : (
+                  <Link to="/create-space"
+                    style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy, textDecoration: "none", padding: "8px 14px", borderRadius: 8, display: "inline-flex", alignItems: "center", minHeight: 38 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,22,40,0.06)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                    Publish your space
+                  </Link>
+                )}
               </motion.div>
 
+              {/* Globe button */}
               <button type="button" onClick={() => setGlobeOpen(true)}
-                style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: scrolled ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: scrolled ? "white" : COLORS.glassBg, color: scrolled ? COLORS.navy : "white", backdropFilter: scrolled ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: (scrolled || !isHomePage) ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: (scrolled || !isHomePage) ? "white" : COLORS.glassBg, color: (scrolled || !isHomePage) ? COLORS.navy : "white", backdropFilter: (scrolled || !isHomePage) ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Globe size={17} />
               </button>
 
-              <button type="button" onClick={() => setMenuOpen(true)}
-                style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: scrolled ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: scrolled ? "white" : COLORS.glassBg, color: scrolled ? COLORS.navy : "white", backdropFilter: scrolled ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Menu size={17} />
-              </button>
+              {/* User initials or hamburger */}
+              {isLoggedIn ? (
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen(v => !v)}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: "50%",
+                      cursor: "pointer",
+                      border: "1.5px solid " + COLORS.border,
+                      background: COLORS.navy,
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: 0.5
+                    }}
+                  >
+                    {userInitials}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setMenuOpen(true)}
+                  style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: (scrolled || !isHomePage) ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: (scrolled || !isHomePage) ? "white" : COLORS.glassBg, color: (scrolled || !isHomePage) ? COLORS.navy : "white", backdropFilter: (scrolled || !isHomePage) ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Menu size={17} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -596,35 +783,105 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               <motion.div ref={menuRef}
                 initial={{ opacity: 0, scale: 0.95, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -8 }}
                 style={{ background: "white", borderRadius: 16, border: "1px solid " + COLORS.border, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", padding: 8, minWidth: 240 }}>
-                {[
-                  { icon: HelpCircle, label: "Help Center", to: "/help" },
-                  { icon: Building2, label: "Become a Host", to: "/host/create", sub: "It's easy to start earning" },
-                  { icon: Users, label: "Refer a Host", to: "/refer" },
-                  { icon: UserPlus, label: "Find a co-host", to: "/co-host" },
-                ].map(item => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827" }}
+                {isLoggedIn && isHost && (
+                  <>
+                    {[
+                      { label: "Host Dashboard", to: "/dashboard" },
+                      { label: "My Listings", to: "/dashboard/my-listings" },
+                      { label: "Add New Space", to: "/create-space" },
+                      { label: "My Bookings", to: "/dashboard/bookings" },
+                      { label: "Messages", to: "/chat" },
+                      { label: "Settings", to: "/settings" },
+                    ].map(item => (
+                      <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827", fontSize: 14, fontWeight: 500 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                        {item.label}
+                      </Link>
+                    ))}
+                    <div style={{ height: 1, background: COLORS.border, margin: "8px 6px" }} />
+                    <button type="button"
+                      onClick={() => {
+                        localStorage.removeItem("vencome_token");
+                        localStorage.removeItem("vencome_refresh");
+                        localStorage.removeItem("vencome_user");
+                        localStorage.removeItem("vencome_login_time");
+                        setMenuOpen(false);
+                        window.location.href = "/";
+                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left", color: "#DC2626", fontSize: 14, fontWeight: 600 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                      Logout
+                    </button>
+                  </>
+                )}
+
+                {isLoggedIn && !isHost && (
+                  <>
+                    {[
+                      { label: "My Dashboard", to: "/customer/dashboard" },
+                      { label: "My Bookings", to: "/customer/bookings" },
+                      { label: "Saved Spaces", to: "/customer/saved" },
+                      { label: "Messages", to: "/chat" },
+                      { label: "Settings", to: "/settings" },
+                    ].map(item => (
+                      <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827", fontSize: 14, fontWeight: 500 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                        {item.label}
+                      </Link>
+                    ))}
+                    <div style={{ height: 1, background: COLORS.border, margin: "8px 6px" }} />
+                    <button type="button"
+                      onClick={() => {
+                        localStorage.removeItem("vencome_token");
+                        localStorage.removeItem("vencome_refresh");
+                        localStorage.removeItem("vencome_user");
+                        localStorage.removeItem("vencome_login_time");
+                        setMenuOpen(false);
+                        window.location.href = "/";
+                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left", color: "#DC2626", fontSize: 14, fontWeight: 600 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                      Logout
+                    </button>
+                  </>
+                )}
+
+                {!isLoggedIn && (
+                  <>
+                    {[
+                      { icon: HelpCircle, label: "Help Center", to: "/help" },
+                      { icon: Building2, label: "Become a Host", to: "/create-space", sub: "It's easy to start earning" },
+                    ].map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
+                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+                          <Icon size={18} color={COLORS.navy} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{item.label}</div>
+                            {item.sub && <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{item.sub}</div>}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                    <div style={{ height: 1, background: COLORS.border, margin: "8px 6px" }} />
+                    <Link to="/login" onClick={() => setMenuOpen(false)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827", fontWeight: 600 }}
                       onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
                       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                      <Icon size={18} color={COLORS.navy} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{item.label}</div>
-                        {item.sub && <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{item.sub}</div>}
-                      </div>
-                      {item.label === "Become a Host" && <House size={18} color={COLORS.navy} />}
+                      <LogIn size={18} color={COLORS.navy} />
+                      <span style={{ fontSize: 14 }}>Log in or sign up</span>
                     </Link>
-                  );
-                })}
-                <div style={{ height: 1, background: COLORS.border, margin: "8px 6px" }} />
-                <Link to="/login" onClick={() => setMenuOpen(false)}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827", fontWeight: 600 }}
-                  onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
-                  <LogIn size={18} color={COLORS.navy} />
-                  <span style={{ fontSize: 14 }}>Log in or sign up</span>
-                </Link>
+                  </>
+                )}
               </motion.div>
             </div>
 
