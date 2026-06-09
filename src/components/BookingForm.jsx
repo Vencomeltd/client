@@ -137,6 +137,33 @@ export default function BookingForm({ property }) {
   // Optional: add extras/discounts here if needed
   const totalPrice = Number(subtotal.toFixed(2));
 
+  useEffect(() => {
+    const search = window.location.search;
+
+    if (search.includes("success=true")) {
+      setCountdown(3);
+      setShowModal(true);
+
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setShowModal(false);
+            navigate("/my-bookings", { replace: true });
+            window.location.reload();
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+
+    if (search.includes("cancel=true")) {
+      toast.error("Payment cancelled. Your booking was not confirmed.");
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -158,6 +185,8 @@ export default function BookingForm({ property }) {
 
     setLoading(true);
 
+    let redirectingToStripe = false;
+
     try {
       const formData = new FormData();
       formData.append("propertyId", property._id);
@@ -170,7 +199,7 @@ export default function BookingForm({ property }) {
         formData.append("licensePdf", licensePdf); // must be a File object
       }
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("vencome_token");
       const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
         method: "POST",
         headers: {
@@ -186,24 +215,20 @@ export default function BookingForm({ property }) {
       }
 
       const booking = await response.json();
+      const { url } = await apiFetch({
+        endpoint: "/payments/create-checkout-session",
+        method: "POST",
+        body: { bookingId: booking._id },
+      });
 
-      setShowModal(true);
-
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setShowModal(false);
-            navigate("/my-bookings", { replace: true });
-            window.location.reload();
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      redirectingToStripe = true;
+      window.location.href = url;
     } catch (err) {
       toast.error("Booking failed: " + (err.message || "Please try again"));
     } finally {
-      setLoading(false);
+      if (!redirectingToStripe) {
+        setLoading(false);
+      }
     }
   };
   return (
