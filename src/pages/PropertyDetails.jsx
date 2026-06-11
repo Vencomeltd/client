@@ -868,7 +868,6 @@ export default function PropertyDetails() {
     setSelectedEndDate(null);
     setGuests(1);
     setBookingError(null);
-    setBookingSuccess(false);
   }, [propertyView, pricingOptions]);
 
   useEffect(() => {
@@ -909,13 +908,18 @@ export default function PropertyDetails() {
   }, [selectedStartDate, selectedEndDate, selectedDuration]);
 
   const unavailableDates = useMemo(() => {
-    const blockedDays = [3, 8, 9, 15, 22, 23];
-    return new Set(
-      blockedDays.map((day) =>
-        new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day).toDateString()
-      )
-    );
-  }, [visibleMonth]);
+    const set = new Set();
+    const blocked = property?.blockedDates || [];
+    blocked.forEach(({ start, end }) => {
+      const cursor = new Date(start);
+      const endDate = new Date(end);
+      while (cursor <= endDate) {
+        set.add(new Date(cursor).toDateString());
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
+    return set;
+  }, [property]);
 
   const calendarDays = useMemo(() => createMonthDays(visibleMonth), [visibleMonth]);
 
