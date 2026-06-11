@@ -1122,8 +1122,14 @@ export default function PropertyDetails() {
         bookingsToCreate.map(async ({ checkIn: bookingCheckIn, checkOut: bookingCheckOut }) => {
           const formData = new FormData();
           formData.append("propertyId", property._id);
-          formData.append("checkIn", bookingCheckIn);
-          formData.append("checkOut", bookingCheckOut);
+          const checkInISO = bookingCheckIn.length === 10
+            ? new Date(bookingCheckIn + "T09:00:00").toISOString()
+            : new Date(bookingCheckIn).toISOString();
+          const checkOutISO = bookingCheckOut.length === 10
+            ? new Date(bookingCheckOut + "T18:00:00").toISOString()
+            : new Date(bookingCheckOut).toISOString();
+          formData.append("checkIn", checkInISO);
+          formData.append("checkOut", checkOutISO);
           formData.append("guests", guests);
           formData.append("extras", JSON.stringify([]));
           const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
@@ -1142,7 +1148,30 @@ export default function PropertyDetails() {
         return;
       }
 
-      setBookingSuccess(true);
+      // Get the first successful booking and redirect to Stripe
+      const firstResult = results[0];
+      const booking = await firstResult.json();
+
+      const stripeRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/payments/create-checkout-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ bookingId: booking._id }),
+        }
+      );
+
+      if (!stripeRes.ok) {
+        const stripeErr = await stripeRes.json();
+        setBookingError(stripeErr.error || "Payment setup failed");
+        return;
+      }
+
+      const { url } = await stripeRes.json();
+      window.location.href = url;
     } catch (err) {
       setBookingError("Something went wrong. Please try again.");
     } finally {
