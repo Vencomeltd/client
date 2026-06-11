@@ -109,6 +109,13 @@ export default function CalendarPicker({
     }
   };
 
+  const handleTimeSelect = (time) => {
+    setSelectedTime(time);
+    if (selectedDate) {
+      onChange(toDateTimeStr(selectedDate, time));
+    }
+  };
+
   const prevMonth = () =>
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
   const nextMonth = () =>
@@ -290,7 +297,7 @@ export default function CalendarPicker({
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setSelectedTime(t)}
+                    onClick={() => handleTimeSelect(t)}
                     style={{
                       padding: "8px",
                       borderRadius: "8px",
