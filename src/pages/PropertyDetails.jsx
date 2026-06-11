@@ -872,6 +872,18 @@ export default function PropertyDetails() {
   }, [propertyView, pricingOptions]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      setBookingSuccess(true);
+      // Clean the URL without reload
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("cancel") === "true") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     if (
       enabledPricingOptions.length > 0 &&
       !enabledPricingOptions.some((option) => option.key === selectedDurationType)
