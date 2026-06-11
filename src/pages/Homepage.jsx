@@ -75,17 +75,6 @@ const CITY_GROUPS = [
       { name: "Bristol", count: 36 },
     ],
   },
-  {
-    icon: Globe2,
-    label: "Middle East",
-    cities: [
-      { name: "Dubai", count: 132 },
-      { name: "Riyadh", count: 94 },
-      { name: "Abu Dhabi", count: 57 },
-      { name: "Doha", count: 48 },
-      { name: "Kuwait City", count: 29 },
-    ],
-  },
 ];
 
 const HOW_IT_WORKS_STEPS = [
@@ -479,30 +468,6 @@ function BrowseByCity() {
                   {group.label}
                 </p>
               </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                {group.cities.map((city, index) => (
-                  <motion.div
-                    key={city.name}
-                    initial={{ opacity: 0, y: 24 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-80px" }}
-                    transition={{ duration: 0.45, delay: index * 0.1 }}
-                  >
-                    <Link
-                      to={buildSearchHref({ city: city.name })}
-                      className="flex items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-[14px] py-[10px] transition hover:border-[#305CDE] hover:bg-[#FDF6E3] md:px-5 md:py-3"
-                    >
-                      <span className="text-[13px] font-semibold text-[#0A1628] md:text-sm">
-                        {city.name}
-                      </span>
-                      <span className="text-xs text-[#6B7280]">
-                        {city.count} listings
-                      </span>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
             </div>
             );
           })}
@@ -581,21 +546,6 @@ function BecomeAHost() {
             revenue through VenCome. List your space in under 10 minutes - we
             handle payments, contracts, and disputes.
           </p>
-
-          <div className="mt-8 flex flex-wrap gap-8">
-            {[
-              { value: "500+", label: "hosts" },
-              { value: "10%", label: "commission only" },
-              { value: "24hr", label: "payouts" },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div className="text-2xl font-bold text-[#305CDE]">
-                  {stat.value}
-                </div>
-                <div className="mt-1 text-xs text-white/60">{stat.label}</div>
-              </div>
-            ))}
-          </div>
 
           <div className="mt-9">
             <Link

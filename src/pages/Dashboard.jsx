@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
+  ClipboardList,
   Clock,
   HelpCircle,
   MapPin,
@@ -280,7 +281,9 @@ export default function Dashboard() {
             ))
           ) : bookings.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 0" }} className="rounded-[14px] border border-[#E5E7EB] bg-white">
-              <p style={{ fontSize: "40px", marginBottom: "12px" }}>📋</p>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
+                <ClipboardList size={40} color="#9CA3AF" />
+              </div>
               <p style={{ color: "#111827", fontWeight: "600", fontSize: "16px", marginBottom: "8px" }}>
                 No bookings yet
               </p>

@@ -26,6 +26,7 @@ import {
 import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
+import CalendarPicker from "../components/CalendarPicker";
 
 const BRAND = {
   navy: "#0A1628",
@@ -1047,14 +1048,14 @@ export default function PropertyDetails() {
     setCheckIn(value);
     setBookingError(null);
     setBookingSuccess(false);
-    setSelectedStartDate(parseBookingInputValue(value, selectedDuration, "start"));
+    if (value) setSelectedStartDate(new Date(value));
   };
 
   const handleCheckOutChange = (value) => {
     setCheckOut(value);
     setBookingError(null);
     setBookingSuccess(false);
-    setSelectedEndDate(parseBookingInputValue(value, selectedDuration, "end"));
+    if (value) setSelectedEndDate(new Date(value));
   };
 
   const handleBooking = async () => {
@@ -2280,64 +2281,26 @@ function BookingSidebar({
       {bookingMode === "single" && (
         <div style={{ marginBottom: "16px" }}>
           <div>
-            <label
-              style={{
-                fontSize: "13px",
-                fontWeight: "600",
-                color: "#374151",
-                display: "block",
-                marginBottom: "6px",
-              }}
-            >
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
               {selectedDurationType === "hourly" ? "Start Date & Time" : "Check In"}
             </label>
-            <input
-              type={selectedDurationType === "hourly" ? "datetime-local" : "date"}
+            <CalendarPicker
               value={checkIn}
-              onChange={(event) => onCheckInChange(event.target.value)}
-              min={new Date()
-                .toISOString()
-                .slice(0, selectedDurationType === "hourly" ? 16 : 10)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "1.5px solid #E5E7EB",
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
+              onChange={onCheckInChange}
+              isHourly={selectedDurationType === "hourly"}
+              placeholder={selectedDurationType === "hourly" ? "Select start date & time" : "Select check-in date"}
             />
           </div>
           <div style={{ marginTop: "12px" }}>
-            <label
-              style={{
-                fontSize: "13px",
-                fontWeight: "600",
-                color: "#374151",
-                display: "block",
-                marginBottom: "6px",
-              }}
-            >
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
               {selectedDurationType === "hourly" ? "End Date & Time" : "Check Out"}
             </label>
-            <input
-              type={selectedDurationType === "hourly" ? "datetime-local" : "date"}
+            <CalendarPicker
               value={checkOut}
-              onChange={(event) => onCheckOutChange(event.target.value)}
-              min={
-                checkIn ||
-                new Date().toISOString().slice(0, selectedDurationType === "hourly" ? 16 : 10)
-              }
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "1.5px solid #E5E7EB",
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
+              onChange={onCheckOutChange}
+              isHourly={selectedDurationType === "hourly"}
+              minDate={checkIn || undefined}
+              placeholder={selectedDurationType === "hourly" ? "Select end date & time" : "Select check-out date"}
             />
           </div>
         </div>

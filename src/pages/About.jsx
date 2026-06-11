@@ -8,13 +8,6 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-const stats = [
-  { label: "Markets", value: "UK & Middle East" },
-  { label: "Space Categories", value: "11" },
-  { label: "Booking Types", value: "6" },
-  { label: "Launch Year", value: "2026" },
-];
-
 export default function About() {
   return (
     <StaticPageLayout
@@ -36,16 +29,6 @@ export default function About() {
         <section style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: "24px", padding: "36px 32px", boxShadow: "0 12px 40px rgba(10, 22, 40, 0.08)" }}>
           <h2 style={{ margin: "0 0 14px", fontSize: "28px", fontWeight: 800, color: COLORS.navy }}>Our Mission</h2>
           <p style={{ margin: 0, fontSize: "17px", lineHeight: 1.9, color: COLORS.text }}>To become the world's leading marketplace for commercial and professional space rental — trusted by businesses of every size, in every major city, for any duration.</p>
-        </section>
-        <section>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "18px" }}>
-            {stats.map((stat) => (
-              <div key={stat.label} style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: "22px", padding: "28px 24px", boxShadow: "0 12px 32px rgba(10, 22, 40, 0.06)" }}>
-                <p style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: COLORS.blue }}>{stat.label}</p>
-                <p style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: COLORS.navy }}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
         </section>
       </div>
     </StaticPageLayout>

@@ -816,7 +816,7 @@ export default function CreateSpace() {
                         marginBottom: 24,
                       }}
                     >
-                      {categories.map((cat) => {
+                      {categories.filter(cat => cat.name !== 'Other / Custom').map((cat) => {
                         const selected = form.category === cat._id;
                         return (
                           <button
@@ -848,12 +848,11 @@ export default function CreateSpace() {
                               <img
                                 src={cat.image}
                                 alt={cat.name}
-                                style={{
-                                  width: "100%",
-                                  height: 80,
-                                  objectFit: "cover",
-                                  borderRadius: 8,
+                                onError={e => {
+                                  e.currentTarget.src = ' `https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=400` '
+                                  e.currentTarget.onerror = null
                                 }}
+                                style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }}
                               />
                             ) : null}
                             <p
