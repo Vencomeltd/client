@@ -1300,8 +1300,8 @@ export default function PropertyDetails() {
                 onBookingModeChange={setBookingMode}
                 checkIn={checkIn}
                 checkOut={checkOut}
-                onCheckInChange={setCheckIn}
-                onCheckOutChange={setCheckOut}
+                onCheckInChange={handleCheckInChange}
+                onCheckOutChange={handleCheckOutChange}
                 selectedDates={selectedDates}
                 onSelectedDatesChange={setSelectedDates}
                 recurringConfig={recurringConfig}
