@@ -1384,7 +1384,7 @@ export default function PropertyDetails() {
               style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}
             >
               <button
-                onClick={() => (window.location.href = "/customer/dashboard")}
+                onClick={() => (window.location.href = "/my-bookings")}
                 style={{
                   background: "#0A1628",
                   color: "#fff",
