@@ -1,87 +1,170 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { MessageSquare } from "lucide-react";
 import { apiFetch } from "../utils/api";
-import { useChat } from "../context/ChatContext";
 import VencomeLoader from "../components/Loader";
+import Navbar from "../components/Navbar";
 
-const ChatPage = () => {
-  const { conversations, setConversations, loaded, setLoaded } = useChat();
-  const [loading, setLoading] = useState(!loaded);
+export default function ChatPage() {
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const currentUser = localStorage.getItem("currentUser");
-  let user = null;
-
-  if (currentUser) {
-    try {
-      user = JSON.parse(currentUser);
-    } catch (err) {
-      console.error("Failed to parse user from localStorage:", err);
-    }
-  }
+  const currentUser = JSON.parse(localStorage.getItem("vencome_user") || "{}");
 
   useEffect(() => {
-    // Only fetch if we haven't loaded yet
-    if (!loaded) {
-      const fetchConversations = async () => {
-        try {
-          const data = await apiFetch({
-            endpoint: "/chat/conversations",
-            method: "GET",
-            credentials: "include",
-          });
-          setConversations(data);
-          setLoaded(true);
-        } catch (err) {
-          console.error("Failed to load conversations", err);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchConversations();
-    } else {
-      setLoading(false);
-    }
-  }, [loaded, setConversations, setLoaded]);
+    const fetchConversations = async () => {
+      try {
+        const data = await apiFetch({
+          endpoint: "/messages/conversations",
+          method: "GET",
+        });
+        setConversations(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load conversations:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchConversations();
+  }, []);
 
   if (loading) return <VencomeLoader />;
-  if (!conversations.length) return <p>No conversations yet.</p>;
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Your Conversations</h1>
-      <div className="flex flex-col gap-3">
-        {conversations.map((conv) => (
-          <div
-            key={conv._id}
-            onClick={() => navigate(`/chat/${conv._id}`)}
-            className="cursor-pointer p-3 rounded-lg hover:bg-gray-100 flex justify-between items-center border"
-          >
-            <div>
-              <p className="font-semibold">
-                {conv.host.displayName === conv.guest.displayName
-                  ? "Unknown User"
-                  : conv.host.displayName === user?.displayName
-                  ? conv.guest.displayName
-                  : conv.host.displayName}
-              </p>
-              <p className="text-gray-500 text-sm truncate max-w-xs">
-                {conv.lastMessage || "No messages yet"}
-              </p>
-            </div>
-            <span className="text-gray-400 text-xs">
-              {new Date(conv.lastMessageAt).toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+    <>
+      <Navbar />
+      <div style={{
+        maxWidth: "720px",
+        margin: "0 auto",
+        padding: "100px 24px 40px",
+      }}>
+        <h1 style={{
+          fontSize: "24px",
+          fontWeight: "800",
+          color: "#0A1628",
+          marginBottom: "24px",
+        }}>
+          Messages
+        </h1>
 
-export default ChatPage;
+        {conversations.length === 0 ? (
+          <div style={{
+            textAlign: "center",
+            padding: "60px 0",
+            color: "#6B7280",
+          }}>
+            <MessageSquare size={48} color="#D1D5DB" style={{ marginBottom: "16px" }} />
+            <p style={{ fontSize: "16px", fontWeight: "600", color: "#111827" }}>
+              No conversations yet
+            </p>
+            <p style={{ fontSize: "14px", marginTop: "8px" }}>
+              When you message a host or receive an enquiry, it will appear here.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            {conversations.map((conv) => {
+              const isHost = conv.host?._id === currentUser._id ||
+                conv.host?._id === currentUser.id;
+              const otherUser = isHost ? conv.guest : conv.host;
+              const otherName = otherUser?.displayName ||
+                [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
+                "User";
+              const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+              return (
+                <div
+                  key={conv._id}
+                  onClick={() => navigate(`/chat/${conv._id}`)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    padding: "16px",
+                    background: "#fff",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    border: "1px solid #E5E7EB",
+                    transition: "box-shadow 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"}
+                  onMouseLeave={(e) => e.currentTarget.style.boxShadow = "none"}
+                >
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "50%",
+                    background: otherUser?.profileImage ? "transparent" : "#0A1628",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    flexShrink: 0,
+                    overflow: "hidden",
+                  }}>
+                    {otherUser?.profileImage ? (
+                      <img
+                        src={otherUser.profileImage}
+                        alt={otherName}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : otherInitials}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "4px",
+                    }}>
+                      <p style={{
+                        fontSize: "15px",
+                        fontWeight: "700",
+                        color: "#0A1628",
+                        margin: 0,
+                      }}>
+                        {otherName}
+                      </p>
+                      {conv.lastMessageAt && (
+                        <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                          {new Date(conv.lastMessageAt).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    {conv.property?.title && (
+                      <p style={{
+                        fontSize: "12px",
+                        color: "#2E58EC",
+                        margin: "0 0 2px",
+                        fontWeight: "500",
+                      }}>
+                        {conv.property.title}
+                      </p>
+                    )}
+                    <p style={{
+                      fontSize: "13px",
+                      color: "#6B7280",
+                      margin: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {conv.lastMessage || "No messages yet"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

@@ -600,6 +600,32 @@ export default function CreateSpace() {
     };
   }, [step]);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("vencome_draft");
+    if (saved) {
+      try {
+        const draft = JSON.parse(saved);
+        if (draft && draft.title) {
+          const restore = window.confirm(
+            "You have a saved draft. Would you like to continue where you left off?"
+          );
+          if (restore) {
+            setForm({
+              ...defaultState,
+              ...draft,
+            });
+            if (draft.step) setStep(draft.step);
+            if (draft.bufferBefore) setBufferBefore(draft.bufferBefore);
+            if (draft.bufferAfter) setBufferAfter(draft.bufferAfter);
+            if (draft.connectedCalendars) setConnectedCalendars(draft.connectedCalendars);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load draft:", err);
+      }
+    }
+  }, []);
+
   const effectiveBufferBefore =
     beforeSelection === "custom"
       ? getCustomMinutes(customBefore, customBeforeUnit)
@@ -773,11 +799,29 @@ export default function CreateSpace() {
       }
 
       setPublishSuccess(true);
+      localStorage.removeItem("vencome_draft");
     } catch (err) {
       setError("Network error. Please try again.");
     } finally {
       setIsLoading(false);
       setIsPublishing(false);
+    }
+  };
+
+  const saveDraft = async () => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const draft = {
+        ...form,
+        bufferBefore: effectiveBufferBefore,
+        bufferAfter: effectiveBufferAfter,
+        connectedCalendars,
+        step,
+      };
+      localStorage.setItem("vencome_draft", JSON.stringify(draft));
+      alert("Draft saved! You can continue later from your dashboard.");
+    } catch (err) {
+      console.error("Failed to save draft:", err);
     }
   };
 
@@ -2548,9 +2592,30 @@ export default function CreateSpace() {
               ) : null}
             </div>
 
-            <p className="text-center text-[13px] text-[#6B7280]">
-              Step {step} of 9
-            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={saveDraft}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB",
+                  background: "#fff",
+                  color: "#6B7280",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                Save Draft
+              </button>
+              <p className="text-center text-[13px] text-[#6B7280]">
+                Step {step} of 9
+              </p>
+            </div>
 
             {step < 9 ? (
               <button

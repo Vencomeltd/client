@@ -604,6 +604,10 @@ export default function PropertyDetails() {
   const [expandedReviews, setExpandedReviews] = useState({});
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [similarSpaces, setSimilarSpaces] = useState([]);
+  const [showEnquiryModal, setShowEnquiryModal] = useState(false);
+  const [enquiryMessage, setEnquiryMessage] = useState("");
+  const [enquiryLoading, setEnquiryLoading] = useState(false);
+  const [enquiryError, setEnquiryError] = useState(null);
 
   const bookingSidebarRef = useRef(null);
   const calendarRef = useRef(null);
@@ -1196,6 +1200,58 @@ export default function PropertyDetails() {
     }
   };
 
+  const handleEnquiry = async () => {
+    const token = localStorage.getItem("vencome_token");
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!checkIn || !checkOut) {
+      setEnquiryError("Please select dates before sending an enquiry");
+      setShowEnquiryModal(true);
+      return;
+    }
+    setShowEnquiryModal(true);
+  };
+
+  const submitEnquiry = async () => {
+    setEnquiryLoading(true);
+    setEnquiryError(null);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const selectedOption = enabledPricingOptions.find(
+        (o) => o.key === selectedDurationType
+      );
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/messages/enquiry`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          propertyId: property._id,
+          checkIn,
+          checkOut,
+          guests,
+          durationType: selectedDurationType || "hourly",
+          totalPrice: selectedOption?.price || 0,
+          message: enquiryMessage,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to send enquiry");
+      }
+      const data = await res.json();
+      setShowEnquiryModal(false);
+      window.location.href = `/chat/${data.conversation._id}`;
+    } catch (err) {
+      setEnquiryError(err.message);
+    } finally {
+      setEnquiryLoading(false);
+    }
+  };
+
   const toggleReviewExpansion = (reviewId) => {
     setExpandedReviews((current) => ({
       ...current,
@@ -1315,6 +1371,7 @@ export default function PropertyDetails() {
                 bookingLoading={bookingLoading}
                 bookingError={bookingError}
                 onBook={handleBooking}
+                onEnquiry={handleEnquiry}
               />
             </motion.aside>
           </div>
@@ -1416,6 +1473,129 @@ export default function PropertyDetails() {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEnquiryModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "20px",
+        }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: "20px",
+            padding: "32px",
+            maxWidth: "480px",
+            width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          }}>
+            <h2 style={{
+              fontSize: "20px",
+              fontWeight: "700",
+              color: "#0A1628",
+              marginBottom: "8px",
+            }}>
+              Request to Book
+            </h2>
+            <p style={{
+              fontSize: "14px",
+              color: "#6B7280",
+              marginBottom: "20px",
+              lineHeight: "1.6",
+            }}>
+              Send your booking request to the host. They will review and respond within 24 hours.
+            </p>
+
+            {checkIn && checkOut && (
+              <div style={{
+                background: "#F8F6F0",
+                borderRadius: "10px",
+                padding: "12px 16px",
+                marginBottom: "16px",
+                fontSize: "13px",
+                color: "#374151",
+              }}>
+                <p style={{ margin: "0 0 4px", fontWeight: "600" }}>Booking Details</p>
+                <p style={{ margin: "0 0 2px" }}>Check-in: {new Date(checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                <p style={{ margin: "0 0 2px" }}>Check-out: {new Date(checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</p>
+                <p style={{ margin: 0 }}>Guests: {guests}</p>
+              </div>
+            )}
+
+            <textarea
+              value={enquiryMessage}
+              onChange={(e) => setEnquiryMessage(e.target.value)}
+              placeholder="Add a message to the host (optional)..."
+              rows={4}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "10px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                fontFamily: "inherit",
+                resize: "none",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: "16px",
+              }}
+            />
+
+            {enquiryError && (
+              <p style={{
+                color: "#EF4444",
+                fontSize: "13px",
+                marginBottom: "12px",
+              }}>
+                {enquiryError}
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => {
+                  setShowEnquiryModal(false);
+                  setEnquiryError(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB",
+                  background: "#fff",
+                  color: "#0A1628",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitEnquiry}
+                disabled={enquiryLoading}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: enquiryLoading ? "#9CA3AF" : "#2E58EC",
+                  color: "#fff",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: enquiryLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {enquiryLoading ? "Sending..." : "Send Request"}
               </button>
             </div>
           </div>
@@ -2165,6 +2345,7 @@ function BookingSidebar({
   bookingLoading,
   bookingError,
   onBook,
+  onEnquiry,
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
@@ -2670,6 +2851,7 @@ function BookingSidebar({
       ) : null}
 
       <button
+        onClick={onEnquiry}
         style={{
           width: "100%",
           background: "#fff",
@@ -2683,7 +2865,7 @@ function BookingSidebar({
           marginBottom: "16px",
         }}
       >
-        Send Enquiry
+        Request to Book
       </button>
 
       <p style={{ fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>
