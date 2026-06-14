@@ -78,7 +78,9 @@ export default function ConversationPage() {
 
   const otherName = otherUser?.displayName ||
     [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
-    "User";
+    otherUser?.name ||
+    otherUser?.email?.split("@")[0] ||
+    "Guest";
 
   const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
