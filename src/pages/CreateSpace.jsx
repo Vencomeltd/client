@@ -626,6 +626,63 @@ export default function CreateSpace() {
     }
   }, []);
 
+  useEffect(() => {
+    if (step !== 2 || !mapsLoaded || !mapRef.current || !window.google?.maps) return;
+
+    const rawLat = form.lat ?? form.latitude;
+    const rawLng = form.lng ?? form.longitude;
+
+    if (rawLat === null || rawLat === undefined || rawLat === "") return;
+    if (rawLng === null || rawLng === undefined || rawLng === "") return;
+
+    const lat = Number(rawLat);
+    const lng = Number(rawLng);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const position = { lat, lng };
+    const mapContainer = mapContainerRef.current;
+    let map = mapRef.current;
+
+    const mapAttachedToCurrentContainer =
+      map &&
+      typeof map.getDiv === "function" &&
+      mapContainer &&
+      map.getDiv() === mapContainer &&
+      mapContainer.childElementCount > 0;
+
+    if (!mapAttachedToCurrentContainer && mapContainer) {
+      map = new window.google.maps.Map(mapContainer, {
+        center: position,
+        zoom: 16,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+      mapRef.current = map;
+      markerRef.current = new window.google.maps.Marker({ map, position });
+      window.setTimeout(() => {
+        window.google.maps.event.trigger(map, "resize");
+        map.setCenter(position);
+      }, 0);
+      return;
+    }
+
+    window.google.maps.event.trigger(map, "resize");
+    map.setCenter(position);
+    map.setZoom(16);
+
+    if (markerRef.current) {
+      markerRef.current.setMap(map);
+      markerRef.current.setPosition(position);
+    } else {
+      markerRef.current = new window.google.maps.Marker({
+        map,
+        position,
+      });
+    }
+  }, [step, mapsLoaded, form.lat, form.lng, form.latitude, form.longitude]);
+
   const effectiveBufferBefore =
     beforeSelection === "custom"
       ? getCustomMinutes(customBefore, customBeforeUnit)
