@@ -65,9 +65,14 @@ const STEP_LABELS = [
   "Location",
   "Details",
   "Photos",
+  "Features",
   "Pricing",
   "Availability",
+  "Discounts",
+  "Booking",
   "Buffer Time",
+  "Block Dates",
+  "Lease",
   "Calendar",
   "Preview",
 ];
@@ -209,8 +214,20 @@ const defaultState = {
   wifi: false,
   size: "",
   naturalLight: false,
-  restrooms: "",
+  restrooms: 1,
   refundPolicy: "moderate",
+  sizeSQM: "",
+  seatCapacity: "",
+  extras: [],
+  discounts: {
+    newListing: false,
+    lastMinute: false,
+    weekly: false,
+    monthly: false,
+  },
+  bookingApproval: "approveFirstFive",
+  blockedDates: [],
+  leaseAgreement: null,
 };
 
 const formatCurrency = (value) =>
@@ -287,7 +304,7 @@ function StepIndicator({ step }) {
       </div>
 
       <div className="md:hidden">
-        <p className="text-[13px] text-[#6B7280]">Step {step} of 9</p>
+        <p className="text-[13px] text-[#6B7280]">Step {step} of 14</p>
         <p className="mt-1 text-[18px] font-bold text-[#0A1628]">
           {STEP_LABELS[step - 1]}
         </p>
@@ -407,12 +424,20 @@ export default function CreateSpace() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [categories, setCategories] = useState([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [locationInputValue, setLocationInputValue] = useState("");
+  const [blockViewDate, setBlockViewDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [blockStart, setBlockStart] = useState(null);
+  const [blockMode, setBlockMode] = useState("block");
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const mapContainerRef = useRef(null);
@@ -699,6 +724,11 @@ export default function CreateSpace() {
       "Category not selected",
     [form.category, form.categoryName]
   );
+  const blockCalendarToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }, []);
 
   const totalTimeline = Math.max(effectiveBufferBefore + effectiveBufferAfter + 120, 120);
   const beforeWidth = effectiveBufferBefore
@@ -749,19 +779,154 @@ export default function CreateSpace() {
     setConnectedCalendars((current) => current.filter((item) => item !== providerId));
   };
 
+  const getBlockDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    const adjustedFirst = firstDay === 0 ? 6 : firstDay - 1;
+
+    for (let i = 0; i < adjustedFirst; i += 1) cells.push(null);
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push(new Date(year, month, day));
+    }
+
+    return cells;
+  };
+
+  const isBlockedDate = (date) => {
+    if (!date) return false;
+
+    const current = new Date(date);
+    current.setHours(0, 0, 0, 0);
+
+    return (form.blockedDates || []).some((blocked) => {
+      const start = new Date(blocked.start);
+      const end = new Date(blocked.end);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return current >= start && current <= end;
+    });
+  };
+
+  const handleBlockDateClick = (date) => {
+    if (!date) return;
+
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    if (selectedDate < blockCalendarToday) return;
+
+    if (!blockStart) {
+      setBlockStart(selectedDate);
+      return;
+    }
+
+    const start = blockStart < selectedDate ? blockStart : selectedDate;
+    const end = blockStart < selectedDate ? selectedDate : blockStart;
+
+    if (blockMode === "block") {
+      const existing = form.blockedDates || [];
+      updateField("blockedDates", [
+        ...existing,
+        {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          reason: "personal",
+        },
+      ]);
+    } else {
+      const updated = (form.blockedDates || []).filter((blocked) => {
+        const blockedStart = new Date(blocked.start);
+        const blockedEnd = new Date(blocked.end);
+        blockedStart.setHours(0, 0, 0, 0);
+        blockedEnd.setHours(0, 0, 0, 0);
+        return !(blockedStart >= start && blockedEnd <= end);
+      });
+      updateField("blockedDates", updated);
+    }
+
+    setBlockStart(null);
+  };
+
+  const buildWhatsIncluded = () => {
+    const parts = [];
+    if (form.wifi) parts.push("WiFi Access");
+    if (form.restrooms > 0) {
+      parts.push(`${form.restrooms} Restroom${form.restrooms > 1 ? "s" : ""}`);
+    }
+    if (form.sizeSQM) parts.push(`${form.sizeSQM} SQM`);
+    if (form.seatCapacity) parts.push(`${form.seatCapacity} Seat Capacity`);
+    (form.extras || []).forEach((extra) => {
+      if (extra.name) parts.push(extra.name);
+    });
+    return parts.join(", ");
+  };
+
   const nextStep = () => {
-    if (step === 5) {
+    setValidationError("");
+
+    // Step 1 — Category required
+    if (step === 1) {
+      if (!form.category) {
+        setValidationError("Please select a category before continuing.");
+        return;
+      }
+    }
+
+    // Step 2 — Location required
+    if (step === 2) {
+      if (!form.city || !form.country) {
+        setValidationError("Please select a location before continuing.");
+        return;
+      }
+    }
+
+    // Step 3 — Title and description required
+    if (step === 3) {
+      if (!form.title?.trim()) {
+        setValidationError("Please enter a listing title before continuing.");
+        return;
+      }
+      if (!form.description?.trim()) {
+        setValidationError("Please enter a description before continuing.");
+        return;
+      }
+    }
+
+    // Step 4 — At least one photo required
+    if (step === 4) {
+      if (!form.images || form.images.length === 0) {
+        setValidationError("Please upload at least one photo before continuing.");
+        return;
+      }
+    }
+
+    // Step 6 — Pricing required
+    if (step === 6) {
       const hasEnabledPricing = Object.values(form.pricing || {}).some(
         (pricing) => pricing.enabled && pricing.price
       );
       if (!hasEnabledPricing) {
-        alert("Please enable at least one pricing option with a price.");
+        setValidationError("Please enable at least one pricing option with a price.");
+        return;
+      }
+    }
+
+    // Step 7 — Availability days required
+    if (step === 7) {
+      if (!form.availabilityDays || form.availabilityDays.length === 0) {
+        setValidationError("Please select at least one available day before continuing.");
+        return;
+      }
+      if (!form.startTime || !form.endTime) {
+        setValidationError("Please set your open and close times before continuing.");
         return;
       }
     }
 
     setDirection(1);
-    setStep((current) => Math.min(current + 1, 9));
+    setStep((current) => Math.min(current + 1, 14));
   };
   const previousStep = () => {
     setDirection(-1);
@@ -785,7 +950,7 @@ export default function CreateSpace() {
 
       formData.append("title", form.title);
       formData.append("description", form.description);
-      formData.append("whatsIncluded", form.whatsIncluded || "");
+      formData.append("whatsIncluded", buildWhatsIncluded());
       formData.append(
         "location",
         JSON.stringify({
@@ -829,6 +994,18 @@ export default function CreateSpace() {
         form.availability || JSON.stringify(form.availabilityDays || []) || "all"
       );
       formData.append("coverImageIndex", form.coverImageIndex ?? 0);
+      formData.append("wifi", form.wifi || false);
+      formData.append("restrooms", form.restrooms || 0);
+      formData.append("sizeSQM", form.sizeSQM || "");
+      formData.append("seatCapacity", form.seatCapacity || "");
+      formData.append("extras", JSON.stringify(form.extras || []));
+      formData.append("discounts", JSON.stringify(form.discounts || {}));
+      formData.append("blockedDates", JSON.stringify(form.blockedDates || []));
+      formData.append("bookingApproval", form.bookingApproval || "approveFirstFive");
+
+      if (form.leaseAgreement instanceof File) {
+        formData.append("leaseAgreement", form.leaseAgreement);
+      }
 
       if (form.category) {
         formData.append("category", form.category);
@@ -1476,45 +1653,6 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: "24px" }}>
-                    <label
-                      style={{
-                        fontSize: "15px",
-                        fontWeight: "600",
-                        color: "#0A1628",
-                        display: "block",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      What's Included
-                    </label>
-                    <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "10px" }}>
-                      List everything tenants get with this space - WiFi, parking, AV
-                      equipment, kitchen access, reception etc.
-                    </p>
-                    <textarea
-                      value={form.whatsIncluded || ""}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, whatsIncluded: e.target.value }))
-                      }
-                      placeholder="e.g. High-speed WiFi, Parking for 2 cars, 65-inch screen, Whiteboard, Kitchen access, Dedicated reception"
-                      rows={4}
-                      style={{
-                        width: "100%",
-                        padding: "12px 16px",
-                        borderRadius: "10px",
-                        border: "1.5px solid #E5E7EB",
-                        fontSize: "14px",
-                        color: "#111827",
-                        resize: "vertical",
-                        outline: "none",
-                        fontFamily: "inherit",
-                        lineHeight: "1.6",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-
                   <div>
                     <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                       Space Rules
@@ -1799,6 +1937,279 @@ export default function CreateSpace() {
 
             {step === 5 ? (
               <div>
+                <SectionHeader
+                  title="Features & Extras"
+                  subtitle="Tell guests what's included and add any optional extras they can add to their booking."
+                />
+
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between rounded-xl border border-[#E5E7EB] bg-white p-5">
+                    <div>
+                      <p className="text-[15px] font-bold text-[#0A1628]">WiFi Access</p>
+                      <p className="text-[13px] text-[#6B7280]">
+                        Guests get free internet connection
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => updateField("wifi", !form.wifi)}
+                      style={{
+                        width: "52px",
+                        height: "28px",
+                        borderRadius: "9999px",
+                        background: form.wifi ? "#0A1628" : "#E5E7EB",
+                        border: "none",
+                        cursor: "pointer",
+                        position: "relative",
+                        transition: "background 0.2s ease",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "3px",
+                          left: form.wifi ? "27px" : "3px",
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "50%",
+                          background: "#fff",
+                          transition: "left 0.2s ease",
+                        }}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[15px] font-bold text-[#0A1628]">Restrooms</p>
+                        <p className="text-[13px] text-[#6B7280]">
+                          Number of restrooms guests can use
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateField("restrooms", Math.max(0, (form.restrooms || 0) - 1))
+                          }
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            background: "#F3F4F6",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "700",
+                            color: "#0A1628",
+                          }}
+                        >
+                          −
+                        </button>
+                        <span
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: "700",
+                            color: "#0A1628",
+                            minWidth: "24px",
+                            textAlign: "center",
+                          }}
+                        >
+                          {form.restrooms || 0}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateField("restrooms", (form.restrooms || 0) + 1)
+                          }
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            background: "#0A1628",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "700",
+                            color: "#fff",
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Size (SQM)
+                      </label>
+                      <input
+                        type="number"
+                        className={inputClassName}
+                        value={form.sizeSQM || ""}
+                        onChange={(e) => updateField("sizeSQM", e.target.value)}
+                        placeholder="e.g. 45"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Seat Capacity
+                      </label>
+                      <input
+                        type="number"
+                        className={inputClassName}
+                        value={form.seatCapacity || ""}
+                        onChange={(e) => updateField("seatCapacity", e.target.value)}
+                        placeholder="e.g. 12"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      <div>
+                        <p className="text-[15px] font-bold text-[#0A1628]">Extras</p>
+                        <p className="text-[13px] text-[#6B7280]">
+                          Optional add-ons guests can include in their booking
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateField("extras", [...(form.extras || []), { name: "", price: "" }])
+                        }
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: "8px",
+                          background: "#0A1628",
+                          color: "#fff",
+                          border: "none",
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                        }}
+                      >
+                        + Add Extra
+                      </button>
+                    </div>
+
+                    {(form.extras || []).length === 0 ? (
+                      <div
+                        style={{
+                          padding: "24px",
+                          border: "1.5px dashed #E5E7EB",
+                          borderRadius: "12px",
+                          textAlign: "center",
+                          color: "#9CA3AF",
+                          fontSize: "14px",
+                        }}
+                      >
+                        No extras added yet. Click "Add Extra" to add optional add-ons.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        {(form.extras || []).map((extra, index) => (
+                          <div
+                            key={index}
+                            style={{ display: "flex", gap: "12px", alignItems: "center" }}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Extra name (e.g. Projector, Catering)"
+                              value={extra.name}
+                              onChange={(e) => {
+                                const updated = [...form.extras];
+                                updated[index] = { ...updated[index], name: e.target.value };
+                                updateField("extras", updated);
+                              }}
+                              style={{
+                                flex: 2,
+                                padding: "10px 14px",
+                                borderRadius: "8px",
+                                border: "1.5px solid #E5E7EB",
+                                fontSize: "14px",
+                                outline: "none",
+                              }}
+                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <span
+                                style={{
+                                  fontSize: "16px",
+                                  fontWeight: "700",
+                                  color: "#0A1628",
+                                }}
+                              >
+                                £
+                              </span>
+                              <input
+                                type="number"
+                                placeholder="Price"
+                                value={extra.price}
+                                onChange={(e) => {
+                                  const updated = [...form.extras];
+                                  updated[index] = { ...updated[index], price: e.target.value };
+                                  updateField("extras", updated);
+                                }}
+                                style={{
+                                  width: "100px",
+                                  padding: "10px 14px",
+                                  borderRadius: "8px",
+                                  border: "1.5px solid #E5E7EB",
+                                  fontSize: "14px",
+                                  outline: "none",
+                                }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = form.extras.filter((_, i) => i !== index);
+                                updateField("extras", updated);
+                              }}
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                borderRadius: "50%",
+                                background: "rgba(220,38,38,0.1)",
+                                border: "none",
+                                color: "#DC2626",
+                                cursor: "pointer",
+                                fontSize: "16px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 6 ? (
+              <div>
                 <div>
                   <h2
                     style={{
@@ -2048,7 +2459,7 @@ export default function CreateSpace() {
               </div>
             ) : null}
 
-            {step === 6 ? (
+            {step === 7 ? (
               <div>
                 <SectionHeader
                   title="Availability"
@@ -2185,7 +2596,7 @@ export default function CreateSpace() {
               </div>
             ) : null}
 
-            {step === 7 ? (
+            {step === 10 ? (
               <div>
                 <SectionHeader
                   title="Buffer Time"
@@ -2318,6 +2729,639 @@ export default function CreateSpace() {
             ) : null}
 
             {step === 8 ? (
+              <div>
+                <SectionHeader
+                  title="Set Up Discounts"
+                  subtitle="Encourage more bookings with automatic discounts. You can change these anytime."
+                />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {[
+                    {
+                      key: "newListing",
+                      title: "New Listing Promotion (20%)",
+                      description:
+                        "Get noticed faster with an automatic 20% discount on your first few bookings.",
+                    },
+                    {
+                      key: "lastMinute",
+                      title: "Last Minute Discount (1%)",
+                      description:
+                        "Offer small savings for guests booking within a few days of arrival.",
+                    },
+                    {
+                      key: "weekly",
+                      title: "Weekly Discount (10%)",
+                      description: "Reward guests who stay for 7 days or more.",
+                    },
+                    {
+                      key: "monthly",
+                      title: "Monthly Discount (20%)",
+                      description:
+                        "Attract long-term stays with generous monthly savings.",
+                    },
+                  ].map((discount) => {
+                    const enabled = form.discounts?.[discount.key] || false;
+                    return (
+                      <div
+                        key={discount.key}
+                        onClick={() =>
+                          updateField("discounts", {
+                            ...form.discounts,
+                            [discount.key]: !enabled,
+                          })
+                        }
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "16px",
+                          padding: "20px",
+                          borderRadius: "12px",
+                          border: `2px solid ${enabled ? "#0A1628" : "#E5E7EB"}`,
+                          background: enabled ? "rgba(10,22,40,0.02)" : "#fff",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div>
+                          <p
+                            style={{
+                              fontSize: "15px",
+                              fontWeight: "700",
+                              color: "#0A1628",
+                              margin: "0 0 4px",
+                            }}
+                          >
+                            {discount.title}
+                          </p>
+                          <p
+                            style={{
+                              fontSize: "13px",
+                              color: "#6B7280",
+                              margin: 0,
+                              lineHeight: "1.5",
+                            }}
+                          >
+                            {discount.description}
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            width: "24px",
+                            height: "24px",
+                            borderRadius: "6px",
+                            flexShrink: 0,
+                            border: `2px solid ${enabled ? "#0A1628" : "#D1D5DB"}`,
+                            background: enabled ? "#0A1628" : "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {enabled && <Check size={14} color="#fff" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {step === 9 ? (
+              <div>
+                <SectionHeader
+                  title="Booking Settings"
+                  subtitle="Choose how you want to handle incoming bookings."
+                />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {[
+                    {
+                      key: "approveFirstFive",
+                      title: "Approve first 5 bookings",
+                      badge: "Recommended",
+                      description:
+                        "You'll manually approve your first 5 bookings. After that, bookings can be automatic.",
+                    },
+                    {
+                      key: "instantBook",
+                      title: "Instant Book",
+                      badge: null,
+                      description:
+                        "Guests can book instantly without needing your approval.",
+                    },
+                    {
+                      key: "approveAll",
+                      title: "Approve All Bookings",
+                      badge: null,
+                      description:
+                        "You'll manually approve all your bookings. You cannot receive any booking unless you approve it.",
+                    },
+                  ].map((option) => {
+                    const selected = form.bookingApproval === option.key;
+                    return (
+                      <div
+                        key={option.key}
+                        onClick={() => {
+                          updateField("bookingApproval", option.key);
+                          updateField("instantBook", option.key === "instantBook");
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "16px",
+                          padding: "20px",
+                          borderRadius: "12px",
+                          border: `2px solid ${selected ? "#0A1628" : "#E5E7EB"}`,
+                          background: selected ? "rgba(10,22,40,0.02)" : "#fff",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontSize: "15px",
+                                fontWeight: "700",
+                                color: "#0A1628",
+                                margin: 0,
+                              }}
+                            >
+                              {option.title}
+                            </p>
+                            {option.badge && (
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  padding: "2px 8px",
+                                  borderRadius: "9999px",
+                                  background: "rgba(46,88,236,0.1)",
+                                  color: "#2E58EC",
+                                  border: "1px solid rgba(46,88,236,0.2)",
+                                }}
+                              >
+                                {option.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p
+                            style={{
+                              fontSize: "13px",
+                              color: "#6B7280",
+                              margin: 0,
+                              lineHeight: "1.5",
+                            }}
+                          >
+                            {option.description}
+                          </p>
+                        </div>
+                        <div
+                          style={{
+                            width: "22px",
+                            height: "22px",
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            border: `2px solid ${selected ? "#0A1628" : "#D1D5DB"}`,
+                            background: selected ? "#0A1628" : "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {selected && <Check size={12} color="#fff" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {step === 11 ? (
+              <div>
+                <SectionHeader
+                  title="Block Dates"
+                  subtitle="Click dates to mark them as unavailable. Guests cannot book these dates."
+                />
+
+                <div>
+                  <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setBlockMode("block")}
+                      style={{
+                        padding: "8px 20px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        background: blockMode === "block" ? "#0A1628" : "#fff",
+                        color: blockMode === "block" ? "#fff" : "#0A1628",
+                        border: `1.5px solid ${
+                          blockMode === "block" ? "#0A1628" : "#E5E7EB"
+                        }`,
+                      }}
+                    >
+                      Block dates
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBlockMode("unblock")}
+                      style={{
+                        padding: "8px 20px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        background: blockMode === "unblock" ? "#0A1628" : "#fff",
+                        color: blockMode === "unblock" ? "#fff" : "#0A1628",
+                        border: `1.5px solid ${
+                          blockMode === "unblock" ? "#0A1628" : "#E5E7EB"
+                        }`,
+                      }}
+                    >
+                      Unblock dates
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginBottom: "16px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBlockViewDate(
+                          new Date(
+                            blockViewDate.getFullYear(),
+                            blockViewDate.getMonth() - 1,
+                            1
+                          )
+                        )
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid #E5E7EB",
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ←
+                    </button>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628" }}>
+                      {blockViewDate.toLocaleDateString("en-GB", {
+                        month: "long",
+                        year: "numeric",
+                      })}{" "}
+                      –{" "}
+                      {new Date(
+                        blockViewDate.getFullYear(),
+                        blockViewDate.getMonth() + 1,
+                        1
+                      ).toLocaleDateString("en-GB", {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBlockViewDate(
+                          new Date(
+                            blockViewDate.getFullYear(),
+                            blockViewDate.getMonth() + 1,
+                            1
+                          )
+                        )
+                      }
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid #E5E7EB",
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      →
+                    </button>
+                  </div>
+
+                  {blockStart && (
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: "#2E58EC",
+                        marginBottom: "12px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      Start selected:{" "}
+                      {blockStart.toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}{" "}
+                      — now click an end date
+                    </p>
+                  )}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
+                    {[
+                      blockViewDate,
+                      new Date(
+                        blockViewDate.getFullYear(),
+                        blockViewDate.getMonth() + 1,
+                        1
+                      ),
+                    ].map((monthDate, monthIndex) => {
+                      const cells = getBlockDaysInMonth(monthDate);
+                      const daysShort = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+                      return (
+                        <div key={monthIndex}>
+                          <p
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "700",
+                              color: "#0A1628",
+                              marginBottom: "12px",
+                            }}
+                          >
+                            {monthDate.toLocaleDateString("en-GB", {
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </p>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(7, 1fr)",
+                              gap: "2px",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            {daysShort.map((day) => (
+                              <div
+                                key={day}
+                                style={{
+                                  textAlign: "center",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  color: "#9CA3AF",
+                                  padding: "4px 0",
+                                }}
+                              >
+                                {day}
+                              </div>
+                            ))}
+                          </div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(7, 1fr)",
+                              gap: "2px",
+                            }}
+                          >
+                            {cells.map((date, index) => {
+                              if (!date) return <div key={`empty-${monthIndex}-${index}`} />;
+                              const isPast = date < blockCalendarToday;
+                              const blocked = isBlockedDate(date);
+                              const isStart =
+                                blockStart &&
+                                date.toDateString() === blockStart.toDateString();
+
+                              return (
+                                <button
+                                  key={date.toISOString()}
+                                  type="button"
+                                  onClick={() => handleBlockDateClick(date)}
+                                  disabled={isPast}
+                                  style={{
+                                    aspectRatio: "1",
+                                    borderRadius: "6px",
+                                    border: isStart ? "2px solid #2E58EC" : "none",
+                                    background: isPast
+                                      ? "transparent"
+                                      : blocked
+                                        ? "#0A1628"
+                                        : "transparent",
+                                    color: isPast ? "#D1D5DB" : blocked ? "#fff" : "#111827",
+                                    fontSize: "12px",
+                                    cursor: isPast ? "not-allowed" : "pointer",
+                                    fontWeight: blocked ? "700" : "400",
+                                  }}
+                                >
+                                  {date.getDate()}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "16px",
+                      marginTop: "16px",
+                      fontSize: "12px",
+                      color: "#6B7280",
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "3px",
+                          background: "#0A1628",
+                          display: "inline-block",
+                        }}
+                      />
+                      Blocked
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "3px",
+                          border: "1px solid #E5E7EB",
+                          display: "inline-block",
+                        }}
+                      />
+                      Available
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 12 ? (
+              <div>
+                <SectionHeader
+                  title="Upload Lease Agreement"
+                  subtitle="Upload your standard lease agreement. Guests will be required to review and e-sign this before booking. This is optional and can be added later."
+                />
+
+                <div
+                  style={{
+                    background: "rgba(255,193,7,0.1)",
+                    border: "1px solid rgba(255,193,7,0.3)",
+                    borderRadius: "10px",
+                    padding: "12px 16px",
+                    marginBottom: "24px",
+                    fontSize: "13px",
+                    color: "#92400E",
+                  }}
+                >
+                  Accepted formats: PDF, DOC, DOCX. Max 10MB. This is optional for now and can
+                  be added later.
+                </div>
+
+                {!form.leaseAgreement ? (
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "48px 24px",
+                      border: "2px dashed #E5E7EB",
+                      borderRadius: "16px",
+                      cursor: "pointer",
+                      background: "#fff",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(event) => {
+                      event.currentTarget.style.borderColor = "#2E58EC";
+                      event.currentTarget.style.background = "rgba(46,88,236,0.02)";
+                    }}
+                    onMouseLeave={(event) => {
+                      event.currentTarget.style.borderColor = "#E5E7EB";
+                      event.currentTarget.style.background = "#fff";
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) updateField("leaseAgreement", file);
+                      }}
+                    />
+                    <Upload size={32} color="#2E58EC" style={{ marginBottom: "12px" }} />
+                    <p
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: "600",
+                        color: "#0A1628",
+                        margin: "0 0 6px",
+                      }}
+                    >
+                      Click to upload lease agreement
+                    </p>
+                    <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+                      PDF, DOC or DOCX up to 10MB
+                    </p>
+                  </label>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "16px 20px",
+                      border: "1.5px solid #86EFAC",
+                      borderRadius: "12px",
+                      background: "#F0FDF4",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "10px",
+                          background: "#DCFCE7",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Check size={20} color="#16A34A" />
+                      </div>
+                      <div>
+                        <p
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: "#0A1628",
+                            margin: "0 0 2px",
+                          }}
+                        >
+                          {form.leaseAgreement.name}
+                        </p>
+                        <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
+                          {(form.leaseAgreement.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => updateField("leaseAgreement", null)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#DC2626",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setStep(13)}
+                  style={{
+                    marginTop: "24px",
+                    background: "none",
+                    border: "none",
+                    color: "#6B7280",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Skip for now — add later from listings settings
+                </button>
+              </div>
+            ) : null}
+
+            {step === 13 ? (
               <div>
                 <SectionHeader
                   title="Connect Your Calendar"
@@ -2506,7 +3550,7 @@ export default function CreateSpace() {
               </div>
             ) : null}
 
-            {step === 9 ? (
+            {step === 14 ? (
               <div>
                 <SectionHeader
                   title="Preview Your Listing"
@@ -2634,6 +3678,65 @@ export default function CreateSpace() {
           </StepFrame>
         </AnimatePresence>
 
+        {validationError && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "100px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "#0A1628",
+              color: "#fff",
+              padding: "14px 24px",
+              borderRadius: "12px",
+              fontSize: "14px",
+              fontWeight: "600",
+              zIndex: 9999,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              maxWidth: "480px",
+              width: "90%",
+              animation: "fadeIn 0.2s ease",
+            }}
+          >
+            <span
+              style={{
+                width: "20px",
+                height: "20px",
+                borderRadius: "50%",
+                background: "#EF4444",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                fontSize: "12px",
+                fontWeight: "800",
+              }}
+            >
+              !
+            </span>
+            {validationError}
+            <button
+              type="button"
+              onClick={() => setValidationError("")}
+              style={{
+                marginLeft: "auto",
+                background: "none",
+                border: "none",
+                color: "rgba(255,255,255,0.6)",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: 1,
+                padding: "0 4px",
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <div className="sticky bottom-0 z-50 -mx-4 mt-8 border-t border-[#E5E7EB] bg-white px-4 py-3 sm:-mx-10 sm:px-8 sm:py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-h-[48px] items-center">
@@ -2670,11 +3773,11 @@ export default function CreateSpace() {
                 Save Draft
               </button>
               <p className="text-center text-[13px] text-[#6B7280]">
-                Step {step} of 9
+                Step {step} of 14
               </p>
             </div>
 
-            {step < 9 ? (
+            {step < 14 ? (
               <button
                 type="button"
                 onClick={nextStep}
