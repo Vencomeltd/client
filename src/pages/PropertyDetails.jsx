@@ -1244,7 +1244,10 @@ export default function PropertyDetails() {
       }
       const data = await res.json();
       setShowEnquiryModal(false);
-      window.location.href = `/chat/${data.conversation._id}`;
+      const user = JSON.parse(localStorage.getItem("vencome_user") || "{}");
+      const isHost = user?.isHost || user?.role === "host";
+      const base = isHost ? "/dashboard/messages" : "/customer/messages";
+      window.location.href = `${base}/${data.conversation._id}`;
     } catch (err) {
       setEnquiryError(err.message);
     } finally {
