@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function ConversationPage() {
   const { id } = useParams();
@@ -82,11 +83,13 @@ export default function ConversationPage() {
   const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   return (
+    <DashboardLayout title="Messages">
     <div style={{
       display: "flex",
       flexDirection: "column",
-      height: "100vh",
+      height: "calc(100vh - 64px)",
       background: "#F8F6F0",
+      margin: "-32px",
     }}>
       {/* Header */}
       <div style={{
@@ -101,7 +104,13 @@ export default function ConversationPage() {
         zIndex: 10,
       }}>
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            const currentPath = window.location.pathname;
+            const base = currentPath.startsWith("/customer")
+              ? "/customer/messages"
+              : "/dashboard/messages";
+            navigate(base);
+          }}
           style={{
             background: "none",
             border: "none",
@@ -261,5 +270,6 @@ export default function ConversationPage() {
         </button>
       </div>
     </div>
+    </DashboardLayout>
   );
 }

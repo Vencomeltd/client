@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MessageSquare } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
-import Navbar from "../components/Navbar";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
@@ -32,12 +32,10 @@ export default function ChatPage() {
   if (loading) return <VencomeLoader />;
 
   return (
-    <>
-      <Navbar />
+    <DashboardLayout title="Messages">
       <div style={{
         maxWidth: "720px",
         margin: "0 auto",
-        padding: "100px 24px 40px",
       }}>
         <h1 style={{
           fontSize: "24px",
@@ -76,7 +74,13 @@ export default function ChatPage() {
               return (
                 <div
                   key={conv._id}
-                  onClick={() => navigate(`/chat/${conv._id}`)}
+                  onClick={() => {
+                    const currentPath = window.location.pathname;
+                    const base = currentPath.startsWith("/customer")
+                      ? "/customer/messages"
+                      : "/dashboard/messages";
+                    navigate(`${base}/${conv._id}`);
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -165,6 +169,6 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-    </>
+    </DashboardLayout>
   );
 }
