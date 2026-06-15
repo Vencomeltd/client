@@ -43,6 +43,7 @@ import BlogDetails from "./pages/BlogDetails";
 import SearchPage from "./pages/SearchPage";
 import ChatPage from "./pages/ChatPage";
 import Conversation from "./pages/Conversation";
+import ConversationPage from "./pages/ConversationPage";
 import FAQ from "./pages/FAQ";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import HelpSupport from "./pages/HelpSupport";
@@ -62,6 +63,7 @@ import ContactUs from "./pages/ContactUs";
 import Accessibility from "./pages/Accessibility";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Sitemap from "./pages/Sitemap";
+import MyReviews from "./pages/MyReviews";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -179,7 +181,15 @@ function AppContent() {
           path="/customer/messages"
           element={
             <PrivateRoute>
-              <CustomerDashboard section="messages" />
+              <ChatPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/customer/messages/:id"
+          element={
+            <PrivateRoute>
+              <ConversationPage />
             </PrivateRoute>
           }
         />
@@ -187,7 +197,7 @@ function AppContent() {
           path="/customer/reviews"
           element={
             <PrivateRoute>
-              <CustomerDashboard section="reviews" />
+              <MyReviews />
             </PrivateRoute>
           }
         />
@@ -219,7 +229,15 @@ function AppContent() {
           path="/dashboard/messages"
           element={
             <PrivateRoute>
-              <Navigate to="/chat" replace />
+              <ChatPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/dashboard/messages/:id"
+          element={
+            <PrivateRoute>
+              <ConversationPage />
             </PrivateRoute>
           }
         />
@@ -251,7 +269,7 @@ function AppContent() {
           path="/dashboard/reviews"
           element={
             <PrivateRoute>
-              <Navigate to="/dashboard/bookings" replace />
+              <MyReviews />
             </PrivateRoute>
           }
         />

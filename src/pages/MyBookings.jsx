@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
+import ReviewModal from "../components/ReviewModal";
 
 const TABS = ["upcoming", "current", "past", "cancelled"];
 const STATUS_FILTERS = ["All", "Confirmed", "Pending", "Completed", "Cancelled"];
@@ -121,6 +122,7 @@ export default function MyBookings() {
   const [sortBy, setSortBy] = useState("newest");
   const [allBookings, setAllBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reviewBooking, setReviewBooking] = useState(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -422,10 +424,26 @@ export default function MyBookings() {
                     {booking.tab === "past" && !booking.hasReview ? (
                       <>
                         <div className="flex min-w-[120px] flex-1 sm:flex-none">
-                        <SmallButton gold>
+                        <button
+                          type="button"
+                          onClick={() => setReviewBooking(booking)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "8px 14px",
+                            borderRadius: "8px",
+                            background: "#2E58EC",
+                            color: "#fff",
+                            border: "none",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                          }}
+                        >
                           <Star size={14} />
                           Leave a Review
-                        </SmallButton>
+                        </button>
                         </div>
                         <div className="flex min-w-[120px] flex-1 sm:flex-none">
                         <SmallButton>
@@ -460,6 +478,20 @@ export default function MyBookings() {
           )}
         </motion.div>
       </AnimatePresence>
+      {reviewBooking && (
+        <ReviewModal
+          booking={reviewBooking}
+          onClose={() => setReviewBooking(null)}
+          onSubmitted={() => {
+            setReviewBooking(null);
+            setAllBookings((prev) =>
+              prev.map((b) =>
+                b.id === reviewBooking.id ? { ...b, hasReview: true } : b
+              )
+            );
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
