@@ -105,7 +105,7 @@ const HelpSupport = () => {
             <>
               <p>Steps:</p>
               <ol className="list-decimal pl-6 mt-3 space-y-2">
-                <li>Log in → click "List your Event Center"</li>
+                <li>Log in → click "Publish your space"</li>
                 <li>
                   Follow the 10-step wizard: name, photos, features, pricing,
                   etc.
@@ -264,9 +264,9 @@ const HelpSupport = () => {
           <div className="bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition">
             <Mail className="h-10 w-10 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Email Support</h3>
-            <p className="text-gray-600 mb-4">support@VenCome.com</p>
+            <p className="text-gray-600 mb-4">support@vencome.com</p>
             <a
-              href="mailto:support@VenCome.com"
+              href="mailto:support@vencome.com"
               className="text-primary hover:underline font-medium"
             >
               Send Email
@@ -278,7 +278,7 @@ const HelpSupport = () => {
             <h3 className="text-lg font-semibold mb-2">Call Us</h3>
             <p className="text-gray-600 mb-4">+441 50 123 4567</p>
             <a
-              href="tel:+971501234567"
+              href="tel:+442071234567"
               className="text-primary hover:underline font-medium"
             >
               Call Now
@@ -390,10 +390,10 @@ const HelpSupport = () => {
                     <div>
                       <p className="font-medium">Email Support</p>
                       <a
-                        href="mailto:support@evecen.com"
+                        href="mailto:support@vencome.com"
                         className="text-primary hover:underline"
                       >
-                        support@evecen.com
+                        support@vencome.com
                       </a>
                     </div>
                   </div>
@@ -403,13 +403,13 @@ const HelpSupport = () => {
                     <div>
                       <p className="font-medium">Phone</p>
                       <a
-                        href="tel:+971501234567"
+                        href="tel:+442071234567"
                         className="text-primary hover:underline"
                       >
                         +441 50 123 4567
                       </a>
                       <p className="text-sm text-gray-500 mt-1">
-                        Mon–Fri, 9 AM – 6 PM GST
+                        Mon–Fri, 9 AM – 6 PM GMT
                       </p>
                     </div>
                   </div>
