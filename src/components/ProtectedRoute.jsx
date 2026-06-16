@@ -27,6 +27,6 @@ export function AdminRoute({ children }) {
   const token = getToken();
   const user = getUser();
   if (!token) return <Navigate to="/login" replace />;
-  if (!user?.isAdmin) return <Navigate to="/" replace />;
+  if (!user?.isAdmin) return <Navigate to="/admin/login" replace />;
   return children;
 }

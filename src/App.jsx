@@ -49,6 +49,7 @@ import TermsAndConditions from "./pages/TermsAndConditions";
 import HelpSupport from "./pages/HelpSupport";
 import PropertyAvailability from "./pages/PropertyAvailability";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
 import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
 import BookingDetails from "./pages/BookingDetails";
@@ -417,6 +418,7 @@ function AppContent() {
         />
 
         {/* Admin required */}
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin"
           element={
