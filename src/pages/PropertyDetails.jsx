@@ -12,6 +12,7 @@ import {
   Clock,
   Coffee,
   Grid,
+  Heart,
   Map,
   MapPin,
   Monitor,
@@ -27,6 +28,7 @@ import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import CalendarPicker from "../components/CalendarPicker";
+import apiFetch from "../utils/apiClient";
 
 const BRAND = {
   navy: "#0A1628",
@@ -574,6 +576,8 @@ export default function PropertyDetails() {
   const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [hideNavbarForLightbox, setHideNavbarForLightbox] = useState(false);
@@ -839,6 +843,21 @@ export default function PropertyDetails() {
 
     fetchSimilarSpaces();
   }, [property]);
+
+  useEffect(() => {
+    const checkSaved = async () => {
+      const token = localStorage.getItem("vencome_token");
+      if (!token || !property?._id) return;
+      try {
+        const res = await apiFetch(`/properties/${property._id}/is-saved`);
+        const data = await res.json();
+        setIsSaved(data.isSaved || false);
+      } catch (err) {
+        console.error("Failed to check saved status:", err);
+      }
+    };
+    checkSaved();
+  }, [property?._id]);
 
   useEffect(() => {
     const navbar =
@@ -1262,6 +1281,26 @@ export default function PropertyDetails() {
     }));
   };
 
+  const handleToggleSave = async () => {
+    const token = localStorage.getItem("vencome_token");
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+    setSaveLoading(true);
+    try {
+      const res = await apiFetch(`/properties/${property._id}/save`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      setIsSaved(data.saved);
+    } catch (err) {
+      console.error("Failed to toggle save:", err);
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   const sectionProps = (delay = 0) => ({
     ...SECTION_REVEAL,
     transition: { ...SECTION_REVEAL.transition, delay },
@@ -1282,7 +1321,12 @@ export default function PropertyDetails() {
           <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.95fr)] lg:gap-16">
             <div className="min-w-0">
               <motion.section {...sectionProps(0)}>
-                <TitleBlock property={propertyView} />
+                <TitleBlock
+                  property={propertyView}
+                  isSaved={isSaved}
+                  saveLoading={saveLoading}
+                  onToggleSave={handleToggleSave}
+                />
               </motion.section>
 
               <motion.section {...sectionProps(0.05)}>
@@ -1685,26 +1729,52 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
   );
 }
 
-function TitleBlock({ property }) {
+function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
   const scrollToReviews = () => {
     document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <div className="border-b border-[#E5E7EB] pb-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white">
-          {property.category}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
-          {property.bookingTypeLabel}
-        </span>
-        {property.host.verified ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
-            <Check size={14} className="text-[#305CDE]" />
-            Verified host
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white">
+            {property.category}
           </span>
-        ) : null}
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
+            {property.bookingTypeLabel}
+          </span>
+          {property.host.verified ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
+              <Check size={14} className="text-[#305CDE]" />
+              Verified host
+            </span>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleSave}
+          disabled={saveLoading}
+          style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "50%",
+            border: "1.5px solid #E5E7EB",
+            background: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: saveLoading ? "not-allowed" : "pointer",
+            flexShrink: 0,
+          }}
+        >
+          <Heart
+            size={18}
+            fill={isSaved ? "#2E58EC" : "none"}
+            color={isSaved ? "#2E58EC" : "#6B7280"}
+          />
+        </button>
       </div>
 
       <h1 className="mt-4 text-[clamp(22px,5vw,32px)] font-extrabold leading-tight text-[#0A1628]">

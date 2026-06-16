@@ -64,6 +64,7 @@ import Accessibility from "./pages/Accessibility";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Sitemap from "./pages/Sitemap";
 import MyReviews from "./pages/MyReviews";
+import SavedSpaces from "./pages/SavedSpaces";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -173,7 +174,7 @@ function AppContent() {
           path="/customer/saved"
           element={
             <PrivateRoute>
-              <CustomerDashboard section="saved" />
+              <SavedSpaces />
             </PrivateRoute>
           }
         />
@@ -261,7 +262,7 @@ function AppContent() {
           path="/dashboard/saved"
           element={
             <PrivateRoute>
-              <Navigate to="/search" replace />
+              <SavedSpaces />
             </PrivateRoute>
           }
         />
