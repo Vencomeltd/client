@@ -13,14 +13,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const applyDevAuthFlags = useCallback((incomingUser) => {
-    if (!incomingUser) return incomingUser;
-    if (!import.meta.env.DEV) return incomingUser;
-
-    // Temporary local-only admin bypass for dashboard development.
-    return { ...incomingUser, isAdmin: true };
-  }, []);
-
   // Helper to store tokens
   const setAuthData = ({ token, refreshToken }) => {
     if (token) localStorage.setItem("token", token);
@@ -60,14 +52,14 @@ export function AuthProvider({ children }) {
       }
 
       const storedUser = localStorage.getItem("user");
-      if (storedUser) setUser(applyDevAuthFlags(JSON.parse(storedUser))); // optimistic restore
+      if (storedUser) setUser(JSON.parse(storedUser)); // optimistic restore
 
       try {
         const freshUser = await apiFetch({
           endpoint: "/auth/me",
           showErrorToast: false,
         });
-        const resolvedUser = applyDevAuthFlags(freshUser);
+        const resolvedUser = freshUser;
         setUser(resolvedUser);
         localStorage.setItem("user", JSON.stringify(resolvedUser));
       } catch {
@@ -78,7 +70,7 @@ export function AuthProvider({ children }) {
     };
 
     restoreSession();
-  }, [applyDevAuthFlags, logout]);
+  }, [logout]);
 
   // Email/password login
   const login = async (email, password) => {
@@ -111,7 +103,7 @@ export function AuthProvider({ children }) {
     if (data?.token) {
       setAuthData(data);
       const freshUser = await apiFetch({ endpoint: "/auth/me" });
-      const resolvedUser = applyDevAuthFlags(freshUser);
+      const resolvedUser = freshUser;
       setUser(resolvedUser);
       localStorage.setItem("user", JSON.stringify(resolvedUser));
     }
@@ -130,7 +122,7 @@ export function AuthProvider({ children }) {
     if (data?.token) {
       setAuthData(data);
       const freshUser = await apiFetch({ endpoint: "/auth/me" });
-      const resolvedUser = applyDevAuthFlags(freshUser);
+      const resolvedUser = freshUser;
       setUser(resolvedUser);
       localStorage.setItem("user", JSON.stringify(resolvedUser));
     }
@@ -140,7 +132,7 @@ export function AuthProvider({ children }) {
 
   // Update local user state
   const updateUser = (updatedUser) => {
-    const resolvedUser = applyDevAuthFlags(updatedUser);
+    const resolvedUser = updatedUser;
     setUser(resolvedUser);
     localStorage.setItem("user", JSON.stringify(resolvedUser));
   };
