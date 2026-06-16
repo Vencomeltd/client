@@ -1226,10 +1226,10 @@ export default function PropertyDetails() {
       return;
     }
     if (!checkIn || !checkOut) {
-      setEnquiryError("Please select dates before sending an enquiry");
-      setShowEnquiryModal(true);
+      setBookingError("Please select check-in and check-out dates before sending a request.");
       return;
     }
+    setEnquiryError(null);
     setShowEnquiryModal(true);
   };
 

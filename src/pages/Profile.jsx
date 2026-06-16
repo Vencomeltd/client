@@ -1,372 +1,275 @@
-import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { apiFetch } from "../utils/api";
-import ProfileSidebar from "../components/ProfileSidebar";
-import Input from "../components/Input";
-import Button from "../components/Button";
-import TripCard from "../components/TripCard";
-import ReviewCard from "../components/ReviewCard";
-import IdentityVerification from "../components/IdentityVerification";
-import { Menu, X } from "lucide-react";
-import VencomeLoader from "../components/Loader";
-import BusinessVerification from "../components/BusinessVerification";
+import { useState, useEffect, useRef } from "react";
+import { Camera, Loader2 } from "lucide-react";
+import DashboardLayout from "../layouts/DashboardLayout";
+import apiFetch from "../utils/apiClient";
 
-const Profile = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+const API = import.meta.env.VITE_API_URL;
+
+export default function Profile() {
   const [user, setUser] = useState(null);
-  const [pastTrips, setPastTrips] = useState([]);
-  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
-  const { pathname } = useLocation();
-  const [filters, setFilters] = useState({ location: "", date: "", price: "" });
-  const [sort, setSort] = useState("recent");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileRef = useRef();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUser = async () => {
       try {
-        setLoading(true);
-        const [userData, tripsData] = await Promise.all([
-          apiFetch({
-            endpoint: "/auth/me",
-            method: "GET",
-            cacheable: true,
-            credentials: "include",
-          }),
-          apiFetch({
-            endpoint: "/bookings/past",
-            method: "GET",
-            credentials: "include",
-          }),
-        ]);
-        setUser(userData);
-        setPastTrips(tripsData);
-
-        const userReviews = await apiFetch({
-          endpoint: "/auth/me",
-          method: "GET",
-          credentials: "include",
-        }).then((u) => u.reviews || []);
-        setReviews(userReviews);
-        setError("");
+        const res = await apiFetch("/auth/me");
+        const data = await res.json();
+        setUser(data);
+        setImagePreview(data.profileImage || null);
       } catch (err) {
-        setError(err.message || "Failed to load profile data.");
-        if (err.message.includes("401")) navigate("/");
+        setError("Failed to load profile.");
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
-  }, [navigate]);
-
-  const handleProfileUpdate = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    try {
-      const formData = new FormData();
-
-      formData.append("displayName", user.displayName);
-      formData.append("bio", user.bio);
-
-      if (imageFile) {
-        formData.append("profileImage", imageFile);
-      }
-
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        body: formData,
-        credentials: "include",
-      });
-
-      const data = await res.json();
-
-      setUser(data);
-    } catch (err) {
-      setError("Update failed");
-    }
-
-    setSubmitting(false);
-  };
-
-  const handleWriteReview = async (tripId) => {
-    // Placeholder: Implement review submission logic
-    console.log("Write review for trip:", tripId);
-    await apiFetch({
-      endpoint: `/bookings/${tripId}/reviewed`,
-      method: "PUT",
-      credentials: "include",
-    });
-    // setPastTrips(
-    //   pastTrips.map((t) => (t._id === tripId ? { ...t, reviewed: true } : t))
-    // );
-  };
-
-  const handleBookAgain = (propertyId) => {
-    navigate(`/property/${propertyId}`);
-  };
+    fetchUser();
+  }, []);
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
-
     setImageFile(file);
-
-    const preview = URL.createObjectURL(file);
-
-    setUser((prev) => ({
-      ...prev,
-      profileImage: preview,
-    }));
+    setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters({ ...filters, [name]: value });
-  };
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    setSuccess(false);
+    try {
+      const formData = new FormData();
+      formData.append("displayName", user.displayName || "");
+      formData.append("firstName", user.firstName || "");
+      formData.append("lastName", user.lastName || "");
+      formData.append("bio", user.bio || "");
+      formData.append("phoneNumber", user.phoneNumber || "");
+      if (imageFile) formData.append("profileImage", imageFile);
 
-  const filteredTrips = pastTrips.filter((trip) => {
-    const matchesLocation =
-      !filters.location ||
-      trip.property.location
-        .toLowerCase()
-        .includes(filters.location.toLowerCase());
-    const matchesDate =
-      !filters.date ||
-      new Date(trip.checkOut).toLocaleDateString().includes(filters.date);
-    const matchesPrice =
-      !filters.price || trip.totalPrice <= parseInt(filters.price);
-    return matchesLocation && matchesDate && matchesPrice;
-  });
-
-  const sortedReviews = [...reviews].sort((a, b) => {
-    if (sort === "recent") return new Date(b.createdAt) - new Date(a.createdAt);
-    return b.rating - a.rating; // Sort by stars
-  });
-
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
+      const res = await apiFetch("/profile", {
+        method: "PUT",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save");
+      setUser(data);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to save profile.");
+    } finally {
+      setSaving(false);
     }
-  }, [sidebarOpen]);
+  };
 
-  if (loading) {
-    return <VencomeLoader />;
-  }
-
-  if (error || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">{error || "User not found."}</div>
-        <button
-          onClick={() => navigate("/")}
-          className="mt-4 px-4 py-2 bg-primary text-white rounded-lg"
-        >
-          Back to Login
-        </button>
+  if (loading) return (
+    <DashboardLayout title="Profile">
+      <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
+        <Loader2 size={32} className="animate-spin" color="#2E58EC" />
       </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex">
-      {/* Mobile Menu Button - Fixed at top */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-18 right-4 z-50 p-2 bg-white rounded-lg shadow-lg hover:bg-gray-100 transition-colors"
-        aria-label="Toggle menu"
-      >
-        {sidebarOpen ? (
-          <X className="w-6 h-6 text-gray-700" />
-        ) : (
-          <Menu className="w-6 h-6 text-gray-700" />
-        )}
-      </button>
-      {/* MOBILE OVERLAY (shows only when sidebarOpen = true) */}
-      {sidebarOpen && (
-        <div
-          className="
-      fixed inset-0 bg-black/40 backdrop-blur-sm
-      z-30 lg:hidden
-      transition-opacity duration-300
-    "
-          onClick={() => setSidebarOpen(false)} // Clicking overlay closes sidebar
-        ></div>
-      )}
-      {/* SIDEBAR CONTAINER */}
-      <div
-        className={`
-    fixed lg:static inset-y-0 left-0 z-40
-    w-64 bg-white shadow-lg lg:shadow-none
-    transform transition-transform duration-300 ease-in-out
-    ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-    lg:translate-x-0
-  `}
-      >
-        <ProfileSidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-      <div className="flex-1 p-8 sm:p-6 lg:p-6 w-full">
-        {pathname === "/profile/about" && (
-          <div>
-            {error && <p className="text-red-500 mb-4">{error}</p>}
-            <form
-              onSubmit={handleProfileUpdate}
-              className="w-full flex flex-col md:flex-row gap-10"
-            >
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex flex-col items-center gap-3">
-                  <img
-                    src={user.profileImage}
-                    className="w-32 lg:w-64 h-32 lg:h-64 object-cover rounded-full"
-                  />
-
-                  {/* <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  /> */}
-                </div>
-              </div>
-              <div className="flex-1">
-                <h2 className="text-4xl">About</h2>
-                <p className="mb-6">
-                  Hosts and guests can see your profile and it may appear across
-                  VenCome to help us build trust in our community.
-                </p>
-                <Input
-                  label="Display Name"
-                  name="displayName"
-                  value={user.displayName || ""}
-                  onChange={handleChange}
-                />
-                <label>Bio</label>
-                <textarea
-                  label="Bio"
-                  name="bio"
-                  value={user.bio || ""}
-                  onChange={handleChange}
-                  className={`mt-1 p-2 w-full h-48 border rounded-lg focus:ring-primary focus:border-primary ${
-                    error ? "border-red-500" : "border-gray-300"
-                  }`}
-                ></textarea>
-                <IdentityVerification user={user} />
-                <Button
-                  type="submit"
-                  children={
-                    submitting ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg
-                          className="animate-spin h-5 w-5"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Saving...
-                      </span>
-                    ) : (
-                      "Save Changes"
-                    )
-                  }
-                />
-              </div>
-            </form>
-          </div>
-        )}
-        {pathname === "/profile/business-verification" && (
-          <BusinessVerification />
-        )}
-        {pathname === "/profile/past-trips" && (
-          <>
-            <div>
-              <h2 className="text-4xl">Past trips</h2>
-              <div className="flex gap-4 mb-4">
-                <Input
-                  label="Location"
-                  name="location"
-                  value={filters.location}
-                  onChange={handleFilterChange}
-                  classes="flex-1"
-                />
-                <Input
-                  label="Date"
-                  name="date"
-                  type="date"
-                  value={filters.date}
-                  onChange={handleFilterChange}
-                  classes="flex-1"
-                />
-                <Input
-                  label="Max Price"
-                  name="price"
-                  type="number"
-                  value={filters.price}
-                  onChange={handleFilterChange}
-                  classes="flex-1"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {filteredTrips.length > 0 ? (
-                filteredTrips.map((trip) => (
-                  <TripCard
-                    key={trip._id}
-                    trip={trip}
-                    onBookAgain={() => handleBookAgain(trip.property._id)}
-                  />
-                ))
-              ) : (
-                <p>No past booking</p>
-              )}
-            </div>
-          </>
-        )}
-
-        {pathname === "/profile/reviews" && (
-          <div>
-            <h2 className="text-4xl">Reviews</h2>
-
-            <div className="my-4">
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value)}
-                className="p-2 border rounded-lg"
-              >
-                <option value="recent">Most Recent</option>
-                <option value="stars">Highest Rated</option>
-              </select>
-            </div>
-            {sortedReviews.length > 0 ? (
-              sortedReviews.map((review) => (
-                <ReviewCard key={review._id} review={review} />
-              ))
-            ) : (
-              <p className="text-gray-500">No reviews yet.</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    </DashboardLayout>
   );
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setUser({ ...user, [name]: value });
-  }
-};
+  return (
+    <DashboardLayout title="Profile">
+      <div style={{ maxWidth: "640px" }}>
 
-export default Profile;
+        {/* Avatar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "36px" }}>
+          <div style={{ position: "relative" }}>
+            <div style={{
+              width: "96px", height: "96px", borderRadius: "50%",
+              background: "#E5E7EB", overflow: "hidden",
+              border: "3px solid #fff",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
+            }}>
+              {imagePreview ? (
+                <img src={imagePreview} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <div style={{
+                  width: "100%", height: "100%", display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  fontSize: "32px", fontWeight: "700", color: "#0A1628",
+                  background: "rgba(46,88,236,0.1)",
+                }}>
+                  {(user?.firstName?.[0] || user?.displayName?.[0] || "U").toUpperCase()}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                position: "absolute", bottom: 0, right: 0,
+                width: "28px", height: "28px", borderRadius: "50%",
+                background: "#0A1628", border: "2px solid #fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <Camera size={14} color="#fff" />
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
+          </div>
+          <div>
+            <p style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628" }}>
+              {user?.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Your Profile"}
+            </p>
+            <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "2px" }}>{user?.email}</p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{ fontSize: "13px", color: "#2E58EC", fontWeight: "600", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: "6px" }}
+            >
+              Change photo
+            </button>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+                First Name
+              </label>
+              <input
+                type="text"
+                value={user?.firstName || ""}
+                onChange={(e) => setUser(prev => ({ ...prev, firstName: e.target.value }))}
+                style={{
+                  width: "100%", padding: "12px 14px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", fontSize: "14px",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+                Last Name
+              </label>
+              <input
+                type="text"
+                value={user?.lastName || ""}
+                onChange={(e) => setUser(prev => ({ ...prev, lastName: e.target.value }))}
+                style={{
+                  width: "100%", padding: "12px 14px", borderRadius: "10px",
+                  border: "1.5px solid #E5E7EB", fontSize: "14px",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+              Display Name
+            </label>
+            <input
+              type="text"
+              value={user?.displayName || ""}
+              onChange={(e) => setUser(prev => ({ ...prev, displayName: e.target.value }))}
+              placeholder="How your name appears to guests"
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: "10px",
+                border: "1.5px solid #E5E7EB", fontSize: "14px",
+                outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={user?.email || ""}
+              disabled
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: "10px",
+                border: "1.5px solid #E5E7EB", fontSize: "14px",
+                background: "#F9FAFB", color: "#6B7280",
+                outline: "none", boxSizing: "border-box",
+              }}
+            />
+            <p style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "4px" }}>
+              Email cannot be changed here. Contact support.
+            </p>
+          </div>
+
+          <div>
+            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={user?.phoneNumber || ""}
+              onChange={(e) => setUser(prev => ({ ...prev, phoneNumber: e.target.value }))}
+              placeholder="+44 7700 900000"
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: "10px",
+                border: "1.5px solid #E5E7EB", fontSize: "14px",
+                outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+              Bio
+            </label>
+            <textarea
+              value={user?.bio || ""}
+              onChange={(e) => setUser(prev => ({ ...prev, bio: e.target.value }))}
+              placeholder="Tell guests a bit about yourself..."
+              rows={4}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: "10px",
+                border: "1.5px solid #E5E7EB", fontSize: "14px",
+                outline: "none", resize: "none", fontFamily: "inherit",
+                lineHeight: "1.6", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {error && (
+            <p style={{ color: "#EF4444", fontSize: "13px" }}>{error}</p>
+          )}
+
+          {success && (
+            <div style={{
+              padding: "12px 16px", borderRadius: "10px",
+              background: "#F0FDF4", border: "1px solid #86EFAC",
+              color: "#16A34A", fontSize: "14px", fontWeight: "600",
+            }}>
+              Profile saved successfully!
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: "14px 32px", borderRadius: "10px", border: "none",
+              background: saving ? "#9CA3AF" : "#2E58EC",
+              color: "#fff", fontSize: "15px", fontWeight: "600",
+              cursor: saving ? "not-allowed" : "pointer",
+              display: "inline-flex", alignItems: "center", gap: "8px",
+              alignSelf: "flex-start",
+            }}
+          >
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

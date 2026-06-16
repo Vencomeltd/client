@@ -65,6 +65,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Sitemap from "./pages/Sitemap";
 import MyReviews from "./pages/MyReviews";
 import SavedSpaces from "./pages/SavedSpaces";
+import Analytics from "./pages/Analytics";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -109,7 +110,9 @@ function AppContent() {
     location.pathname === "/privacy" ||
     location.pathname === "/terms-and-conditions" ||
     location.pathname === "/sitemap" ||
-    location.pathname === "/blogs";
+    location.pathname === "/blogs" ||
+    location.pathname.startsWith("/profile") ||
+    location.pathname.startsWith("/settings");
 
   return (
     <>
@@ -376,7 +379,7 @@ function AppContent() {
           path="/host/analytics"
           element={
             <PrivateRoute requireHost>
-              <Navigate to="/my-listings" replace />
+              <Analytics />
             </PrivateRoute>
           }
         />
