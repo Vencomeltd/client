@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -48,11 +48,11 @@ function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]"
   );
 }
 
-const MAIN_ITEMS = [
+const getMainItems = (pendingCount, unreadCount) => [
   { label: "Overview", path: "/dashboard", icon: LayoutDashboard },
-  { label: "My Bookings", path: "/dashboard/bookings", icon: CalendarDays, badge: 2 },
+  { label: "My Bookings", path: "/dashboard/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
   { label: "Saved Spaces", path: "/dashboard/saved", icon: Heart },
-  { label: "Messages", path: "/dashboard/messages", icon: MessageSquare, badge: 3 },
+  { label: "Messages", path: "/dashboard/messages", icon: MessageSquare, badge: unreadCount > 0 ? unreadCount : null },
   { label: "My Reviews", path: "/dashboard/reviews", icon: Star },
   { label: "Profile", path: "/dashboard/profile", icon: User },
   { label: "Settings", path: "/dashboard/settings", icon: Settings },
@@ -64,7 +64,7 @@ const HOSTING_ITEMS = [
   { label: "Analytics", path: "/host/analytics", icon: BarChart2 },
 ];
 
-function SidebarContent({ pathname, onNavigate }) {
+function SidebarContent({ pathname, onNavigate, mainItems }) {
   const currentUser = getUser();
   const displayName = getDisplayName(currentUser);
   const roleLabel = currentUser?.isHost ? "Host" : "Member";
@@ -142,7 +142,7 @@ function SidebarContent({ pathname, onNavigate }) {
       <div className="px-5 pb-2 pt-1 text-[10px] font-bold tracking-[0.15em] text-white/35">
         MAIN MENU
       </div>
-      <div className="space-y-1">{MAIN_ITEMS.map(renderItem)}</div>
+      <div className="space-y-1">{mainItems.map(renderItem)}</div>
 
       <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
         HOSTING
@@ -179,13 +179,48 @@ function SidebarContent({ pathname, onNavigate }) {
 export default function DashboardLayout({ children, title }) {
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
   const currentUser = getUser();
   const displayName = getDisplayName(currentUser);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const token = localStorage.getItem("vencome_token");
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}` };
+        const API = import.meta.env.VITE_API_URL;
+
+        const [unreadRes, pendingRes] = await Promise.all([
+          fetch(`${API}/messages/unread-count`, { headers }),
+          fetch(`${API}/bookings/pending-count`, { headers }),
+        ]);
+
+        if (unreadRes.ok) {
+          const data = await unreadRes.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+        if (pendingRes.ok) {
+          const data = await pendingRes.json();
+          setPendingCount(data.pendingCount || 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch sidebar counts:", err);
+      }
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const mainItems = getMainItems(pendingCount, unreadCount);
 
   return (
     <div className="flex min-h-screen bg-[#F8F6F0]">
       <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col overflow-y-auto bg-[#0A1628] pb-6 md:flex">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} mainItems={mainItems} />
       </aside>
 
       <AnimatePresence>
@@ -217,7 +252,11 @@ export default function DashboardLayout({ children, title }) {
                   <X size={18} />
                 </button>
               </div>
-              <SidebarContent pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+              <SidebarContent
+                pathname={pathname}
+                onNavigate={() => setMobileOpen(false)}
+                mainItems={mainItems}
+              />
             </motion.aside>
           </>
         ) : null}
