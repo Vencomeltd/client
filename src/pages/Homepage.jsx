@@ -49,17 +49,18 @@ const SECTION_REVEAL = {
 };
 
 const CATEGORY_ITEMS = [
-  { icon: Building2, label: "Office Space" },
-  { icon: BriefcaseBusiness, label: "Co-working" },
-  { icon: Presentation, label: "Meeting Rooms" },
-  { icon: PartyPopper, label: "Event Venues" },
-  { icon: ShoppingBag, label: "Retail" },
-  { icon: Warehouse, label: "Warehouse" },
-  { icon: Palette, label: "Studio Space" },
-  { icon: UtensilsCrossed, label: "Hospitality" },
-  { icon: Stethoscope, label: "Medical" },
-  { icon: GraduationCap, label: "Educational" },
-  { icon: Sparkles, label: "Other" },
+  { icon: Building2, label: "Office Space", active: false },
+  { icon: BriefcaseBusiness, label: "Co-working", active: false },
+  { icon: Presentation, label: "Meeting Rooms", active: false },
+  { icon: PartyPopper, label: "Event Venues", active: false },
+  { icon: ShoppingBag, label: "Retail", active: false },
+  { icon: Warehouse, label: "Warehouse", active: false },
+  { icon: Palette, label: "Studio Space", active: false },
+  { icon: UtensilsCrossed, label: "Hospitality", active: false },
+  { icon: Stethoscope, label: "Medical", active: true },
+  { icon: Sparkles, label: "Beauty & Cosmetics", active: true },
+  { icon: GraduationCap, label: "Educational", active: false },
+  { icon: Sparkles, label: "Other", active: false },
 ];
 
 const CITY_GROUPS = [
@@ -90,7 +91,7 @@ const HOW_IT_WORKS_STEPS = [
     icon: CalendarDays,
     title: "Book Instantly",
     description:
-      "Choose your dates and duration. Book instantly or send a request â€” your payment is held securely in escrow.",
+      "Choose your dates and duration. Book instantly or send a request — your payment is held securely in escrow.",
   },
   {
     number: "03",
@@ -115,7 +116,7 @@ const TRUST_SIGNALS = [
   {
     icon: Clock3,
     title: "Flexible Booking",
-    description: "Book by the hour, day, month, or year â€” on your terms.",
+    description: "Book by the hour, day, month, or year — on your terms.",
   },
   {
     icon: HeadphonesIcon,
@@ -319,6 +320,7 @@ function CategoryStrip() {
           <div className="no-scrollbar flex gap-3 overflow-x-auto pb-4 [scrollbar-width:none] md:gap-4">
             {CATEGORY_ITEMS.map((category) => {
               const Icon = category.icon;
+              const isActive = category.active;
               return (
               <motion.div
                 key={category.label}
@@ -329,12 +331,26 @@ function CategoryStrip() {
               >
                 <Link
                   to={buildSearchHref({ category: category.label })}
-                  className="flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 text-center transition duration-200 hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)] md:min-w-[120px] md:px-5"
+                  className={`flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border px-4 py-4 text-center transition duration-200 md:min-w-[120px] md:px-5 ${
+                    isActive
+                      ? "border-[#E5E7EB] bg-white hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)]"
+                      : "border-[#E5E7EB] bg-white opacity-50 grayscale hover:opacity-75"
+                  }`}
                 >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F4F7FF] text-[#305CDE]">
+                  <span
+                    className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                      isActive
+                        ? "bg-[#F4F7FF] text-[#305CDE]"
+                        : "bg-[#F3F4F6] text-[#9CA3AF]"
+                    }`}
+                  >
                     <Icon size={24} />
                   </span>
-                  <span className="text-[13px] font-semibold text-[#111827]">
+                  <span
+                    className={`text-[13px] font-semibold ${
+                      isActive ? "text-[#111827]" : "text-[#9CA3AF]"
+                    }`}
+                  >
                     {category.label}
                   </span>
                 </Link>
@@ -559,7 +575,7 @@ function BecomeAHost() {
                 to="/create-space"
                 className="text-sm text-white transition hover:underline"
               >
-                Learn how hosting works â†’
+                Learn how hosting works →
               </Link>
             </div>
           </div>
@@ -577,7 +593,7 @@ function BecomeAHost() {
               <TrendingUp size={16} />
             </span>
             <span className="text-sm font-semibold text-[#111827]">
-              Â£1,240 earned this month
+              £1,240 earned this month
             </span>
           </div>
         </div>
