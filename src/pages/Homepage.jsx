@@ -327,7 +327,19 @@ function CategoryStrip() {
         console.error("Failed to fetch categories:", err);
       }
     };
+
     fetchCategories();
+
+    // Re-fetch when the page is restored from the browser's
+    // back-forward cache (bfcache), since useEffect won't re-run
+    // on its own in that case and categories can be stuck empty.
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        fetchCategories();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
   }, []);
 
   return (
