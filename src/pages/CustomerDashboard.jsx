@@ -17,7 +17,7 @@ import {
   Settings as SettingsIcon,
   Building2,
 } from "lucide-react";
-import CustomerLayout from "../layouts/CustomerLayout";
+import DashboardLayout from "../layouts/DashboardLayout";
 import PropertyCard from "../components/PropertyCard";
 import { getUser } from "../utils/auth";
 
@@ -759,7 +759,7 @@ export default function CustomerDashboard({ section = "overview" }) {
   const resolvedSection = SECTION_TITLES[section] ? section : "overview";
 
   return (
-    <CustomerLayout title={SECTION_TITLES[resolvedSection]}>
+    <DashboardLayout title={SECTION_TITLES[resolvedSection]}>
       {resolvedSection === "overview" && (
         <OverviewSection
           displayName={displayName}
@@ -775,6 +775,6 @@ export default function CustomerDashboard({ section = "overview" }) {
       {resolvedSection === "reviews" && <ReviewsSection />}
       {resolvedSection === "profile" && <ProfileSection />}
       {resolvedSection === "settings" && <SettingsSection />}
-    </CustomerLayout>
+    </DashboardLayout>
   );
 }
