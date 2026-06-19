@@ -312,7 +312,22 @@ function CategoryStrip() {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/with-counts`);
         const data = await res.json();
-        setCategories(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+
+        // Pin Medical & Clinical and Beauty & Cosmetics to the middle of the strip
+        const PINNED_NAMES = ["Medical & Clinical", "Beauty & Cosmetics"];
+        const pinned = PINNED_NAMES
+          .map((name) => list.find((c) => c.name === name))
+          .filter(Boolean);
+        const rest = list.filter((c) => !PINNED_NAMES.includes(c.name));
+        const midpoint = Math.floor(rest.length / 2);
+        const reordered = [
+          ...rest.slice(0, midpoint),
+          ...pinned,
+          ...rest.slice(midpoint),
+        ];
+
+        setCategories(reordered);
       } catch (err) {
         console.error("Failed to fetch categories:", err);
       }
