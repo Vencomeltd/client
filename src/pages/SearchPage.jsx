@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -22,20 +22,6 @@ import {
 import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
-
-const CATEGORY_OPTIONS = [
-  "Office Space",
-  "Co-working",
-  "Meeting Rooms",
-  "Event Venues",
-  "Retail",
-  "Warehouse",
-  "Studio Space",
-  "Hospitality",
-  "Medical",
-  "Educational",
-  "Other",
-];
 
 const DURATION_OPTIONS = ["Any", "Hourly", "Daily", "Weekly", "Monthly", "Annual"];
 
@@ -96,6 +82,8 @@ export default function SearchPage() {
 
   const [selectedCity, setSelectedCity] = useState(initialCity);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [selectedSubcategory, setSelectedSubcategory] = useState("");
+  const [categories, setCategories] = useState([]);
   const [selectedDuration, setSelectedDuration] = useState("");
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(10000);
@@ -110,12 +98,26 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/categories`);
+        const data = await res.json();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   const fetchListings = async () => {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
       if (selectedCity) queryParams.set("location", selectedCity);
       if (selectedCategory) queryParams.set("category", selectedCategory);
+      if (selectedSubcategory) queryParams.set("subcategory", selectedSubcategory);
       if (minPrice > 0) queryParams.set("minPrice", minPrice);
       if (maxPrice < 10000) queryParams.set("maxPrice", maxPrice);
 
@@ -165,6 +167,7 @@ export default function SearchPage() {
     const nextCategory = searchParams.get("category") || "";
     setSelectedCity(nextCity);
     setSelectedCategory(nextCategory);
+    setSelectedSubcategory("");
     setSelectedDuration("");
     setMinPrice(0);
     setMaxPrice(10000);
@@ -179,6 +182,7 @@ export default function SearchPage() {
   }, [
     selectedCity,
     selectedCategory,
+    selectedSubcategory,
     selectedDuration,
     minPrice,
     maxPrice,
@@ -249,19 +253,29 @@ export default function SearchPage() {
   const filters = {
     selectedCity,
     selectedCategory,
+    selectedSubcategory,
     selectedDuration,
     minPrice,
     maxPrice,
     minCapacity,
     selectedAmenities,
     sortBy,
+    categories,
   };
 
   const handleFilterChange = (type, value) => {
     if (type === "toggle-category") {
-      setSelectedCategory((current) => (current === value ? "" : value));
-      return;
-    }
+    setSelectedCategory((current) => {
+      const next = current === value ? "" : value;
+      setSelectedSubcategory("");
+      return next;
+    });
+    return;
+  }
+  if (type === "toggle-subcategory") {
+    setSelectedSubcategory((current) => (current === value ? "" : value));
+    return;
+  }
 
     if (type === "set-duration") {
       setSelectedDuration(value);
@@ -673,11 +687,13 @@ export default function SearchPage() {
 function FilterSidebar({ filters, onChange, onClear, onApply }) {
   const {
     selectedCategory,
+    selectedSubcategory,
     selectedDuration,
     minPrice,
     maxPrice,
     minCapacity,
     selectedAmenities,
+    categories,
   } = filters;
 
   const minThumbPercent = (minPrice / 10000) * 100;
@@ -701,24 +717,57 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
           Space Type
         </p>
         <div className="flex flex-wrap gap-2">
-          {CATEGORY_OPTIONS.map((category) => {
-            const selected = selectedCategory === category;
+          {categories.map((category) => {
+            const selected = selectedCategory === category._id;
             return (
               <button
-                key={category}
+                key={category._id}
                 type="button"
-                onClick={() => onChange("toggle-category", category)}
+                onClick={() => onChange("toggle-category", category._id)}
                 className={`rounded-full border px-3.5 py-2 text-[13px] font-medium transition ${
                   selected
                     ? "border-[#0A1628] bg-[#0A1628] text-white"
                     : "border-[#E5E7EB] bg-white text-[#111827]"
                 }`}
               >
-                {category}
+                {category.name}
               </button>
             );
           })}
         </div>
+
+        {selectedCategory ? (() => {
+          const activeCategory = categories.find((c) => c._id === selectedCategory);
+          const subs = activeCategory?.subcategories || [];
+          if (subs.length === 0) return null;
+
+          return (
+            <div className="mt-4 border-t border-[#F3F4F6] pt-4">
+              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[1.2px] text-[#9CA3AF]">
+                Subcategory
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {subs.map((sub) => {
+                  const subSelected = selectedSubcategory === sub.name;
+                  return (
+                    <button
+                      key={sub._id || sub.name}
+                      type="button"
+                      onClick={() => onChange("toggle-subcategory", sub.name)}
+                      className={`rounded-full border px-3 py-1.5 text-[12px] font-medium transition ${
+                        subSelected
+                          ? "border-[#305CDE] bg-[#305CDE] text-white"
+                          : "border-[#E5E7EB] bg-white text-[#6B7280]"
+                      }`}
+                    >
+                      {sub.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })() : null}
       </div>
 
       <div className="border-t border-[#E5E7EB] pt-7">
