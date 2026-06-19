@@ -314,18 +314,13 @@ function CategoryStrip() {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
 
-        // Pin Medical & Clinical and Beauty & Cosmetics to the middle of the strip
+        // Pin Medical & Clinical and Beauty & Cosmetics to the front of the strip
         const PINNED_NAMES = ["Medical & Clinical", "Beauty & Cosmetics"];
         const pinned = PINNED_NAMES
           .map((name) => list.find((c) => c.name === name))
           .filter(Boolean);
         const rest = list.filter((c) => !PINNED_NAMES.includes(c.name));
-        const midpoint = Math.floor(rest.length / 2);
-        const reordered = [
-          ...rest.slice(0, midpoint),
-          ...pinned,
-          ...rest.slice(midpoint),
-        ];
+        const reordered = [...pinned, ...rest];
 
         setCategories(reordered);
       } catch (err) {
