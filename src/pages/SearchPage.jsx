@@ -74,7 +74,7 @@ const getPaginationItems = (currentPage, totalPages) => {
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 export default function SearchPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const resultsRef = useRef(null);
 
   const initialCity = searchParams.get("city") || searchParams.get("location") || "";
@@ -265,17 +265,39 @@ export default function SearchPage() {
 
   const handleFilterChange = (type, value) => {
     if (type === "toggle-category") {
-    setSelectedCategory((current) => {
-      const next = current === value ? "" : value;
-      setSelectedSubcategory("");
-      return next;
-    });
-    return;
-  }
-  if (type === "toggle-subcategory") {
-    setSelectedSubcategory((current) => (current === value ? "" : value));
-    return;
-  }
+      setSelectedCategory((current) => {
+        const next = current === value ? "" : value;
+        setSelectedSubcategory("");
+
+        const params = new URLSearchParams(searchParams);
+        if (next) {
+          params.set("category", next);
+        } else {
+          params.delete("category");
+        }
+        params.delete("subcategory");
+        setSearchParams(params);
+
+        return next;
+      });
+      return;
+    }
+    if (type === "toggle-subcategory") {
+      setSelectedSubcategory((current) => {
+        const next = current === value ? "" : value;
+
+        const params = new URLSearchParams(searchParams);
+        if (next) {
+          params.set("subcategory", next);
+        } else {
+          params.delete("subcategory");
+        }
+        setSearchParams(params);
+
+        return next;
+      });
+      return;
+    }
 
     if (type === "set-duration") {
       setSelectedDuration(value);
