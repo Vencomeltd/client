@@ -54,11 +54,11 @@ const CATEGORY_ITEMS = [
   { icon: Presentation, label: "Meeting Rooms", active: false },
   { icon: PartyPopper, label: "Event Venues", active: false },
   { icon: ShoppingBag, label: "Retail", active: false },
+  { icon: Stethoscope, label: "Medical", active: true },
+  { icon: Sparkles, label: "Beauty & Cosmetics", active: true },
   { icon: Warehouse, label: "Warehouse", active: false },
   { icon: Palette, label: "Studio Space", active: false },
   { icon: UtensilsCrossed, label: "Hospitality", active: false },
-  { icon: Stethoscope, label: "Medical", active: true },
-  { icon: Sparkles, label: "Beauty & Cosmetics", active: true },
   { icon: GraduationCap, label: "Educational", active: false },
   { icon: Sparkles, label: "Other", active: false },
 ];
@@ -321,6 +321,17 @@ function CategoryStrip() {
             {CATEGORY_ITEMS.map((category) => {
               const Icon = category.icon;
               const isActive = category.active;
+              const cardClasses = `flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border px-4 py-4 text-center transition duration-200 md:min-w-[120px] md:px-5 ${
+                isActive
+                  ? "border-[#E5E7EB] bg-white hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)] cursor-pointer"
+                  : "border-[#E5E7EB] bg-white opacity-50 grayscale cursor-not-allowed"
+              }`;
+              const iconWrapClasses = `flex h-11 w-11 items-center justify-center rounded-full ${
+                isActive ? "bg-[#F4F7FF] text-[#305CDE]" : "bg-[#F3F4F6] text-[#9CA3AF]"
+              }`;
+              const labelClasses = `text-[13px] font-semibold ${
+                isActive ? "text-[#111827]" : "text-[#9CA3AF]"
+              }`;
               return (
               <motion.div
                 key={category.label}
@@ -329,31 +340,28 @@ function CategoryStrip() {
                   show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
                 }}
               >
-                <Link
-                  to={buildSearchHref({ category: category.label })}
-                  className={`flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border px-4 py-4 text-center transition duration-200 md:min-w-[120px] md:px-5 ${
-                    isActive
-                      ? "border-[#E5E7EB] bg-white hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)]"
-                      : "border-[#E5E7EB] bg-white opacity-50 grayscale hover:opacity-75"
-                  }`}
-                >
-                  <span
-                    className={`flex h-11 w-11 items-center justify-center rounded-full ${
-                      isActive
-                        ? "bg-[#F4F7FF] text-[#305CDE]"
-                        : "bg-[#F3F4F6] text-[#9CA3AF]"
-                    }`}
+                {isActive ? (
+                  <Link
+                    to={buildSearchHref({ category: category.label })}
+                    className={cardClasses}
                   >
-                    <Icon size={24} />
-                  </span>
-                  <span
-                    className={`text-[13px] font-semibold ${
-                      isActive ? "text-[#111827]" : "text-[#9CA3AF]"
-                    }`}
+                    <span className={iconWrapClasses}>
+                      <Icon size={24} />
+                    </span>
+                    <span className={labelClasses}>{category.label}</span>
+                  </Link>
+                ) : (
+                  <div
+                    className={cardClasses}
+                    aria-disabled="true"
+                    title="Coming soon"
                   >
-                    {category.label}
-                  </span>
-                </Link>
+                    <span className={iconWrapClasses}>
+                      <Icon size={24} />
+                    </span>
+                    <span className={labelClasses}>{category.label}</span>
+                  </div>
+                )}
               </motion.div>
               );
             })}
