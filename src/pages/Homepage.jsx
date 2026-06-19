@@ -343,22 +343,13 @@ function CategoryStrip() {
   }, []);
 
   return (
-    <motion.section
-      {...SECTION_REVEAL}
-      className="bg-white py-7 md:py-10 lg:py-12"
-    >
+    <section className="bg-white py-7 md:py-10 lg:py-12">
       <div className="mx-auto max-w-[1440px] px-4 md:px-6">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#305CDE]">
           Browse by Category
         </p>
 
-        <motion.div
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04 } } }}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true }}
-          className="relative mt-6"
-        >
+        <div className="relative mt-6">
           <div className="no-scrollbar flex gap-3 overflow-x-auto pb-4 [scrollbar-width:none] md:gap-4">
             {categories.map((category) => {
               const Icon = CATEGORY_ICON_MAP[category.name] || Sparkles;
@@ -372,29 +363,23 @@ function CategoryStrip() {
                 ? buildSearchHref({ category: category._id })
                 : `/category-coming-soon/${encodeURIComponent(category.name)}`;
               return (
-              <motion.div
-                key={category._id}
-                variants={{
-                  hidden: { opacity: 0, y: 16 },
-                  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
-                }}
-              >
+                <div key={category._id}>
                 <Link to={linkTo} className={cardClasses}>
                   <span className={iconWrapClasses}>
                     <Icon size={24} />
                   </span>
                   <span className={labelClasses}>{category.name}</span>
                 </Link>
-              </motion.div>
+                </div>
               );
             })}
           </div>
 
           <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-white to-transparent" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white to-transparent" />
-        </motion.div>
+        </div>
       </div>
-    </motion.section>
+    </section>
   );
 }
 
