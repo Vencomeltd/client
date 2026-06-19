@@ -48,21 +48,6 @@ const SECTION_REVEAL = {
   transition: { duration: 0.6, ease: "easeOut" },
 };
 
-const CATEGORY_ITEMS = [
-  { icon: Building2, label: "Office Space", active: false },
-  { icon: BriefcaseBusiness, label: "Co-working", active: false },
-  { icon: Presentation, label: "Meeting Rooms", active: false },
-  { icon: PartyPopper, label: "Event Venues", active: false },
-  { icon: ShoppingBag, label: "Retail", active: false },
-  { icon: Stethoscope, label: "Medical", active: true },
-  { icon: Sparkles, label: "Beauty & Cosmetics", active: true },
-  { icon: Warehouse, label: "Warehouse", active: false },
-  { icon: Palette, label: "Studio Space", active: false },
-  { icon: UtensilsCrossed, label: "Hospitality", active: false },
-  { icon: GraduationCap, label: "Educational", active: false },
-  { icon: Sparkles, label: "Other", active: false },
-];
-
 const CITY_GROUPS = [
   {
     icon: Landmark,
@@ -136,6 +121,26 @@ const buildSearchHref = (params) => {
 
   const queryString = query.toString();
   return queryString ? `/search?${queryString}` : "/search";
+};
+
+const CATEGORY_ICON_MAP = {
+  "Office Space": Building2,
+  "Co-working & Flex Space": BriefcaseBusiness,
+  "Meeting & Conference Rooms": Presentation,
+  "Event Venues": PartyPopper,
+  "Retail & Showroom": ShoppingBag,
+  "Industrial & Warehouse": Warehouse,
+  "Studio Space": Palette,
+  "Hospitality & Leisure": UtensilsCrossed,
+  "Medical & Clinical": Stethoscope,
+  "Educational & Training": GraduationCap,
+  "Other / Custom": Sparkles,
+  "Beauty & Cosmetics": Sparkles,
+  "Fitness Spaces": Sparkles,
+  "Treatment Rooms": Stethoscope,
+  "Lab Rooms": Sparkles,
+  "Clean Rooms": Sparkles,
+  "Content Creator Space": Sparkles,
 };
 
 const getListingPrice = (listing) => {
@@ -300,6 +305,21 @@ function HeroSection() {
 }
 
 function CategoryStrip() {
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/with-counts`);
+        const data = await res.json();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   return (
     <motion.section
       {...SECTION_REVEAL}
@@ -318,20 +338,20 @@ function CategoryStrip() {
           className="relative mt-6"
         >
           <div className="no-scrollbar flex gap-3 overflow-x-auto pb-4 [scrollbar-width:none] md:gap-4">
-            {CATEGORY_ITEMS.map((category) => {
-              const Icon = category.icon;
-              const isActive = category.active;
+            {categories.map((category) => {
+              const Icon = CATEGORY_ICON_MAP[category.name] || Sparkles;
+              const isActive = category.hasListings;
               const cardClasses =
                 "flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 text-center transition duration-200 hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)] cursor-pointer md:min-w-[120px] md:px-5";
               const iconWrapClasses =
                 "flex h-11 w-11 items-center justify-center rounded-full bg-[#F4F7FF] text-[#305CDE]";
               const labelClasses = "text-[13px] font-semibold text-[#111827]";
               const linkTo = isActive
-                ? buildSearchHref({ category: category.label })
-                : `/category-coming-soon/${encodeURIComponent(category.label)}`;
+                ? buildSearchHref({ category: category._id })
+                : `/category-coming-soon/${encodeURIComponent(category.name)}`;
               return (
               <motion.div
-                key={category.label}
+                key={category._id}
                 variants={{
                   hidden: { opacity: 0, y: 16 },
                   show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
@@ -341,7 +361,7 @@ function CategoryStrip() {
                   <span className={iconWrapClasses}>
                     <Icon size={24} />
                   </span>
-                  <span className={labelClasses}>{category.label}</span>
+                  <span className={labelClasses}>{category.name}</span>
                 </Link>
               </motion.div>
               );
