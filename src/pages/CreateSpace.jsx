@@ -427,6 +427,8 @@ export default function CreateSpace() {
   const [validationError, setValidationError] = useState("");
   const [categories, setCategories] = useState([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
+  const [selectedSubcategoryNames, setSelectedSubcategoryNames] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
@@ -868,8 +870,8 @@ export default function CreateSpace() {
 
     // Step 1 — Category required
     if (step === 1) {
-      if (!form.category) {
-        setValidationError("Please select a category before continuing.");
+      if (selectedCategoryIds.length === 0) {
+        setValidationError("Please select at least one category before continuing.");
         return;
       }
     }
@@ -1011,6 +1013,14 @@ export default function CreateSpace() {
         formData.append("category", form.category);
       }
 
+      if (selectedCategoryIds.length > 0) {
+        formData.append("categories", JSON.stringify(selectedCategoryIds));
+      }
+
+      if (selectedSubcategoryNames.length > 0) {
+        formData.append("subcategories", JSON.stringify(selectedSubcategoryNames));
+      }
+
       if (form.images && form.images.length > 0) {
         form.images.forEach((image) => {
           if (image instanceof File) {
@@ -1095,15 +1105,26 @@ export default function CreateSpace() {
                       }}
                     >
                       {categories.filter(cat => cat.name !== 'Other / Custom').map((cat) => {
-                        const selected = form.category === cat._id;
+                        const selected = selectedCategoryIds.includes(cat._id);
                         return (
                           <button
                             key={cat._id}
                             type="button"
                             onClick={() => {
-                              updateField("category", cat._id);
-                              updateField("categoryName", cat.name);
-                              setSelectedSubcategory("");
+                              setSelectedCategoryIds((current) => {
+                                const isSelected = current.includes(cat._id);
+                                const next = isSelected
+                                  ? current.filter((id) => id !== cat._id)
+                                  : [...current, cat._id];
+
+                                updateField("category", next[0] || "");
+                                updateField(
+                                  "categoryName",
+                                  categories.find((c) => c._id === next[0])?.name || ""
+                                );
+
+                                return next;
+                              });
                             }}
                             style={{
                               borderRadius: 12,
@@ -1188,26 +1209,28 @@ export default function CreateSpace() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setSelectedSubcategory(sub.name);
-                                        updateField("subcategoryName", sub.name);
+                                        setSelectedSubcategoryNames((current) => {
+                                          const next = current.includes(sub.name)
+                                            ? current.filter((name) => name !== sub.name)
+                                            : [...current, sub.name];
+                                          updateField("subcategoryName", next[0] || "");
+                                          return next;
+                                        });
                                       }}
                                       style={{
                                         padding: "6px 12px",
                                         borderRadius: 9999,
                                         fontSize: 12,
                                         fontWeight: 500,
-                                        border:
-                                          selectedSubcategory === sub.name
-                                            ? "1.5px solid #0A1628"
-                                            : "1.5px solid #E5E7EB",
-                                        background:
-                                          selectedSubcategory === sub.name
-                                            ? "#0A1628"
-                                            : "white",
-                                        color:
-                                          selectedSubcategory === sub.name
-                                            ? "white"
-                                            : "#111827",
+                                        border: selectedSubcategoryNames.includes(sub.name)
+                                          ? "1.5px solid #0A1628"
+                                          : "1.5px solid #E5E7EB",
+                                        background: selectedSubcategoryNames.includes(sub.name)
+                                          ? "#0A1628"
+                                          : "white",
+                                        color: selectedSubcategoryNames.includes(sub.name)
+                                          ? "white"
+                                          : "#111827",
                                         cursor: "pointer",
                                       }}
                                     >
