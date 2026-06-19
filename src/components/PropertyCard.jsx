@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
@@ -85,6 +85,9 @@ const resolveListingData = ({
       source.location ??
       "Location unavailable",
     category: category ?? source.category ?? "Commercial Space",
+    categories: source.categories?.length > 0
+      ? source.categories.map((c) => c?.name || c).filter(Boolean)
+      : [],
     price: price ?? listingPrice.price ?? getLegacyPrice(source),
     priceUnit: priceUnit ?? listingPrice.unit ?? getLegacyPriceUnit(source),
     rating: rating ?? source.rating ?? 0,
@@ -296,9 +299,22 @@ export default function PropertyCard({
                 {listing.title}
               </h3>
 
-              <span className="mt-1.5 inline-block rounded-md bg-[rgba(10,22,40,0.06)] px-2 py-[3px] text-[11px] font-semibold tracking-[0.3px] text-[#0A1628]">
-                {listing.category}
-              </span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {listing.categories.length > 0 ? (
+                  listing.categories.map((catName) => (
+                    <span
+                      key={catName}
+                      className="inline-block rounded-md bg-[rgba(10,22,40,0.06)] px-2 py-[3px] text-[11px] font-semibold tracking-[0.3px] text-[#0A1628]"
+                    >
+                      {catName}
+                    </span>
+                  ))
+                ) : (
+                  <span className="inline-block rounded-md bg-[rgba(10,22,40,0.06)] px-2 py-[3px] text-[11px] font-semibold tracking-[0.3px] text-[#0A1628]">
+                    {listing.category}
+                  </span>
+                )}
+              </div>
 
               <p className="mt-2.5 text-left">
                 <span className="text-[16px] font-bold text-[#111827]">

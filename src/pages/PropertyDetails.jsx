@@ -1738,9 +1738,20 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
     <div className="border-b border-[#E5E7EB] pb-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white">
-            {property.category}
-          </span>
+          {property.categories && property.categories.length > 0 ? (
+            property.categories.map((cat) => (
+              <span
+                key={cat._id || cat}
+                className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white"
+              >
+                {cat.name || cat}
+              </span>
+            ))
+          ) : (
+            <span className="rounded-md bg-[#0A1628] px-2.5 py-1 text-[11px] font-semibold text-white">
+              {property.category}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
             {property.bookingTypeLabel}
           </span>

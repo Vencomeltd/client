@@ -9,6 +9,9 @@ export default function EditSpace() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successModal, setSuccessModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -214,6 +217,26 @@ export default function EditSpace() {
       alert(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete listing");
+      }
+      navigate("/host/listings");
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete listing. Please try again.");
+      setDeleting(false);
     }
   };
 
@@ -656,13 +679,13 @@ export default function EditSpace() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", paddingBottom: "40px" }}>
+        <div style={{ display: "flex", gap: "12px", justifyContent: "space-between", paddingBottom: "40px" }}>
           <button
-            onClick={() => navigate("/host/listings")}
+            onClick={() => setShowDeleteConfirm(true)}
             style={{
               background: "#fff",
-              color: "#0A1628",
-              border: "1.5px solid #E5E7EB",
+              color: "#DC2626",
+              border: "1.5px solid #FCA5A5",
               borderRadius: "10px",
               padding: "12px 24px",
               fontSize: "15px",
@@ -670,25 +693,115 @@ export default function EditSpace() {
               cursor: "pointer",
             }}
           >
-            Back to Listings
+            Delete Listing
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
+
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={() => navigate("/host/listings")}
+              style={{
+                background: "#fff",
+                color: "#0A1628",
+                border: "1.5px solid #E5E7EB",
+                borderRadius: "10px",
+                padding: "12px 24px",
+                fontSize: "15px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Back to Listings
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                background: saving ? "#9CA3AF" : "#0A1628",
+                color: "#fff",
+                border: "none",
+                borderRadius: "10px",
+                padding: "12px 24px",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+
+        {showDeleteConfirm ? (
+          <div
             style={{
-              background: saving ? "#9CA3AF" : "#0A1628",
-              color: "#fff",
-              border: "none",
-              borderRadius: "10px",
-              padding: "12px 24px",
-              fontSize: "15px",
-              fontWeight: "700",
-              cursor: saving ? "not-allowed" : "pointer",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(10,22,40,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              padding: "16px",
             }}
           >
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: "16px",
+                padding: "28px",
+                maxWidth: "420px",
+                width: "100%",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+              }}
+            >
+              <h2 style={{ fontSize: "20px", fontWeight: "800", color: "#0A1628", marginBottom: "10px" }}>
+                Delete this listing?
+              </h2>
+              <p style={{ fontSize: "14px", color: "#6B7280", lineHeight: "1.6", marginBottom: "20px" }}>
+                This will permanently remove the listing from VenCome. This action cannot be undone.
+              </p>
+              {deleteError ? (
+                <p style={{ fontSize: "13px", color: "#DC2626", marginBottom: "16px" }}>
+                  {deleteError}
+                </p>
+              ) : null}
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  style={{
+                    background: "#fff",
+                    color: "#0A1628",
+                    border: "1.5px solid #E5E7EB",
+                    borderRadius: "10px",
+                    padding: "12px 20px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: deleting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  style={{
+                    background: deleting ? "#FCA5A5" : "#DC2626",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "12px 20px",
+                    fontSize: "14px",
+                    fontWeight: "700",
+                    cursor: deleting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {deleting ? "Deleting..." : "Yes, Delete Permanently"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {successModal && (
           <div
