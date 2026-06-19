@@ -226,7 +226,13 @@ export default function SearchPage() {
   const activeTags = [
     ...(selectedCity ? [{ key: "city", label: selectedCity }] : []),
     ...(selectedCategory
-      ? [{ key: `category-${selectedCategory}`, label: selectedCategory }]
+      ? [{
+          key: `category-${selectedCategory}`,
+          label: categories.find((c) => c._id === selectedCategory)?.name || selectedCategory,
+        }]
+      : []),
+    ...(selectedSubcategory
+      ? [{ key: `subcategory-${selectedSubcategory}`, label: selectedSubcategory }]
       : []),
     ...(selectedDuration
       ? [{ key: "duration", label: selectedDuration }]

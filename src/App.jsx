@@ -67,6 +67,7 @@ import Sitemap from "./pages/Sitemap";
 import MyReviews from "./pages/MyReviews";
 import SavedSpaces from "./pages/SavedSpaces";
 import Analytics from "./pages/Analytics";
+import CategoryComingSoon from "./pages/CategoryComingSoon";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -131,6 +132,7 @@ function AppContent() {
         <Route path="/category/:id" element={<CategoryPage />} />
         <Route path="/host/:id" element={<HostProfile />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/category-coming-soon/:categoryName" element={<CategoryComingSoon />} />
         <Route path="/about" element={<About />} />
         <Route path="/careers" element={<Careers />} />
         <Route path="/press" element={<Press />} />
