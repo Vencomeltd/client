@@ -500,15 +500,28 @@ const hasBlockedDates = (startDate, endDate, unavailableSet) => {
   return false;
 };
 
-const getBookingMetrics = (tier, selectedDays) => {
-  if (!selectedDays || !tier) {
+const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
+  if (!tier) {
     return { units: 0, label: "", subtotal: 0 };
   }
 
   if (tier.unit === "hour") {
-    const units = selectedDays * 8;
-    return { units, label: `${units} hours`, subtotal: units * tier.price };
+    // Calculate actual hours from checkIn/checkOut timestamps
+    if (!checkIn || !checkOut) return { units: 0, label: "", subtotal: 0 };
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diffMs = end - start;
+    if (diffMs <= 0) return { units: 0, label: "", subtotal: 0 };
+    const hours = Math.max(1, diffMs / (1000 * 60 * 60));
+    const roundedHours = Math.round(hours * 10) / 10;
+    return {
+      units: roundedHours,
+      label: `${roundedHours} hour${roundedHours !== 1 ? "s" : ""}`,
+      subtotal: Math.round(roundedHours * tier.price * 100) / 100,
+    };
   }
+
+  if (!selectedDays) return { units: 0, label: "", subtotal: 0 };
 
   if (tier.unit === "day") {
     return {
@@ -952,8 +965,8 @@ export default function PropertyDetails() {
   }, [selectedStartDate, selectedEndDate]);
 
   const bookingMetrics = useMemo(
-    () => getBookingMetrics(selectedTier, selectedDays),
-    [selectedTier, selectedDays]
+    () => getBookingMetrics(selectedTier, selectedDays, checkIn, checkOut),
+    [selectedTier, selectedDays, checkIn, checkOut]
   );
 
   const cleaningFee = selectedDays ? 45 : 0;
