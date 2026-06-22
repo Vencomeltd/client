@@ -2949,7 +2949,7 @@ function BookingSidebar({
           marginBottom: "16px",
         }}
       >
-        Request to Book
+        Send Enquiry
       </button>
 
       <p style={{ fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>
