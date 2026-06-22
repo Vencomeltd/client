@@ -48,14 +48,14 @@ function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]"
   );
 }
 
-const getMainItems = (pendingCount, unreadCount) => [
-  { label: "Overview", path: "/dashboard", icon: LayoutDashboard },
-  { label: "My Bookings", path: "/dashboard/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
-  { label: "Saved Spaces", path: "/dashboard/saved", icon: Heart },
-  { label: "Messages", path: "/dashboard/messages", icon: MessageSquare, badge: unreadCount > 0 ? unreadCount : null },
-  { label: "My Reviews", path: "/dashboard/reviews", icon: Star },
-  { label: "Profile", path: "/dashboard/profile", icon: User },
-  { label: "Settings", path: "/dashboard/settings", icon: Settings },
+const getMainItems = (pendingCount, unreadCount, isHost) => [
+  { label: "Overview", path: isHost ? "/dashboard" : "/customer/dashboard", icon: LayoutDashboard },
+  { label: "My Bookings", path: isHost ? "/dashboard/bookings" : "/customer/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
+  { label: "Saved Spaces", path: isHost ? "/dashboard/saved" : "/customer/saved", icon: Heart },
+  { label: "Messages", path: isHost ? "/dashboard/messages" : "/customer/messages", icon: MessageSquare, badge: unreadCount > 0 ? unreadCount : null },
+  { label: "My Reviews", path: isHost ? "/dashboard/reviews" : "/customer/reviews", icon: Star },
+  { label: "Profile", path: isHost ? "/dashboard/profile" : "/customer/profile", icon: User },
+  { label: "Settings", path: isHost ? "/dashboard/settings" : "/customer/settings", icon: Settings },
 ];
 
 const HOSTING_ITEMS = [
@@ -219,7 +219,7 @@ export default function DashboardLayout({ children, title }) {
     return () => clearInterval(interval);
   }, []);
 
-  const mainItems = getMainItems(pendingCount, unreadCount);
+  const mainItems = getMainItems(pendingCount, unreadCount, currentUser?.isHost);
 
   return (
     <div className="flex min-h-screen bg-[#F8F6F0]">
