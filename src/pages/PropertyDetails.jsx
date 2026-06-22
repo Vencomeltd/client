@@ -1185,6 +1185,9 @@ export default function PropertyDetails() {
           formData.append("checkOut", checkOutISO);
           formData.append("guests", guests);
           formData.append("extras", JSON.stringify([]));
+          if (selectedTier?.unit) {
+            formData.append("pricingUnit", selectedTier.unit);
+          }
           const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },
