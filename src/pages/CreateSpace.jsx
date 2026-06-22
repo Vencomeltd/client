@@ -440,6 +440,11 @@ export default function CreateSpace() {
   });
   const [blockStart, setBlockStart] = useState(null);
   const [blockMode, setBlockMode] = useState("block");
+  const [quickBlockFrom, setQuickBlockFrom] = useState("");
+  const [quickBlockTo, setQuickBlockTo] = useState("");
+  const [recurringDay, setRecurringDay] = useState("");
+  const [recurringFrom, setRecurringFrom] = useState("");
+  const [recurringTo, setRecurringTo] = useState("");
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const mapContainerRef = useRef(null);
@@ -2589,32 +2594,6 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
-                  <div className={`${optionCardClassName} p-5`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className={sectionTitleClassName}>Booking Type</h3>
-                        <p className="mt-2 text-[14px] text-[#6B7280]">
-                          Let guests book instantly or approve requests manually.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateField("instantBook", !form.instantBook)
-                        }
-                        className={`relative h-7 w-14 rounded-full transition ${
-                          form.instantBook ? "bg-[#0A1628]" : "bg-[#E5E7EB]"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${
-                            form.instantBook ? "left-8" : "left-1"
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
                 </div>
               </div>
             ) : null}
@@ -2980,6 +2959,152 @@ export default function CreateSpace() {
                 />
 
                 <div>
+                  {/* ── Quick Block Tools ─────────────────────────── */}
+                  <div style={{
+                    background: "#F8F6F0",
+                    borderRadius: "12px",
+                    padding: "16px 20px",
+                    marginBottom: "20px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                  }}>
+                    <p style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
+                      Quick Block Options
+                    </p>
+
+                    {/* Block a date range */}
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "10px" }}>
+                      <div>
+                        <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>From</label>
+                        <input
+                          type="date"
+                          style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+                          value={quickBlockFrom}
+                          onChange={(e) => setQuickBlockFrom(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>To</label>
+                        <input
+                          type="date"
+                          style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+                          value={quickBlockTo}
+                          onChange={(e) => setQuickBlockTo(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!quickBlockFrom || !quickBlockTo) return;
+                          const from = new Date(quickBlockFrom);
+                          const to = new Date(quickBlockTo);
+                          if (to < from) return;
+                          const newBlocks = [];
+                          const cursor = new Date(from);
+                          while (cursor <= to) {
+                            const d = new Date(cursor);
+                            d.setHours(0, 0, 0, 0);
+                            const alreadyBlocked = (form.blockedDates || []).some((b) => {
+                              const bs = new Date(b.start);
+                              bs.setHours(0, 0, 0, 0);
+                              return bs.toDateString() === d.toDateString();
+                            });
+                            if (!alreadyBlocked) {
+                              newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "manual" });
+                            }
+                            cursor.setDate(cursor.getDate() + 1);
+                          }
+                          updateField("blockedDates", [...(form.blockedDates || []), ...newBlocks]);
+                          setQuickBlockFrom("");
+                          setQuickBlockTo("");
+                        }}
+                        style={{
+                          height: "36px", padding: "0 16px", borderRadius: "8px",
+                          background: "#0A1628", color: "#fff", border: "none",
+                          fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                        }}
+                      >
+                        Block Range
+                      </button>
+                    </div>
+
+                    {/* Block recurring day of week */}
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "10px" }}>
+                      <div>
+                        <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>Every</label>
+                        <select
+                          style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+                          value={recurringDay}
+                          onChange={(e) => setRecurringDay(e.target.value)}
+                        >
+                          <option value="">Select day</option>
+                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>From</label>
+                        <input
+                          type="date"
+                          style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+                          value={recurringFrom}
+                          onChange={(e) => setRecurringFrom(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>Until</label>
+                        <input
+                          type="date"
+                          style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+                          value={recurringTo}
+                          onChange={(e) => setRecurringTo(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!recurringDay || !recurringFrom || !recurringTo) return;
+                          const DAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 };
+                          const targetDay = DAY_INDEX[recurringDay];
+                          const from = new Date(recurringFrom);
+                          const to = new Date(recurringTo);
+                          if (to < from) return;
+                          const newBlocks = [];
+                          const cursor = new Date(from);
+                          while (cursor <= to) {
+                            if (cursor.getDay() === targetDay) {
+                              const d = new Date(cursor);
+                              d.setHours(0, 0, 0, 0);
+                              const alreadyBlocked = (form.blockedDates || []).some((b) => {
+                                const bs = new Date(b.start);
+                                bs.setHours(0, 0, 0, 0);
+                                return bs.toDateString() === d.toDateString();
+                              });
+                              if (!alreadyBlocked) {
+                                newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "manual" });
+                              }
+                            }
+                            cursor.setDate(cursor.getDate() + 1);
+                          }
+                          updateField("blockedDates", [...(form.blockedDates || []), ...newBlocks]);
+                          setRecurringDay("");
+                          setRecurringFrom("");
+                          setRecurringTo("");
+                        }}
+                        style={{
+                          height: "36px", padding: "0 16px", borderRadius: "8px",
+                          background: "#0A1628", color: "#fff", border: "none",
+                          fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                        }}
+                      >
+                        Block All {recurringDay || "Selected Day"}s
+                      </button>
+                    </div>
+                  </div>
+                  {/* ── End Quick Block Tools ─────────────────────── */}
+
                   <div style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
                     <button
                       type="button"
