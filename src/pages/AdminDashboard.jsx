@@ -823,7 +823,7 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
 
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-[#F8F6F0]">
-      <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col overflow-y-auto bg-[#0A1628] lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col bg-[#0A1628] lg:flex">
         <div className="p-5">
           <div className="flex items-center gap-3 text-white">
             <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/10 text-[#305CDE]">
