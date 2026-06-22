@@ -144,10 +144,14 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
       </div>
       <div className="space-y-1">{mainItems.map(renderItem)}</div>
 
-      <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
-        HOSTING
-      </div>
-      <div className="space-y-1">{HOSTING_ITEMS.map(renderItem)}</div>
+      {currentUser?.isHost ? (
+        <>
+          <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
+            HOSTING
+          </div>
+          <div className="space-y-1">{HOSTING_ITEMS.map(renderItem)}</div>
+        </>
+      ) : null}
 
       <div className="mt-auto px-5 pt-6">
         <div className="border-t border-white/10 pt-4">
