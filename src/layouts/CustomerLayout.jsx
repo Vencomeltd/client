@@ -49,9 +49,9 @@ function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]"
 
 const MAIN_ITEMS = [
   { label: "Overview", path: "/customer/dashboard", icon: LayoutDashboard },
-  { label: "My Bookings", path: "/customer/bookings", icon: CalendarDays, badge: 2 },
+  { label: "My Bookings", path: "/customer/bookings", icon: CalendarDays },
   { label: "Saved Spaces", path: "/customer/saved", icon: Heart },
-  { label: "Messages", path: "/customer/messages", icon: MessageSquare, badge: 3 },
+  { label: "Messages", path: "/customer/messages", icon: MessageSquare },
   { label: "My Reviews", path: "/customer/reviews", icon: Star },
   { label: "Profile", path: "/customer/profile", icon: User },
   { label: "Settings", path: "/customer/settings", icon: Settings },

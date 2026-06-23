@@ -196,6 +196,17 @@ export default function DashboardLayout({ children, title }) {
   const displayName = getDisplayName(currentUser);
 
   useEffect(() => {
+    const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
+    const messagePaths = ["/customer/messages", "/dashboard/messages"];
+    if (bookingPaths.some((p) => pathname.startsWith(p))) {
+      setPendingCount(0);
+    }
+    if (messagePaths.some((p) => pathname.startsWith(p))) {
+      setUnreadCount(0);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
     const fetchCounts = async () => {
       try {
         const token = localStorage.getItem("vencome_token");
