@@ -207,6 +207,9 @@ export default function DashboardLayout({ children, title }) {
   }, [pathname]);
 
   useEffect(() => {
+    const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
+    const messagePaths = ["/customer/messages", "/dashboard/messages"];
+
     const fetchCounts = async () => {
       try {
         const token = localStorage.getItem("vencome_token");
@@ -221,11 +224,17 @@ export default function DashboardLayout({ children, title }) {
 
         if (unreadRes.ok) {
           const data = await unreadRes.json();
-          setUnreadCount(data.unreadCount || 0);
+          const onMessagesPage = messagePaths.some((p) =>
+            window.location.pathname.startsWith(p)
+          );
+          if (!onMessagesPage) setUnreadCount(data.unreadCount || 0);
         }
         if (pendingRes.ok) {
           const data = await pendingRes.json();
-          setPendingCount(data.pendingCount || 0);
+          const onBookingsPage = bookingPaths.some((p) =>
+            window.location.pathname.startsWith(p)
+          );
+          if (!onBookingsPage) setPendingCount(data.pendingCount || 0);
         }
       } catch (err) {
         console.error("Failed to fetch sidebar counts:", err);
