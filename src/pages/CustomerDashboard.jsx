@@ -158,6 +158,24 @@ function DashboardSearch() {
 // ── OVERVIEW SECTION ──────────────────────────────────────────────────────────
 
 function OverviewSection({ displayName, bookings, savedListings, stats, loading }) {
+  const [listings, setListings] = useState([]);
+  const [loadingListings, setLoadingListings] = useState(true);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/properties?limit=8`);
+        const data = await res.json();
+        setListings(data.properties || []);
+      } catch (err) {
+        console.error("Failed to fetch listings:", err);
+      } finally {
+        setLoadingListings(false);
+      }
+    };
+    fetchListings();
+  }, []);
+
   const statCards = [
     { icon: CalendarDays, label: "Total Bookings", value: stats.totalBookings, sub: "All bookings" },
     { icon: Clock, label: "Upcoming", value: stats.upcomingBookings, sub: "Confirmed ahead" },
@@ -315,6 +333,37 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
                   <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
                 </div>
               </motion.div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Browse Spaces */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Popular Spaces</h2>
+          <Link
+            to="/search"
+            style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            View all <ArrowRight size={14} />
+          </Link>
+        </div>
+        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {loadingListings ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`listing-skeleton-${index}`} style={{ minWidth: 240, flexShrink: 0, height: 310, borderRadius: 18, background: "#F3F4F6" }} />
+            ))
+          ) : listings.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 16px", textAlign: "center", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", minWidth: "100%" }}>
+              <p style={{ fontSize: 16, fontWeight: 600, color: "#0A1628" }}>No spaces available yet</p>
+              <p style={{ fontSize: 14, color: "#6B7280", marginTop: 4 }}>Check back soon as more hosts join VenCome</p>
+            </div>
+          ) : (
+            listings.map((listing) => (
+              <div key={listing._id} style={{ minWidth: 240, flexShrink: 0 }}>
+                <PropertyCard {...getListingCardProps(listing)} property={listing} />
+              </div>
             ))
           )}
         </div>
