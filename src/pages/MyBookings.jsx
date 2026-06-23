@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { useDashboardBadge } from "../layouts/DashboardLayout";
 import ReviewModal from "../components/ReviewModal";
 
 const TABS = ["upcoming", "current", "past", "cancelled"];
@@ -115,6 +116,7 @@ function EmptyState({ tab }) {
 }
 
 export default function MyBookings() {
+  const { clearPendingCount } = useDashboardBadge();
   const [activeTab, setActiveTab] = useState("upcoming");
   const [prevTab, setPrevTab] = useState("upcoming");
   const [query, setQuery] = useState("");
@@ -126,6 +128,7 @@ export default function MyBookings() {
 
   useEffect(() => {
     const fetchBookings = async () => {
+      clearPendingCount();
       try {
         const currentUser = JSON.parse(localStorage.getItem("vencome_user") || "{}");
         const token = localStorage.getItem("vencome_token");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -47,6 +47,13 @@ function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]"
     </div>
   );
 }
+
+export const DashboardBadgeContext = createContext({
+  clearPendingCount: () => {},
+  clearUnreadCount: () => {},
+});
+
+export const useDashboardBadge = () => useContext(DashboardBadgeContext);
 
 const getMainItems = (pendingCount, unreadCount, isHost) => [
   { label: "Overview", path: isHost ? "/dashboard" : "/customer/dashboard", icon: LayoutDashboard },
@@ -221,7 +228,13 @@ export default function DashboardLayout({ children, title }) {
 
   const mainItems = getMainItems(pendingCount, unreadCount, currentUser?.isHost);
 
+  const badgeContextValue = {
+    clearPendingCount: () => setPendingCount(0),
+    clearUnreadCount: () => setUnreadCount(0),
+  };
+
   return (
+    <DashboardBadgeContext.Provider value={badgeContextValue}>
     <div className="flex min-h-screen bg-[#F8F6F0]">
       <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col overflow-y-auto bg-[#0A1628] pb-6 md:flex">
         <SidebarContent pathname={pathname} mainItems={mainItems} />
@@ -303,5 +316,6 @@ export default function DashboardLayout({ children, title }) {
         </motion.main>
       </div>
     </div>
+    </DashboardBadgeContext.Provider>
   );
 }
