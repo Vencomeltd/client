@@ -229,9 +229,10 @@ export default function DashboardLayout({ children, title }) {
           const seenAt = parseInt(localStorage.getItem("vencome_bookings_seen_at") || "0");
           const lastKnown = parseInt(localStorage.getItem("vencome_bookings_last_count") || "0");
           if (newCount > lastKnown) {
+            const diff = newCount - lastKnown;
             localStorage.removeItem("vencome_bookings_seen_at");
             localStorage.setItem("vencome_bookings_last_count", newCount.toString());
-            setPendingCount(newCount);
+            setPendingCount(diff);
           } else if (!seenAt) {
             setPendingCount(newCount);
           }
@@ -243,9 +244,10 @@ export default function DashboardLayout({ children, title }) {
           const seenAt = parseInt(localStorage.getItem("vencome_messages_seen_at") || "0");
           const lastKnown = parseInt(localStorage.getItem("vencome_messages_last_count") || "0");
           if (newCount > lastKnown) {
+            const diff = newCount - lastKnown;
             localStorage.removeItem("vencome_messages_seen_at");
             localStorage.setItem("vencome_messages_last_count", newCount.toString());
-            setUnreadCount(newCount);
+            setUnreadCount(diff);
           } else if (!seenAt) {
             setUnreadCount(newCount);
           }
