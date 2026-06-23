@@ -244,7 +244,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
             style={{
               fontSize: 13,
               fontWeight: 600,
-              color: "#C9A84C",
+              color: "#2E58EC",
               textDecoration: "none",
               display: "inline-flex",
               alignItems: "center",
@@ -330,7 +330,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
                   <p style={{ fontSize: 16, fontWeight: 700, color: "#0A1628" }}>{formatCurrency(booking.totalPrice)}</p>
                   <StatusBadge status={booking.status} />
-                  <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
+                  <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>View Details</Link>
                 </div>
               </motion.div>
             ))
@@ -344,7 +344,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Popular Spaces</h2>
           <Link
             to="/search"
-            style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+            style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
           >
             View all <ArrowRight size={14} />
           </Link>
@@ -378,7 +378,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
             style={{
               fontSize: 13,
               fontWeight: 600,
-              color: "#C9A84C",
+              color: "#2E58EC",
               textDecoration: "none",
               display: "inline-flex",
               alignItems: "center",
@@ -545,12 +545,12 @@ function BookingsSection({ bookings, loading }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8F6F0", padding: "12px 20px", flexWrap: "wrap", gap: 12 }}>
                 <p style={{ fontSize: 12, color: "#6B7280" }}>Ref: {booking.bookingReference || booking._id}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>View Details</Link>
+                  <Link to="/customer/bookings" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>View Details</Link>
                   {getBookingTab(booking) === "upcoming" && (
                     <Link to="/customer/messages" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>Message Host</Link>
                   )}
                   {getBookingTab(booking) === "past" && !booking.hasReview && (
-                    <Link to="/customer/reviews" style={{ fontSize: 13, fontWeight: 600, color: "#C9A84C", textDecoration: "none" }}>Leave a Review</Link>
+                    <Link to="/customer/reviews" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>Leave a Review</Link>
                   )}
                   {getBookingTab(booking) === "past" && (
                     <Link to="/search" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", textDecoration: "none" }}>Book Again</Link>
@@ -577,7 +577,7 @@ function SavedSection({ savedListings, loading }) {
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: "#C9A84C",
+            color: "#2E58EC",
             textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
@@ -666,7 +666,7 @@ function ProfileSection() {
           {firstName || lastName ? `${firstName} ${lastName}`.trim() : email}
         </p>
         <p style={{ fontSize: 14, color: "#6B7280", marginTop: 4 }}>{email}</p>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(201,168,76,0.15)", border: "1px solid rgba(201,168,76,0.3)", color: "#C9A84C", borderRadius: 9999, padding: "4px 12px", fontSize: 10, fontWeight: 700, marginTop: 12 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(201,168,76,0.15)", border: "1px solid rgba(201,168,76,0.3)", color: "#2E58EC", borderRadius: 9999, padding: "4px 12px", fontSize: 10, fontWeight: 700, marginTop: 12 }}>
           <Check size={12} /> Verified Customer
         </span>
       </div>
