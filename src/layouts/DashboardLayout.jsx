@@ -198,17 +198,6 @@ export default function DashboardLayout({ children, title }) {
   useEffect(() => {
     const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
     const messagePaths = ["/customer/messages", "/dashboard/messages"];
-    if (bookingPaths.some((p) => pathname.startsWith(p))) {
-      setPendingCount(0);
-    }
-    if (messagePaths.some((p) => pathname.startsWith(p))) {
-      setUnreadCount(0);
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
-    const messagePaths = ["/customer/messages", "/dashboard/messages"];
 
     const fetchCounts = async () => {
       try {
@@ -244,7 +233,7 @@ export default function DashboardLayout({ children, title }) {
     fetchCounts();
     const interval = setInterval(fetchCounts, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [pathname]);
 
   const mainItems = getMainItems(pendingCount, unreadCount, currentUser?.isHost);
 
