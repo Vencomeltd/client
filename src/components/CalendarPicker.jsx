@@ -16,7 +16,7 @@ const toDateTimeStr = (date, time) => `${toDateStr(date)}T${time}`;
 const startOfDay = (date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-const generateTimes = () => {
+const ALL_TIMES = (() => {
   const times = [];
   for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += 30) {
@@ -26,9 +26,13 @@ const generateTimes = () => {
     }
   }
   return times;
-};
+})();
 
-const TIMES = generateTimes();
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
 
 export default function CalendarPicker({
   value,
@@ -37,6 +41,8 @@ export default function CalendarPicker({
   isHourly = false,
   minDate = null,
   placeholder = "Select date",
+  openTime = null,
+  closeTime = null,
 }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
@@ -293,25 +299,43 @@ export default function CalendarPicker({
               </div>
 
               <div style={{ maxHeight: "200px", overflowY: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", paddingRight: "4px" }}>
-                {TIMES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => handleTimeSelect(t)}
-                    style={{
-                      padding: "8px",
-                      borderRadius: "8px",
-                      border: selectedTime === t ? "2px solid #2E58EC" : "1px solid #E5E7EB",
-                      background: selectedTime === t ? "rgba(46,88,236,0.08)" : "#fff",
-                      color: selectedTime === t ? "#2E58EC" : "#374151",
-                      fontSize: "13px",
-                      fontWeight: selectedTime === t ? "700" : "400",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {ALL_TIMES.map((t) => {
+                  const tMin = timeToMinutes(t);
+                  const openMin = openTime ? timeToMinutes(openTime) : 0;
+                  const closeMin = closeTime ? timeToMinutes(closeTime) : 23 * 60 + 30;
+                  const isRestricted = openTime && closeTime && (tMin < openMin || tMin > closeMin);
+                  const isSelected = selectedTime === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => !isRestricted && handleTimeSelect(t)}
+                      disabled={isRestricted}
+                      title={isRestricted ? `Available ${openTime} - ${closeTime} only` : ""}
+                      style={{
+                        padding: "8px",
+                        borderRadius: "8px",
+                        border: isSelected ? "2px solid #2E58EC" : "1px solid #E5E7EB",
+                        background: isRestricted
+                          ? "#F3F4F6"
+                          : isSelected
+                          ? "rgba(46,88,236,0.08)"
+                          : "#fff",
+                        color: isRestricted
+                          ? "#D1D5DB"
+                          : isSelected
+                          ? "#2E58EC"
+                          : "#374151",
+                        fontSize: "13px",
+                        fontWeight: isSelected ? "700" : "400",
+                        cursor: isRestricted ? "not-allowed" : "pointer",
+                        textDecoration: isRestricted ? "line-through" : "none",
+                      }}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
               </div>
 
               <button

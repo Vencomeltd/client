@@ -2586,6 +2586,8 @@ function BookingSidebar({
               onChange={onCheckInChange}
               isHourly={selectedDurationType === "hourly"}
               placeholder={selectedDurationType === "hourly" ? "Select start date & time" : "Select check-in date"}
+              openTime={property?.availability?.openTime || null}
+              closeTime={property?.availability?.closeTime || null}
             />
           </div>
           <div style={{ marginTop: "12px" }}>
@@ -2598,6 +2600,8 @@ function BookingSidebar({
               isHourly={selectedDurationType === "hourly"}
               minDate={checkIn || undefined}
               placeholder={selectedDurationType === "hourly" ? "Select end date & time" : "Select check-out date"}
+              openTime={property?.availability?.openTime || null}
+              closeTime={property?.availability?.closeTime || null}
             />
           </div>
         </div>
