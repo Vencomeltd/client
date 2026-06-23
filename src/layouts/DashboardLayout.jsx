@@ -199,6 +199,18 @@ export default function DashboardLayout({ children, title }) {
     const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
     const messagePaths = ["/customer/messages", "/dashboard/messages"];
 
+    const onBookingsPage = bookingPaths.some((p) => pathname.startsWith(p));
+    const onMessagesPage = messagePaths.some((p) => pathname.startsWith(p));
+
+    if (onBookingsPage) {
+      localStorage.setItem("vencome_bookings_seen_at", Date.now().toString());
+      setPendingCount(0);
+    }
+    if (onMessagesPage) {
+      localStorage.setItem("vencome_messages_seen_at", Date.now().toString());
+      setUnreadCount(0);
+    }
+
     const fetchCounts = async () => {
       try {
         const token = localStorage.getItem("vencome_token");
@@ -211,19 +223,32 @@ export default function DashboardLayout({ children, title }) {
           fetch(`${API}/bookings/pending-count`, { headers }),
         ]);
 
-        if (unreadRes.ok) {
-          const data = await unreadRes.json();
-          const onMessagesPage = messagePaths.some((p) =>
-            window.location.pathname.startsWith(p)
-          );
-          if (!onMessagesPage) setUnreadCount(data.unreadCount || 0);
-        }
         if (pendingRes.ok) {
           const data = await pendingRes.json();
-          const onBookingsPage = bookingPaths.some((p) =>
-            window.location.pathname.startsWith(p)
-          );
-          if (!onBookingsPage) setPendingCount(data.pendingCount || 0);
+          const newCount = data.pendingCount || 0;
+          const seenAt = parseInt(localStorage.getItem("vencome_bookings_seen_at") || "0");
+          const lastKnown = parseInt(localStorage.getItem("vencome_bookings_last_count") || "0");
+          if (newCount > lastKnown) {
+            localStorage.removeItem("vencome_bookings_seen_at");
+            localStorage.setItem("vencome_bookings_last_count", newCount.toString());
+            setPendingCount(newCount);
+          } else if (!seenAt) {
+            setPendingCount(newCount);
+          }
+        }
+
+        if (unreadRes.ok) {
+          const data = await unreadRes.json();
+          const newCount = data.unreadCount || 0;
+          const seenAt = parseInt(localStorage.getItem("vencome_messages_seen_at") || "0");
+          const lastKnown = parseInt(localStorage.getItem("vencome_messages_last_count") || "0");
+          if (newCount > lastKnown) {
+            localStorage.removeItem("vencome_messages_seen_at");
+            localStorage.setItem("vencome_messages_last_count", newCount.toString());
+            setUnreadCount(newCount);
+          } else if (!seenAt) {
+            setUnreadCount(newCount);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch sidebar counts:", err);
