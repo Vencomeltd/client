@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -77,7 +77,7 @@ export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const resultsRef = useRef(null);
 
-  const initialCity = searchParams.get("city") || searchParams.get("location") || "";
+  const initialCity = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
   const initialCategory = searchParams.get("category") || "";
 
   const [selectedCity, setSelectedCity] = useState(initialCity);
@@ -115,7 +115,7 @@ export default function SearchPage() {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
-      if (selectedCity) queryParams.set("location", selectedCity);
+      if (selectedCity) queryParams.set("query", selectedCity);
       if (selectedCategory) queryParams.set("category", selectedCategory);
       if (selectedSubcategory) queryParams.set("subcategory", selectedSubcategory);
       if (minPrice > 0) queryParams.set("minPrice", minPrice);

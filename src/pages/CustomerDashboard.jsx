@@ -112,7 +112,7 @@ function DashboardSearch() {
 
   const handleSearch = () => {
     if (query.trim()) {
-      navigate(`/search?location=${encodeURIComponent(query)}`);
+      navigate(`/search?query=${encodeURIComponent(query)}`);
     } else {
       navigate("/search");
     }
