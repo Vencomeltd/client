@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -72,6 +72,186 @@ const getPaginationItems = (currentPage, totalPages) => {
 };
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+function useGoogleMaps() {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (window.google?.maps) {
+      setLoaded(true);
+      return;
+    }
+
+    const existing = document.querySelector("script[data-gmaps]");
+    if (existing) {
+      existing.addEventListener("load", () => setLoaded(true));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`;
+    script.async = true;
+    script.dataset.gmaps = "true";
+    script.onload = () => setLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  return loaded;
+}
+
+function PropertyMap({ listings }) {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+  const infoWindowRef = useRef(null);
+  const mapsLoaded = useGoogleMaps();
+
+  useEffect(() => {
+    if (!mapsLoaded || !mapRef.current) return;
+
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+        zoom: 11,
+        center: { lat: 51.505, lng: -0.09 },
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        styles: [
+          { featureType: "poi", stylers: [{ visibility: "off" }] },
+          { featureType: "transit", stylers: [{ visibility: "off" }] },
+        ],
+      });
+      infoWindowRef.current = new window.google.maps.InfoWindow();
+    }
+
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = [];
+
+    const bounds = new window.google.maps.LatLngBounds();
+    let hasValidCoords = false;
+
+    listings.forEach((listing) => {
+      const lat = listing.coordinates?.latitude;
+      const lng = listing.coordinates?.longitude;
+      if (!lat || !lng) return;
+
+      hasValidCoords = true;
+      const position = { lat: Number(lat), lng: Number(lng) };
+      bounds.extend(position);
+
+      const price =
+        listing.pricing?.hourly ??
+        listing.pricing?.hourlyPrice ??
+        listing.pricing?.daily ??
+        listing.pricing?.weekdayPrice ??
+        0;
+      const priceLabel = price > 0 ? `£${price}/hr` : "POA";
+
+      const marker = new window.google.maps.Marker({
+        position,
+        map: mapInstanceRef.current,
+        label: {
+          text: priceLabel,
+          color: "#ffffff",
+          fontSize: "11px",
+          fontWeight: "700",
+        },
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 0,
+        },
+        title: listing.title,
+      });
+
+      const overlay = new window.google.maps.OverlayView();
+      overlay.onAdd = function () {
+        const div = document.createElement("div");
+        div.style.cssText = `
+          position: absolute;
+          background: #0A1628;
+          color: white;
+          padding: 5px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+          transform: translate(-50%, -100%);
+          font-family: sans-serif;
+        `;
+        div.textContent = priceLabel;
+        div.addEventListener("click", () => {
+          const image = listing.coverImage
+            ? `<img src="${listing.coverImage}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+            : "";
+          const content = `
+            <div style="width:200px;font-family:sans-serif;">
+              ${image}
+              <p style="font-size:13px;font-weight:700;color:#0A1628;margin:0 0 4px;">${listing.title}</p>
+              <p style="font-size:12px;color:#6B7280;margin:0 0 8px;">${listing.location?.city || ""}, ${listing.location?.country || ""}</p>
+              <a href="/property/${listing._id}" style="font-size:12px;font-weight:600;color:#2E58EC;text-decoration:none;">View Listing →</a>
+            </div>
+          `;
+          infoWindowRef.current.setContent(content);
+          infoWindowRef.current.setPosition(position);
+          infoWindowRef.current.open(mapInstanceRef.current);
+        });
+        this.getPanes().overlayMouseTarget.appendChild(div);
+        this._div = div;
+      };
+      overlay.draw = function () {
+        const proj = this.getProjection();
+        if (!proj) return;
+        const point = proj.fromLatLngToDivPixel(
+          new window.google.maps.LatLng(position.lat, position.lng)
+        );
+        if (point) {
+          this._div.style.left = `${point.x}px`;
+          this._div.style.top = `${point.y}px`;
+        }
+      };
+      overlay.onRemove = function () {
+        if (this._div) {
+          this._div.parentNode.removeChild(this._div);
+          this._div = null;
+        }
+      };
+      overlay.setMap(mapInstanceRef.current);
+      markersRef.current.push(overlay);
+      marker.setMap(mapInstanceRef.current);
+    });
+
+    if (hasValidCoords && listings.length > 1) {
+      mapInstanceRef.current.fitBounds(bounds);
+    } else if (hasValidCoords) {
+      mapInstanceRef.current.setCenter(bounds.getCenter());
+      mapInstanceRef.current.setZoom(14);
+    }
+  }, [mapsLoaded, listings]);
+
+  return (
+    <div style={{ width: "100%", height: "100%", borderRadius: 16, overflow: "hidden" }}>
+      {!mapsLoaded && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            background: "#F3F4F6",
+          }}
+        >
+          <p style={{ color: "#6B7280", fontSize: 14 }}>Loading map...</p>
+        </div>
+      )}
+      <div
+        ref={mapRef}
+        style={{ width: "100%", height: "100%", display: mapsLoaded ? "block" : "none" }}
+      />
+    </div>
+  );
+}
 
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -516,17 +696,11 @@ export default function SearchPage() {
               {showMap ? (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 400 }}
+                  animate={{ opacity: 1, height: 420 }}
                   exit={{ opacity: 0, height: 0 }}
                   className="mb-6 overflow-hidden rounded-2xl border border-[#E5E7EB]"
                 >
-                  <div className="flex h-full flex-col items-center justify-center bg-[#0A1628] px-6 text-center text-white">
-                    <Map size={34} className="mb-3 text-[#305CDE]" />
-                    <h3 className="text-xl font-semibold">Interactive Map</h3>
-                    <p className="mt-2 text-sm text-white/70">
-                      Google Maps integration — coming in backend phase
-                    </p>
-                  </div>
+                  <PropertyMap listings={filteredResults} />
                 </motion.div>
               ) : null}
             </AnimatePresence>
