@@ -44,11 +44,12 @@ function StatusBadge({ status }) {
   );
 }
 
-function SmallButton({ children, gold = false, danger = false }) {
+function SmallButton({ children, gold = false, danger = false, onClick }) {
   if (danger) {
     return (
       <button
         type="button"
+        onClick={onClick}
         className="text-[13px] font-medium text-[#DC2626] transition hover:underline"
       >
         {children}
@@ -59,6 +60,7 @@ function SmallButton({ children, gold = false, danger = false }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-medium transition ${
         gold
           ? "bg-[#305CDE] text-white hover:bg-[#254FC7]"
@@ -125,6 +127,38 @@ export default function MyBookings() {
   const [allBookings, setAllBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reviewBooking, setReviewBooking] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const handleViewDetails = (booking) => {
+    setSelectedBooking(booking);
+  };
+
+  const handleMessageHost = (booking) => {
+    window.location.href = `/customer/messages`;
+  };
+
+  const handleCancel = async (booking) => {
+    if (!window.confirm("Are you sure you want to cancel this booking? This action cannot be undone.")) return;
+    setCancellingId(booking.id);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${booking.id}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        setAllBookings((prev) => prev.map((b) => b.id === booking.id ? { ...b, status: "Cancelled", tab: "cancelled" } : b));
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to cancel booking");
+      }
+    } catch (e) {
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -204,6 +238,10 @@ export default function MyBookings() {
             canMessage: true,
             hasReview: b.reviewed || false,
             refundStatus: b.refund?.amount ? `Refunded £${b.refund.amount}` : "",
+            propertyId: b.property?._id || b.property || "",
+            hostId: b.property?.host?._id || b.property?.host || "",
+            conversationId: b.conversationId || "",
+            rawBooking: b,
           };
         });
 
@@ -400,12 +438,12 @@ export default function MyBookings() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex min-w-[120px] flex-1 sm:flex-none">
-                      <SmallButton>View Details</SmallButton>
+                      <SmallButton onClick={() => handleViewDetails(booking)}>View Details</SmallButton>
                     </div>
 
                     {booking.canMessage ? (
                       <div className="flex min-w-[120px] flex-1 sm:flex-none">
-                      <SmallButton>
+                      <SmallButton onClick={() => handleMessageHost(booking)}>
                         <MessageSquare size={14} />
                         {booking.isHost ? "Message Guest" : "Message Host"}
                       </SmallButton>
@@ -414,13 +452,17 @@ export default function MyBookings() {
 
                     {booking.status === "Confirmed" && booking.tab === "upcoming" ? (
                       <div className="flex min-w-[120px] flex-1 sm:flex-none">
-                        <SmallButton danger>Cancel Booking</SmallButton>
+                        <SmallButton danger onClick={() => handleCancel(booking)}>
+                          {cancellingId === booking.id ? "Cancelling..." : "Cancel Booking"}
+                        </SmallButton>
                       </div>
                     ) : null}
 
                     {booking.status === "Pending Approval" ? (
                       <div className="flex min-w-[120px] flex-1 sm:flex-none">
-                        <SmallButton danger>Cancel Request</SmallButton>
+                        <SmallButton danger onClick={() => handleCancel(booking)}>
+                          {cancellingId === booking.id ? "Cancelling..." : "Cancel Request"}
+                        </SmallButton>
                       </div>
                     ) : null}
 
@@ -481,6 +523,62 @@ export default function MyBookings() {
           )}
         </motion.div>
       </AnimatePresence>
+      {selectedBooking && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", maxWidth: "520px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628" }}>Booking Details</h2>
+              <button onClick={() => setSelectedBooking(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6B7280" }}>×</button>
+            </div>
+            <img src={selectedBooking.image} alt={selectedBooking.space} style={{ width: "100%", height: "180px", objectFit: "cover", borderRadius: "12px", marginBottom: "20px" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Space</p>
+                <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginTop: "4px" }}>{selectedBooking.space}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Location</p>
+                <p style={{ fontSize: "14px", color: "#374151", marginTop: "4px" }}>{selectedBooking.location}</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Check In</p>
+                  <p style={{ fontSize: "14px", color: "#374151", marginTop: "4px" }}>{selectedBooking.checkIn}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Check Out</p>
+                  <p style={{ fontSize: "14px", color: "#374151", marginTop: "4px" }}>{selectedBooking.checkOut}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Duration</p>
+                  <p style={{ fontSize: "14px", color: "#374151", marginTop: "4px" }}>{selectedBooking.durationLabel}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Status</p>
+                  <p style={{ fontSize: "14px", marginTop: "4px" }}><StatusBadge status={selectedBooking.status} /></p>
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Host</p>
+                <p style={{ fontSize: "14px", color: "#374151", marginTop: "4px" }}>{selectedBooking.host}</p>
+              </div>
+              <div style={{ background: "#F8F6F0", borderRadius: "12px", padding: "16px", marginTop: "4px" }}>
+                <p style={{ fontSize: "11px", fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>Total Paid</p>
+                <p style={{ fontSize: "24px", fontWeight: "800", color: "#0A1628", marginTop: "4px" }}>{formatPrice(selectedBooking.price)}</p>
+              </div>
+              <p style={{ fontSize: "12px", color: "#9CA3AF" }}>Ref: {selectedBooking.bookingRef}</p>
+            </div>
+            <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+              <button onClick={() => setSelectedBooking(null)} style={{ flex: 1, padding: "14px", borderRadius: "10px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>Close</button>
+              {selectedBooking.propertyId && (
+                <button onClick={() => window.location.href = `/property/${selectedBooking.propertyId}`} style={{ flex: 1, padding: "14px", borderRadius: "10px", border: "none", background: "#0A1628", color: "#fff", fontSize: "15px", fontWeight: "600", cursor: "pointer" }}>View Property</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {reviewBooking && (
         <ReviewModal
           booking={reviewBooking}
