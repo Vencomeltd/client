@@ -113,10 +113,21 @@ export function AuthProvider({ children }) {
 
   // Google login
   const googleLogin = async (token) => {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(window.atob(base64));
+
     const data = await apiFetch({
       endpoint: "/auth/google",
       method: "POST",
-      body: { token },
+      body: {
+        token,
+        email: payload.email,
+        firstName: payload.given_name,
+        lastName: payload.family_name,
+        picture: payload.picture,
+        googleId: payload.sub,
+      },
     });
 
     if (data?.token) {

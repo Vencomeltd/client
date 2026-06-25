@@ -471,11 +471,24 @@ export default function LoginPage({ mode = "login" }) {
                           setIsLoading(true);
                           setEmailError("");
                           try {
+                            // Decode the JWT payload to extract user info
+                            const base64Url =
+                              credentialResponse.credential.split(".")[1];
+                            const base64 = base64Url
+                              .replace(/-/g, "+")
+                              .replace(/_/g, "/");
+                            const payload = JSON.parse(window.atob(base64));
+
                             const res = await fetch(`${API}/auth/google`, {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
                                 token: credentialResponse.credential,
+                                email: payload.email,
+                                firstName: payload.given_name,
+                                lastName: payload.family_name,
+                                picture: payload.picture,
+                                googleId: payload.sub,
                                 role,
                                 isHost: role === "host",
                               }),
