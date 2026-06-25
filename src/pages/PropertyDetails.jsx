@@ -622,6 +622,7 @@ export default function PropertyDetails() {
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [similarSpaces, setSimilarSpaces] = useState([]);
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
+  const [bookedDates, setBookedDates] = useState([]);
   const [enquiryMessage, setEnquiryMessage] = useState("");
   const [enquiryLoading, setEnquiryLoading] = useState(false);
   const [enquiryError, setEnquiryError] = useState(null);
@@ -734,10 +735,17 @@ export default function PropertyDetails() {
   useEffect(() => {
     const fetchProperty = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`);
-        if (!response.ok) throw new Error("Property not found");
-        const data = await response.json();
+        const [propRes, bookingsRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`),
+          fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`),
+        ]);
+        if (!propRes.ok) throw new Error("Property not found");
+        const data = await propRes.json();
         setProperty(data.property || data);
+        if (bookingsRes.ok) {
+          const bookingData = await bookingsRes.json();
+          setBookedDates(bookingData.bookedDates || []);
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -954,8 +962,16 @@ export default function PropertyDetails() {
         cursor.setDate(cursor.getDate() + 1);
       }
     });
+    bookedDates.forEach(({ start, end }) => {
+      const cursor = new Date(start);
+      const endDate = new Date(end);
+      while (cursor <= endDate) {
+        set.add(new Date(cursor).toDateString());
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
     return set;
-  }, [property]);
+  }, [property, bookedDates]);
 
   const calendarDays = useMemo(() => createMonthDays(visibleMonth), [visibleMonth]);
 
