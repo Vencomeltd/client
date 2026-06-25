@@ -757,6 +757,23 @@ export default function PropertyDetails() {
   }, [id]);
 
   useEffect(() => {
+    const intent = localStorage.getItem("vencome_booking_intent");
+    if (!intent || !property) return;
+    try {
+      const saved = JSON.parse(intent);
+      if (saved.propertyId !== property._id) return;
+      if (saved.checkIn) setCheckIn(saved.checkIn);
+      if (saved.checkOut) setCheckOut(saved.checkOut);
+      if (saved.guests) setGuests(saved.guests);
+      if (saved.bookingMode) setBookingMode(saved.bookingMode);
+      if (saved.selectedDurationType) setSelectedDurationType(saved.selectedDurationType);
+      localStorage.removeItem("vencome_booking_intent");
+    } catch (e) {
+      localStorage.removeItem("vencome_booking_intent");
+    }
+  }, [property]);
+
+  useEffect(() => {
     if (!property) return;
 
     const lat = property?.coordinates?.lat || property?.coordinates?.latitude;
@@ -1133,6 +1150,14 @@ export default function PropertyDetails() {
     try {
       const token = localStorage.getItem("vencome_token");
       if (!token) {
+        localStorage.setItem("vencome_booking_intent", JSON.stringify({
+          propertyId: property._id,
+          checkIn,
+          checkOut,
+          guests,
+          bookingMode,
+          selectedDurationType,
+        }));
         window.location.href = "/login";
         return;
       }
@@ -1254,6 +1279,14 @@ export default function PropertyDetails() {
   const handleEnquiry = async () => {
     const token = localStorage.getItem("vencome_token");
     if (!token) {
+      localStorage.setItem("vencome_booking_intent", JSON.stringify({
+        propertyId: property._id,
+        checkIn,
+        checkOut,
+        guests,
+        bookingMode,
+        selectedDurationType,
+      }));
       window.location.href = "/login";
       return;
     }

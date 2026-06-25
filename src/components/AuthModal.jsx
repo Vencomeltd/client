@@ -364,6 +364,7 @@ export default function AuthModal({ isOpen, onClose, redirectTo = "/" }) {
 
                     <div style={{ fontSize: 22, fontWeight: 700, color: COLORS.navy, textAlign: "center", marginBottom: 8 }}>Check your email</div>
                     <div style={{ fontSize: 14, color: COLORS.grey, textAlign: "center" }}>We sent a 6-digit code to</div>
+                    <div style={{ fontSize: 12, color: COLORS.grey, textAlign: "center", marginTop: 8 }}>Can't find it? Check your junk or spam folder.</div>
                     <div style={{ fontSize: 14, color: COLORS.navy, fontWeight: 700, textAlign: "center", marginTop: 6 }}>{email}</div>
 
                     <div style={{ display: "flex", gap: 10, justifyContent: "center", margin: "24px 0" }}>

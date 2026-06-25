@@ -620,6 +620,16 @@ export default function LoginPage({ mode = "login" }) {
                   </div>
                   <div
                     style={{
+                      fontSize: 12,
+                      color: COLORS.grey,
+                      textAlign: "center",
+                      marginTop: 8,
+                    }}
+                  >
+                    Can't find it? Check your junk or spam folder.
+                  </div>
+                  <div
+                    style={{
                       fontSize: 14,
                       color: COLORS.navy,
                       fontWeight: 700,

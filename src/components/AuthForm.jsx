@@ -392,6 +392,9 @@ const AuthForm = ({ onForgotPassword, onSuccess }) => {
               <p className="text-xs text-gray-500">
                 The code will expire in 10 minutes
               </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Can't find it? Check your junk or spam folder.
+              </p>
             </div>
 
             <OTPInput email={email} onVerify={handleVerifyOTP} />
