@@ -1147,12 +1147,24 @@ function UserMenuItem({ icon: Icon, label, danger = false, onClick }) {
 }
 
 function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading, chartData = [], categoryData = [], liveDisputes = [] }) {
-  const activeChartData = chartData.length > 0 ? chartData : MOCK_CHART_DATA;
+  const [chartRange, setChartRange] = useState("1Y");
+  const filterChartData = (data, range) => {
+    if (!data.length) return data;
+    const now = new Date();
+    const cutoffs = { "7D": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365 };
+    const days = cutoffs[range] || 365;
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    return data.filter((item) => {
+      if (!item.date) return true;
+      return new Date(item.date) >= cutoff;
+    });
+  };
+  const activeChartData = filterChartData(chartData.length > 0 ? chartData : MOCK_CHART_DATA, chartRange);
   const activeCategoryData = categoryData.length > 0 ? categoryData.map(c => ({ ...c, percent: Math.round((c.count / Math.max(1, categoryData.reduce((s, x) => s + x.count, 0))) * 100) })) : MOCK_CATEGORY_DATA;
   const totalRevenue = activeChartData.reduce((sum, item) => sum + item.revenue, 0);
   const totalBookings = activeChartData.reduce((sum, item) => sum + item.bookings, 0);
   const avgMonthRevenue = Math.round(totalRevenue / Math.max(1, activeChartData.length));
-  const activeDisputes = liveDisputes.length > 0 ? liveDisputes : MOCK_DISPUTES.filter((item) => item.status !== "resolved");
+  const activeDisputes = liveDisputes;
   const totalUsersCount = useCountUp(stats.totalUsers);
   const totalListingsCount = useCountUp(stats.totalListings);
   const pendingListingsCount = useCountUp(stats.pendingListings);
@@ -1220,12 +1232,13 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
           <div className="mb-5 flex items-center justify-between gap-4">
             <h3 className="text-[16px] font-bold text-[#0A1628]">Bookings & Revenue</h3>
             <div className="flex items-center gap-2">
-              {["7D", "1M", "3M", "6M", "1Y"].map((range, index) => (
+              {["7D", "1M", "3M", "6M", "1Y"].map((range) => (
                 <button
                   key={range}
                   type="button"
+                  onClick={() => setChartRange(range)}
                   className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold ${
-                    index === 4
+                    chartRange === range
                       ? "bg-[#0A1628] text-white"
                       : "border border-[#E5E7EB] bg-white text-[#6B7280]"
                   }`}
