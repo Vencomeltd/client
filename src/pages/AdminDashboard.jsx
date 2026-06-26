@@ -503,6 +503,12 @@ const NAV_ITEMS = [
     icon: Megaphone,
   },
   {
+    label: "Content & Blog",
+    section: "content",
+    group: "PLATFORM",
+    icon: MessageSquare,
+  },
+  {
     label: "Settings",
     section: "settings",
     group: "PLATFORM",
@@ -521,6 +527,7 @@ const SECTION_TITLES = {
   commission: "Commission",
   markets: "Markets",
   broadcast: "Broadcast",
+  content: "Content & Blog",
   settings: "Settings",
 };
 
@@ -823,7 +830,7 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
 
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-[#F8F6F0]">
-      <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col bg-[#0A1628] lg:flex">
+      <aside className="fixed top-0 left-0 hidden h-screen w-[240px] shrink-0 flex-col bg-[#0A1628] lg:flex overflow-y-auto">
         <div className="p-5">
           <div className="flex items-center gap-3 text-white">
             <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/10 text-[#305CDE]">
@@ -839,13 +846,11 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
           <div className="my-4 border-t border-white/10" />
 
           <div className="flex items-center gap-3">
-            <img
-              src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=60&q=80"
-              alt="Admin User"
-              className="h-9 w-9 rounded-full object-cover"
-            />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(48,92,222,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <User size={18} color="#305CDE" />
+            </div>
             <div>
-              <p className="text-[13px] font-semibold text-white">Admin User</p>
+              <p className="text-[13px] font-semibold text-white">Admin</p>
               <p className="text-[11px] text-white/50">Super Admin</p>
             </div>
           </div>
@@ -912,7 +917,7 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col bg-[#F8F6F0]">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#F8F6F0] lg:ml-[240px]">
         <header className="flex min-h-[60px] flex-col gap-3 border-b border-[#E5E7EB] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-0">
           <h1 className="text-[16px] font-bold text-[#0A1628] sm:text-[17px]">
             {SECTION_TITLES[activeSection]}
@@ -937,11 +942,9 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#EF4444]" />
             </button>
 
-            <img
-              src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=60&q=80"
-              alt="Admin User"
-              className="h-8 w-8 rounded-full object-cover"
-            />
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(10,22,40,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <User size={16} color="#0A1628" />
+            </div>
           </div>
         </header>
 
