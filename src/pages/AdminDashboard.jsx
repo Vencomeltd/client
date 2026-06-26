@@ -1998,7 +1998,7 @@ function BookingsSection({ bookings, loading }) {
                       </p>
                       <p className="text-[12px] text-[#6B7280]">{booking.property?.location?.city || ""}</p>
                     </td>
-                    <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getUserName(booking.customer)}</td>
+                    <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getUserName(booking.guest)}</td>
                     <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getUserName(booking.host)}</td>
                     <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkIn)}</td>
                     <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkOut)}</td>
