@@ -1109,10 +1109,12 @@ function UserMenuItem({ icon: Icon, label, danger = false, onClick }) {
   );
 }
 
-function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading }) {
-  const totalRevenue = MOCK_CHART_DATA.reduce((sum, item) => sum + item.revenue, 0);
-  const totalBookings = MOCK_CHART_DATA.reduce((sum, item) => sum + item.bookings, 0);
-  const avgMonthRevenue = Math.round(totalRevenue / MOCK_CHART_DATA.length);
+function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading, chartData = [], categoryData = [] }) {
+  const activeChartData = chartData.length > 0 ? chartData : MOCK_CHART_DATA;
+  const activeCategoryData = categoryData.length > 0 ? categoryData.map(c => ({ ...c, percent: Math.round((c.count / Math.max(1, categoryData.reduce((s, x) => s + x.count, 0))) * 100) })) : MOCK_CATEGORY_DATA;
+  const totalRevenue = activeChartData.reduce((sum, item) => sum + item.revenue, 0);
+  const totalBookings = activeChartData.reduce((sum, item) => sum + item.bookings, 0);
+  const avgMonthRevenue = Math.round(totalRevenue / Math.max(1, activeChartData.length));
   const activeDisputes = MOCK_DISPUTES.filter((item) => item.status !== "resolved");
   const totalUsersCount = useCountUp(stats.totalUsers);
   const totalListingsCount = useCountUp(stats.totalListings);
@@ -1197,7 +1199,7 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
             </div>
           </div>
 
-          <BarChart data={MOCK_CHART_DATA} />
+          <BarChart data={activeChartData} />
 
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[12px] text-[#6B7280]">
             <span className="inline-flex items-center gap-2">
@@ -1219,7 +1221,7 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
 
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6">
           <h3 className="mb-5 text-[16px] font-bold text-[#0A1628]">Listings by Category</h3>
-          <HorizontalBars data={MOCK_CATEGORY_DATA} />
+          <HorizontalBars data={activeCategoryData} />
         </div>
       </div>
 
@@ -2796,6 +2798,8 @@ export default function AdminDashboard() {
     activeUsers: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState([]);
+  const [categoryData, setCategoryData] = useState([]);
 
   const [moderationQueue, setModerationQueue] = useState([]);
   const [listingQueueFilter, setListingQueueFilter] = useState("all");
@@ -2857,10 +2861,11 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes, bookingsRes] = await Promise.all([
+        const [usersRes, listingsRes, bookingsRes, analyticsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
         ]);
 
         if (usersRes.ok) {
@@ -2916,6 +2921,20 @@ export default function AdminDashboard() {
           }));
         }
 
+        if (analyticsRes.ok) {
+          const analyticsData = await analyticsRes.json();
+          if (analyticsData.chartData?.length) setChartData(analyticsData.chartData);
+          if (analyticsData.categoryData?.length) {
+            setCategoryData(
+              analyticsData.categoryData.map((c, i) => ({
+                category: c.name,
+                count: c.count,
+                percent: 0,
+              }))
+            );
+          }
+        }
+
       } catch (err) {
         console.error("Admin dashboard fetch error:", err);
       } finally {
@@ -2963,6 +2982,8 @@ export default function AdminDashboard() {
         setReviewOpenId={setReviewOpenId}
         stats={stats}
         loading={loading}
+        chartData={chartData}
+        categoryData={categoryData}
       />
     );
   } else if (activeSection === "users") {
