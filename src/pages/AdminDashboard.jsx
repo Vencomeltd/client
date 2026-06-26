@@ -1916,16 +1916,103 @@ function ListingsSection({
 }
 
 function BookingsSection({ bookings, loading }) {
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const filtered = bookings.filter((b) => {
+    if (statusFilter === "all") return true;
+    return b.status === statusFilter;
+  });
+
+  const getUserName = (user) =>
+    user?.displayName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "—";
+
   return (
     <>
-      <div className="mb-5">
-        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Bookings</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">Latest booking activity across the platform</p>
+      <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Bookings</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">All bookings across the platform</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {["all", "pending", "confirmed", "completed", "cancelled"].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={`rounded-full px-4 py-2 text-[13px] font-medium ${
+                statusFilter === s
+                  ? "bg-[#0A1628] text-white"
+                  : "border border-[#E5E7EB] bg-white text-[#111827]"
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
-        <div style={{ textAlign: "center", padding: "40px 0", color: "#6B7280" }}>
-          <p>Bookings overview coming soon</p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F8F6F0]">
+                {["Ref", "Property", "Customer", "Host", "Check In", "Check Out", "Total", "Status"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                Array.from({ length: 5 }, (_, i) => (
+                  <tr key={i} className="border-b border-[#F3F4F6]">
+                    {Array.from({ length: 8 }, (_, j) => (
+                      <td key={j} className="px-4 py-3.5">
+                        <div className="h-4 w-full rounded-full bg-[#F3F4F6]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-[14px] text-[#6B7280]">
+                    No bookings found
+                  </td>
+                </tr>
+              ) : (
+                filtered.slice(0, 20).map((booking, index) => (
+                  <motion.tr
+                    key={booking._id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.03 }}
+                    className="border-b border-[#F3F4F6] transition hover:bg-[#FAFAFA]"
+                  >
+                    <td className="px-4 py-3.5 font-mono text-[12px] text-[#6B7280]">
+                      {booking._id?.toString().slice(-8).toUpperCase()}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <p className="max-w-[180px] truncate text-[13px] font-semibold text-[#0A1628]">
+                        {booking.property?.title || "—"}
+                      </p>
+                      <p className="text-[12px] text-[#6B7280]">{booking.property?.location?.city || ""}</p>
+                    </td>
+                    <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getUserName(booking.customer)}</td>
+                    <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getUserName(booking.host)}</td>
+                    <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkIn)}</td>
+                    <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkOut)}</td>
+                    <td className="px-4 py-3.5 text-[13px] font-bold text-[#0A1628]">
+                      {formatCurrency(booking.totalPrice || 0)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusPill status={booking.status} type="booking" />
+                    </td>
+                  </motion.tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </>
@@ -2770,9 +2857,10 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes] = await Promise.all([
+        const [usersRes, listingsRes, bookingsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
         ]);
 
         if (usersRes.ok) {
@@ -2813,6 +2901,19 @@ export default function AdminDashboard() {
                 flags: [],
               }))
           );
+        }
+
+        if (bookingsRes.ok) {
+          const bookingsData = await bookingsRes.json();
+          const allBookings = bookingsData.bookings || [];
+          setBookings(allBookings);
+          setStats((prev) => ({
+            ...prev,
+            totalBookings: bookingsData.total || allBookings.length,
+            totalRevenue: allBookings
+              .filter((b) => b.status === "confirmed" || b.status === "completed")
+              .reduce((sum, b) => sum + (b.totalPrice || 0), 0),
+          }));
         }
 
       } catch (err) {
