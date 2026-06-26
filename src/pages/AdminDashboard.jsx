@@ -984,32 +984,69 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
 }
 
 function BarChart({ data }) {
-  const maxRevenue = Math.max(...data.map((item) => item.revenue));
-  const maxBookings = Math.max(...data.map((item) => item.bookings));
+  const maxRevenue = Math.max(...data.map((item) => item.revenue), 1);
+  const maxBookings = Math.max(...data.map((item) => item.bookings), 1);
+  const height = 180;
+  const width = 520;
+  const padding = { top: 16, right: 16, bottom: 28, left: 48 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+  const points = data.length;
+
+  const revenuePoints = data.map((item, i) => {
+    const x = padding.left + (i / Math.max(points - 1, 1)) * innerW;
+    const y = padding.top + innerH - (item.revenue / maxRevenue) * innerH;
+    return `${x},${y}`;
+  }).join(" ");
+
+  const bookingPoints = data.map((item, i) => {
+    const x = padding.left + (i / Math.max(points - 1, 1)) * innerW;
+    const y = padding.top + innerH - (item.bookings / maxBookings) * innerH;
+    return `${x},${y}`;
+  }).join(" ");
+
+  const revenueAreaPoints = [
+    `${padding.left},${padding.top + innerH}`,
+    ...data.map((item, i) => {
+      const x = padding.left + (i / Math.max(points - 1, 1)) * innerW;
+      const y = padding.top + innerH - (item.revenue / maxRevenue) * innerH;
+      return `${x},${y}`;
+    }),
+    `${padding.left + innerW},${padding.top + innerH}`,
+  ].join(" ");
 
   return (
-    <div className="flex h-[160px] min-w-[520px] items-end gap-3 px-2 md:h-[200px]">
-      {data.map((item, index) => (
-        <div key={item.month} className="flex flex-1 flex-col items-center gap-1.5">
-          <div className="flex w-full items-end gap-[3px]">
-            <motion.div
-              initial={{ height: 0 }}
-              whileInView={{ height: `${(item.revenue / maxRevenue) * 160}px` }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: index * 0.08, ease: "easeOut" }}
-              className="min-h-1 flex-1 rounded-t-[4px] bg-[#0A1628]"
-            />
-            <motion.div
-              initial={{ height: 0 }}
-              whileInView={{ height: `${(item.bookings / maxBookings) * 160}px` }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: index * 0.08 + 0.1, ease: "easeOut" }}
-              className="min-h-1 flex-1 rounded-t-[4px] bg-[#305CDE]"
-            />
-          </div>
-          <span className="text-[11px] text-[#6B7280]">{item.month}</span>
-        </div>
-      ))}
+    <div style={{ overflowX: "auto" }}>
+      <svg width={width} height={height} style={{ minWidth: width }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+          const y = padding.top + innerH - tick * innerH;
+          return (
+            <g key={tick}>
+              <line x1={padding.left} x2={padding.left + innerW} y1={y} y2={y} stroke="#F3F4F6" strokeWidth={1} />
+              <text x={padding.left - 6} y={y + 4} textAnchor="end" fontSize={10} fill="#9CA3AF">
+                {tick === 0 ? "0" : `£${Math.round((tick * maxRevenue) / 1000)}k`}
+              </text>
+            </g>
+          );
+        })}
+        <polygon points={revenueAreaPoints} fill="rgba(10,22,40,0.05)" />
+        <polyline points={revenuePoints} fill="none" stroke="#0A1628" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={bookingPoints} fill="none" stroke="#305CDE" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 3" />
+        {data.map((item, i) => {
+          const x = padding.left + (i / Math.max(points - 1, 1)) * innerW;
+          const ry = padding.top + innerH - (item.revenue / maxRevenue) * innerH;
+          const by = padding.top + innerH - (item.bookings / maxBookings) * innerH;
+          return (
+            <g key={item.month}>
+              <circle cx={x} cy={ry} r={3} fill="#0A1628" />
+              <circle cx={x} cy={by} r={3} fill="#305CDE" />
+              <text x={x} y={padding.top + innerH + 16} textAnchor="middle" fontSize={10} fill="#9CA3AF">
+                {item.month}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -1109,13 +1146,13 @@ function UserMenuItem({ icon: Icon, label, danger = false, onClick }) {
   );
 }
 
-function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading, chartData = [], categoryData = [] }) {
+function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, stats, loading, chartData = [], categoryData = [], liveDisputes = [] }) {
   const activeChartData = chartData.length > 0 ? chartData : MOCK_CHART_DATA;
   const activeCategoryData = categoryData.length > 0 ? categoryData.map(c => ({ ...c, percent: Math.round((c.count / Math.max(1, categoryData.reduce((s, x) => s + x.count, 0))) * 100) })) : MOCK_CATEGORY_DATA;
   const totalRevenue = activeChartData.reduce((sum, item) => sum + item.revenue, 0);
   const totalBookings = activeChartData.reduce((sum, item) => sum + item.bookings, 0);
   const avgMonthRevenue = Math.round(totalRevenue / Math.max(1, activeChartData.length));
-  const activeDisputes = MOCK_DISPUTES.filter((item) => item.status !== "resolved");
+  const activeDisputes = liveDisputes.length > 0 ? liveDisputes : MOCK_DISPUTES.filter((item) => item.status !== "resolved");
   const totalUsersCount = useCountUp(stats.totalUsers);
   const totalListingsCount = useCountUp(stats.totalListings);
   const pendingListingsCount = useCountUp(stats.pendingListings);
@@ -1289,39 +1326,38 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
             </button>
           </div>
 
-          {activeDisputes.map((dispute) => (
-            <div
-              key={dispute.id}
-              className="flex items-start gap-3 border-b border-[#F3F4F6] py-3 last:border-b-0"
-            >
-              <span
-                className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                  dispute.priority === "high"
-                    ? "bg-[#EF4444]"
-                    : dispute.priority === "medium"
-                    ? "bg-[#D97706]"
-                    : "bg-[#16A34A]"
-                }`}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold text-[#6B7280]">{dispute.id}</p>
-                <p className="truncate text-[13px] font-semibold text-[#0A1628]">{dispute.space}</p>
-                <p className="truncate text-[12px] text-[#6B7280]">{dispute.reason}</p>
-                <p className="mt-1 text-[12px] font-semibold text-[#374151]">
-                  {formatCurrency(dispute.amount)}
-                </p>
+          {activeDisputes.length === 0 ? (
+            <div className="py-8 text-center text-[14px] text-[#6B7280]">No active disputes</div>
+          ) : activeDisputes.map((dispute) => {
+            const isReal = !!dispute._id;
+            const id = isReal ? dispute._id?.toString().slice(-6).toUpperCase() : dispute.id;
+            const title = isReal ? (dispute.subject || dispute.reason || "Report") : dispute.space;
+            const reason = isReal ? dispute.description || dispute.reason || "" : dispute.reason;
+            const status = isReal ? (dispute.status || "open") : dispute.status;
+            return (
+              <div
+                key={dispute._id || dispute.id}
+                className="flex items-start gap-3 border-b border-[#F3F4F6] py-3 last:border-b-0"
+              >
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#EF4444]" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-[#6B7280]">#{id}</p>
+                  <p className="truncate text-[13px] font-semibold text-[#0A1628]">{title}</p>
+                  <p className="truncate text-[12px] text-[#6B7280]">{reason}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <StatusPill status={status} type="dispute" />
+                  <button
+                    type="button"
+                    onClick={() => onSectionChange("disputes")}
+                    className="mt-2 block text-[13px] text-[#305CDE] hover:underline"
+                  >
+                    Resolve
+                  </button>
+                </div>
               </div>
-              <div className="shrink-0 text-right">
-                <StatusPill status={dispute.status} type="dispute" />
-                <button
-                  type="button"
-                  className="mt-2 block text-[13px] text-[#305CDE] hover:underline"
-                >
-                  Resolve
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </>
@@ -2800,6 +2836,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
+  const [liveDisputes, setLiveDisputes] = useState([]);
 
   const [moderationQueue, setModerationQueue] = useState([]);
   const [listingQueueFilter, setListingQueueFilter] = useState("all");
@@ -2861,11 +2898,12 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes, bookingsRes, analyticsRes] = await Promise.all([
+        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=open&limit=10`, { headers }),
         ]);
 
         if (usersRes.ok) {
@@ -2935,6 +2973,11 @@ export default function AdminDashboard() {
           }
         }
 
+        if (reportsRes.ok) {
+          const reportsData = await reportsRes.json();
+          setLiveDisputes(reportsData.reports || []);
+        }
+
       } catch (err) {
         console.error("Admin dashboard fetch error:", err);
       } finally {
@@ -2984,6 +3027,7 @@ export default function AdminDashboard() {
         loading={loading}
         chartData={chartData}
         categoryData={categoryData}
+        liveDisputes={liveDisputes}
       />
     );
   } else if (activeSection === "users") {
