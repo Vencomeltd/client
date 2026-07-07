@@ -68,6 +68,7 @@ import MyReviews from "./pages/MyReviews";
 import SavedSpaces from "./pages/SavedSpaces";
 import Analytics from "./pages/Analytics";
 import CategoryComingSoon from "./pages/CategoryComingSoon";
+import ReferHost from "./pages/ReferHost";
 
 // QueryClient lives OUTSIDE the component tree — never recreated on re-render
 const queryClient = new QueryClient({
@@ -150,6 +151,7 @@ function AppContent() {
         <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
         <Route path="/sitemap" element={<Sitemap />} />
         <Route path="/help-support" element={<HelpSupport />} />
+        <Route path="/refer" element={<ReferHost />} />
 
         {/* Auth required */}
         <Route
