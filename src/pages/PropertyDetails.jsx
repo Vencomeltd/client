@@ -1568,6 +1568,9 @@ export default function PropertyDetails() {
                 bookingError={bookingError}
                 onBook={handleBooking}
                 onEnquiry={handleEnquiry}
+                bookingMetrics={bookingMetrics}
+                bookingTotal={bookingTotal}
+                platformFee={platformFee}
               />
             </motion.aside>
           </div>
@@ -2579,6 +2582,9 @@ function BookingSidebar({
   bookingError,
   onBook,
   onEnquiry,
+  bookingMetrics,
+  bookingTotal,
+  platformFee,
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
@@ -3051,6 +3057,28 @@ function BookingSidebar({
         ) : null}
       </div>
 
+      {bookingMetrics?.subtotal > 0 && (
+        <div style={{ background: "#F8F6F0", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontSize: "13px", color: "#6B7280" }}>
+              {bookingMetrics.label}
+            </span>
+            <span style={{ fontSize: "13px", color: "#374151", fontWeight: "600" }}>
+              £{bookingMetrics.subtotal.toLocaleString()}
+            </span>
+          </div>
+          {platformFee > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "13px", color: "#6B7280" }}>Platform fee</span>
+              <span style={{ fontSize: "13px", color: "#374151" }}>£{platformFee.toLocaleString()}</span>
+            </div>
+          )}
+          <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628" }}>Total</span>
+            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>£{bookingTotal?.toLocaleString()}</span>
+          </div>
+        </div>
+      )}
       <button
         onClick={onBook}
         disabled={bookingLoading}
