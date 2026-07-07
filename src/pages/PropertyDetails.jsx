@@ -1036,7 +1036,9 @@ export default function PropertyDetails() {
     }
   }, [property, enabledPricingOptions, selectedDurationType]);
 
-  const selectedTier = pricingOptions?.[selectedPricingTier] || pricingOptions?.[0];
+  const unitMap = { hourly: "hour", daily: "day", weekly: "week", monthly: "month", annual: "year" };
+  const targetUnit = unitMap[selectedDurationType] || "hour";
+  const selectedTier = pricingOptions?.find((t) => t.unit === targetUnit) || pricingOptions?.[0];
 
   useEffect(() => {
     if (!selectedTier?.unit) return;
@@ -1497,8 +1499,13 @@ export default function PropertyDetails() {
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
-                  selectedPricingTier={selectedPricingTier}
-                  onSelectTier={setSelectedPricingTier}
+                  selectedPricingTier={pricingOptions?.findIndex((t) => t.unit === targetUnit) ?? 0}
+                  onSelectTier={(idx) => {
+                    setSelectedPricingTier(idx);
+                    const unit = pricingOptions[idx]?.unit;
+                    const durationMap = { hour: "hourly", day: "daily", week: "weekly", month: "monthly", year: "annual" };
+                    if (unit && durationMap[unit]) setSelectedDurationType(durationMap[unit]);
+                  }}
                 />
               </motion.section>
 
