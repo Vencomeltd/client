@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/sitemap.xml",
-      "destination": "https://vencome-server.onrender.com/sitemap.xml"
-    },
-    {
       "source": "/llms.txt",
       "destination": "https://vencome-server.onrender.com/llms.txt"
     },
