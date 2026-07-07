@@ -598,21 +598,6 @@ export default function PropertyDetails() {
   const [lightboxDirection, setLightboxDirection] = useState(1);
   const [expandedDescription, setExpandedDescription] = useState(false);
   const [selectedPricingTier, setSelectedPricingTier] = useState(0);
-  useEffect(() => {
-    if (!pricingOptions?.length) return;
-    const unitMap = {
-      hourly: "hour",
-      daily: "day",
-      weekly: "week",
-      monthly: "month",
-      annual: "year",
-    };
-    const targetUnit = unitMap[selectedDurationType];
-    const idx = pricingOptions.findIndex((t) => t.unit === targetUnit);
-    if (idx !== -1 && idx !== selectedPricingTier) {
-      setSelectedPricingTier(idx);
-    }
-  }, [selectedDurationType, pricingOptions]);
   const [selectedDuration, setSelectedDuration] = useState("hourly");
   const [visibleMonth, setVisibleMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1)
@@ -1513,12 +1498,7 @@ export default function PropertyDetails() {
                 <PricingSection
                   pricing={pricingOptions}
                   selectedPricingTier={selectedPricingTier}
-                  onSelectTier={(idx) => {
-                    setSelectedPricingTier(idx);
-                    const unit = pricingOptions[idx]?.unit;
-                    const durationMap = { hour: "hourly", day: "daily", week: "weekly", month: "monthly", year: "annual" };
-                    if (unit && durationMap[unit]) setSelectedDurationType(durationMap[unit]);
-                  }}
+                  onSelectTier={setSelectedPricingTier}
                 />
               </motion.section>
 
