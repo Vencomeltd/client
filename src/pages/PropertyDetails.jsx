@@ -1977,7 +1977,7 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
           }}
         >
           <Users size={14} />
-          <span>Up to {property.capacity} people</span>
+          <span>Up to {property.capacity} {property.capacity === 1 ? "person" : "people"}</span>
         </div>
       ) : null}
     </div>
