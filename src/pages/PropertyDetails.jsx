@@ -542,7 +542,7 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   }
 
   if (tier.unit === "month") {
-    const units = Math.max(1, Math.ceil(exclusiveDays / 30));
+    const units = Math.max(1, Math.ceil(exclusiveDays / 31));
     return {
       units,
       label: `${units} month${units !== 1 ? "s" : ""}`,
@@ -551,7 +551,7 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   }
 
   if (tier.unit === "year") {
-    const units = Math.max(1, Math.ceil(exclusiveDays / 365));
+    const units = Math.max(1, Math.ceil(exclusiveDays / 366));
     return {
       units,
       label: `${units} year${units !== 1 ? "s" : ""}`,
