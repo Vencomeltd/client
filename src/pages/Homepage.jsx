@@ -652,6 +652,133 @@ function TrustSignals() {
   );
 }
 
+function FAQSection() {
+  const [openIndex, setOpenIndex] = useState(null);
+
+  const faqs = [
+    {
+      q: "What is VenCome?",
+      a: "VenCome is a B2B commercial space rental marketplace that connects businesses with professional spaces across the UK and Middle East. Whether you need an office for a day, a meeting room for an hour, or a studio for a week — VenCome makes it simple to find, book, and pay."
+    },
+    {
+      q: "How do I book a space?",
+      a: "Simply search for a space by location, date, and type. Select your preferred listing, choose your dates and duration, then click Book Now or Request to Book. You'll receive a confirmation once the host approves your request."
+    },
+    {
+      q: "What types of spaces are available?",
+      a: "VenCome offers offices, co-working spaces, meeting and conference rooms, event venues, retail and showroom spaces, studios, hospitality and leisure spaces, medical and clinical rooms, and more."
+    },
+    {
+      q: "How does payment work?",
+      a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings."
+    },
+    {
+      q: "Can I cancel a booking?",
+      a: "Yes. You can cancel a booking from your dashboard. Cancellation policies vary by listing — please check the specific policy on the listing page before booking."
+    },
+    {
+      q: "How do I list my space on VenCome?",
+      a: "Click 'Publish your space' in the top navigation. You'll be guided through a simple step-by-step wizard to add your space details, photos, pricing, and availability. Your listing will be live once reviewed."
+    },
+    {
+      q: "Is VenCome available in the Middle East?",
+      a: "Yes. VenCome operates across the UK and the Middle East, with Saudi Arabia as a priority market. More cities and regions are being added regularly."
+    },
+    {
+      q: "How does VenCome make money?",
+      a: "VenCome charges a 10% platform commission on each booking, automatically deducted before the host payout. There are no monthly fees or subscription costs for hosts or customers."
+    },
+  ];
+
+  return (
+    <section style={{ background: "#fff", padding: "80px 24px" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <h2 style={{ fontSize: 32, fontWeight: 800, color: "#0A1628", marginBottom: 12 }}>
+            Frequently Asked Questions
+          </h2>
+          <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6 }}>
+            Everything you need to know about VenCome.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {faqs.map((faq, i) => (
+            <div
+              key={i}
+              style={{
+                border: "1.5px solid",
+                borderColor: openIndex === i ? "#305CDE" : "#E5E7EB",
+                borderRadius: 14,
+                overflow: "hidden",
+                transition: "border-color 0.2s",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "18px 22px",
+                  background: openIndex === i ? "#F8F9FF" : "#fff",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  gap: 16,
+                }}
+              >
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", lineHeight: 1.4 }}>
+                  {faq.q}
+                </span>
+                <span style={{
+                  flexShrink: 0,
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: openIndex === i ? "#305CDE" : "#F3F4F6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "background 0.2s",
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d={openIndex === i ? "M2 8L6 4L10 8" : "M2 4L6 8L10 4"}
+                      stroke={openIndex === i ? "#fff" : "#6B7280"}
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+              {openIndex === i && (
+                <div style={{ padding: "0 22px 18px", background: "#F8F9FF" }}>
+                  <p style={{ fontSize: 15, color: "#374151", lineHeight: 1.7, margin: 0 }}>
+                    {faq.a}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 40 }}>
+          <p style={{ fontSize: 14, color: "#6B7280" }}>
+            Still have questions?{" "}
+            <a href="/contact" style={{ color: "#305CDE", fontWeight: 600, textDecoration: "none" }}>
+              Contact us
+            </a>
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Homepage() {
   const [activeTab, setActiveTab] = useState("spaces");
   const [featuredListings, setFeaturedListings] = useState([]);
@@ -703,6 +830,7 @@ export default function Homepage() {
         <HowItWorks />
         <BecomeAHost />
         <TrustSignals />
+        <FAQSection />
       </main>
       <Footer />
     </>
