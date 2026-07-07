@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -135,13 +135,13 @@ function PropertyMap({ listings }) {
       const position = { lat: Number(lat), lng: Number(lng) };
       bounds.extend(position);
 
-      const price =
-        listing.pricing?.hourly ??
-        listing.pricing?.hourlyPrice ??
-        listing.pricing?.daily ??
-        listing.pricing?.weekdayPrice ??
-        0;
-      const priceLabel = price > 0 ? `£${price}/hr` : "POA";
+      const hourly = listing.pricing?.hourly > 0 ? listing.pricing.hourly : listing.pricing?.hourlyPrice > 0 ? listing.pricing.hourlyPrice : 0;
+      const daily = listing.pricing?.daily > 0 ? listing.pricing.daily : listing.pricing?.weekdayPrice > 0 ? listing.pricing.weekdayPrice : 0;
+      const weekly = listing.pricing?.weekly > 0 ? listing.pricing.weekly : 0;
+      const monthly = listing.pricing?.monthly > 0 ? listing.pricing.monthly : 0;
+      const price = hourly || daily || weekly || monthly || 0;
+      const priceUnit = hourly ? "hr" : daily ? "day" : weekly ? "wk" : monthly ? "mo" : "";
+      const priceLabel = price > 0 ? `£${price}/${priceUnit}` : "POA";
 
       const marker = new window.google.maps.Marker({
         position,
@@ -757,17 +757,23 @@ export default function SearchPage() {
                         }`}
                         category={result.category?.name || ""}
                         price={
-                          result.pricing?.hourly ??
-                          result.pricing?.hourlyPrice ??
-                          result.pricing?.daily ??
-                          result.pricing?.weekdayPrice ??
+                          (result.pricing?.hourly > 0 ? result.pricing.hourly : null) ??
+                          (result.pricing?.hourlyPrice > 0 ? result.pricing.hourlyPrice : null) ??
+                          (result.pricing?.daily > 0 ? result.pricing.daily : null) ??
+                          (result.pricing?.weekdayPrice > 0 ? result.pricing.weekdayPrice : null) ??
+                          (result.pricing?.weekly > 0 ? result.pricing.weekly : null) ??
+                          (result.pricing?.monthly > 0 ? result.pricing.monthly : null) ??
                           0
                         }
                         priceUnit={
-                          result.pricing?.hourly || result.pricing?.hourlyPrice
+                          result.pricing?.hourly > 0 || result.pricing?.hourlyPrice > 0
                             ? "hr"
-                            : result.pricing?.daily || result.pricing?.weekdayPrice
+                            : result.pricing?.daily > 0 || result.pricing?.weekdayPrice > 0
                             ? "day"
+                            : result.pricing?.weekly > 0
+                            ? "week"
+                            : result.pricing?.monthly > 0
+                            ? "month"
                             : "POA"
                         }
                         rating={result.rating || 0}
