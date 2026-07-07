@@ -1086,9 +1086,9 @@ export default function PropertyDetails() {
     [selectedTier, selectedDays, checkIn, checkOut]
   );
 
-  const cleaningFee = selectedDays ? 45 : 0;
-  const platformFee = selectedDays ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
-  const bookingTotal = bookingMetrics.subtotal + cleaningFee + platformFee;
+  const cleaningFee = 0;
+  const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
+  const bookingTotal = bookingMetrics.subtotal + platformFee;
 
   const displayedReviews = showAllReviews
     ? propertyView?.reviews || []
@@ -1402,7 +1402,7 @@ export default function PropertyDetails() {
           checkOut,
           guests,
           durationType: selectedDurationType || "hourly",
-          totalPrice: selectedOption?.price || 0,
+          totalPrice: bookingMetrics.subtotal || 0,
           message: enquiryMessage,
         }),
       });
