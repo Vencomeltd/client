@@ -1,2 +1,10 @@
 User-agent: *
-Disallow: /
+Allow: /
+
+Sitemap: https://vencome.com/sitemap.xml
+
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /customer
+Disallow: /login
+Disallow: /register
