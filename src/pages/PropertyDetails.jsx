@@ -1108,7 +1108,7 @@ export default function PropertyDetails() {
 
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
-  const bookingTotal = bookingMetrics.subtotal + platformFee;
+  const bookingTotal = bookingMetrics.subtotal;
 
   const displayedReviews = showAllReviews
     ? propertyView?.reviews || []
@@ -3092,15 +3092,9 @@ function BookingSidebar({
               £{bookingMetrics.subtotal.toLocaleString()}
             </span>
           </div>
-          {platformFee > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span style={{ fontSize: "13px", color: "#6B7280" }}>Platform fee</span>
-              <span style={{ fontSize: "13px", color: "#374151" }}>£{platformFee.toLocaleString()}</span>
-            </div>
-          )}
           <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628" }}>Total</span>
-            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>£{bookingTotal?.toLocaleString()}</span>
+            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>£{bookingMetrics.subtotal.toLocaleString()}</span>
           </div>
         </div>
       )}
