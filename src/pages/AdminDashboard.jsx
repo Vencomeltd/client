@@ -2076,16 +2076,16 @@ function PaymentsSection({
   paymentsRange,
   setPaymentsRange,
   onToast,
+  livePayments = [],
+  paymentStats = {},
 }) {
-  const filteredTransactions = MOCK_TRANSACTIONS.filter((transaction) => {
+  const transactions = livePayments.length > 0 ? livePayments : MOCK_TRANSACTIONS;
+  const filteredTransactions = transactions.filter((transaction) => {
     if (paymentsFilter === "all") return true;
     if (paymentsFilter === "completed") return transaction.status === "completed";
     if (paymentsFilter === "escrow_held") return transaction.status === "escrow_held";
     return transaction.status === "refunded";
   });
-
-  const gmv = MOCK_TRANSACTIONS.reduce((sum, item) => sum + item.amount, 0);
-  const revenue = MOCK_TRANSACTIONS.reduce((sum, item) => sum + item.commission, 0);
 
   return (
     <>
@@ -2120,25 +2120,25 @@ function PaymentsSection({
           {
             icon: PoundSterling,
             label: "Total GMV",
-            value: "£284,650",
+            value: formatCurrency(paymentStats.gmv || 0),
             classes: "bg-[rgba(10,22,40,0.06)] text-[#0A1628]",
           },
           {
             icon: TrendingUp,
             label: "Platform Revenue",
-            value: "£28,465",
+            value: formatCurrency(paymentStats.platformRevenue || 0),
             classes: "bg-[rgba(22,163,74,0.1)] text-[#16A34A]",
           },
           {
             icon: Clock,
             label: "In Escrow",
-            value: "£14,200",
+            value: formatCurrency(paymentStats.inEscrow || 0),
             classes: "bg-[rgba(217,119,6,0.1)] text-[#D97706]",
           },
           {
             icon: RefreshCw,
             label: "Awaiting Payout",
-            value: "£8,640",
+            value: formatCurrency(paymentStats.awaitingPayout || 0),
             classes: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
           },
         ].map((item) => {
@@ -2850,6 +2850,8 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [liveDisputes, setLiveDisputes] = useState([]);
+  const [livePayments, setLivePayments] = useState([]);
+  const [paymentStats, setPaymentStats] = useState({ gmv: 0, platformRevenue: 0, inEscrow: 0, awaitingPayout: 0 });
 
   const [moderationQueue, setModerationQueue] = useState([]);
   const [listingQueueFilter, setListingQueueFilter] = useState("all");
@@ -2911,12 +2913,13 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes] = await Promise.all([
+        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes, paymentsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=open&limit=10`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/payments?range=30`, { headers }),
         ]);
 
         if (usersRes.ok) {
@@ -2989,6 +2992,11 @@ export default function AdminDashboard() {
         if (reportsRes.ok) {
           const reportsData = await reportsRes.json();
           setLiveDisputes(reportsData.reports || []);
+        }
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          setLivePayments(paymentsData.transactions || []);
+          if (paymentsData.stats) setPaymentStats(paymentsData.stats);
         }
 
       } catch (err) {
@@ -3087,6 +3095,8 @@ export default function AdminDashboard() {
         paymentsRange={paymentsRange}
         setPaymentsRange={setPaymentsRange}
         onToast={showToast}
+        livePayments={livePayments}
+        paymentStats={paymentStats}
       />
     );
   } else if (activeSection === "disputes") {
