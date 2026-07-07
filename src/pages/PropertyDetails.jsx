@@ -505,8 +505,9 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
     return { units: 0, label: "", subtotal: 0 };
   }
 
+  const exclusiveDays = selectedDays > 1 ? selectedDays - 1 : selectedDays;
+
   if (tier.unit === "hour") {
-    // Calculate actual hours from checkIn/checkOut timestamps
     if (!checkIn || !checkOut) return { units: 0, label: "", subtotal: 0 };
     const start = new Date(checkIn);
     const end = new Date(checkOut);
@@ -525,23 +526,40 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
 
   if (tier.unit === "day") {
     return {
-      units: selectedDays,
-      label: `${selectedDays} day${selectedDays > 1 ? "s" : ""}`,
-      subtotal: selectedDays * tier.price,
+      units: exclusiveDays,
+      label: `${exclusiveDays} day${exclusiveDays !== 1 ? "s" : ""}`,
+      subtotal: exclusiveDays * tier.price,
     };
   }
 
   if (tier.unit === "week") {
-    const units = Math.max(1, Math.ceil(selectedDays / 7));
-    return { units, label: `${units} week${units > 1 ? "s" : ""}`, subtotal: units * tier.price };
+    const units = Math.max(1, Math.ceil(exclusiveDays / 7));
+    return {
+      units,
+      label: `${units} week${units !== 1 ? "s" : ""}`,
+      subtotal: units * tier.price,
+    };
   }
 
-  const units = Math.max(1, Math.ceil(selectedDays / 30));
-  return {
-    units,
-    label: `${units} month${units > 1 ? "s" : ""}`,
-    subtotal: units * tier.price,
-  };
+  if (tier.unit === "month") {
+    const units = Math.max(1, Math.ceil(exclusiveDays / 30));
+    return {
+      units,
+      label: `${units} month${units !== 1 ? "s" : ""}`,
+      subtotal: units * tier.price,
+    };
+  }
+
+  if (tier.unit === "year") {
+    const units = Math.max(1, Math.ceil(exclusiveDays / 365));
+    return {
+      units,
+      label: `${units} year${units !== 1 ? "s" : ""}`,
+      subtotal: units * tier.price,
+    };
+  }
+
+  return { units: 0, label: "", subtotal: 0 };
 };
 
 const DURATION_BY_UNIT = {
