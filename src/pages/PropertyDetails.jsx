@@ -1552,6 +1552,41 @@ export default function PropertyDetails() {
 
               <motion.section {...sectionProps(0.3)}>
                 <HouseRulesSection property={property} />
+                {/* Cancellation Policy */}
+                <div style={{ marginTop: "40px", paddingTop: "32px", borderTop: "1px solid #E5E7EB" }}>
+                  <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
+                    Cancellation Policy
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(22,163,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3.5" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 2px" }}>Full refund</p>
+                        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Cancel more than 48 hours before check-in for a full refund.</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(217,119,6,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 3V7L9.5 9.5" stroke="#D97706" strokeWidth="2" strokeLinecap="round"/></svg>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 2px" }}>50% refund</p>
+                        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Cancel between 24-48 hours before check-in for a 50% refund.</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(220,38,38,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5" stroke="#DC2626" strokeWidth="2" strokeLinecap="round"/></svg>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 2px" }}>No refund</p>
+                        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Cancellations within 24 hours of check-in are non-refundable.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </motion.section>
 
               <motion.section {...sectionProps(0.35)}>
