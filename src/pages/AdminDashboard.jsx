@@ -1966,6 +1966,191 @@ function ListingsSection({
   );
 }
 
+function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog, setEditingBlog, blogError, setBlogError, blogSuccess, setBlogSuccess, blogLoading, setBlogLoading }) {
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => { fetchBlogs(); }, [fetchBlogs]);
+
+  const handleSubmit = async () => {
+    setBlogError("");
+    setBlogSuccess("");
+    if (!blogForm.title || !blogForm.excerpt || !blogForm.content) {
+      setBlogError("Title, excerpt and content are required");
+      return;
+    }
+    setBlogLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const url = editingBlog
+        ? `${import.meta.env.VITE_API_URL}/blog/${editingBlog._id}`
+        : `${import.meta.env.VITE_API_URL}/blog`;
+      const method = editingBlog ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...blogForm, tags: blogForm.tags.split(",").map(t => t.trim()).filter(Boolean) }),
+      });
+      if (res.ok) {
+        setBlogSuccess(editingBlog ? "Blog updated successfully" : "Blog created successfully");
+        setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" });
+        setEditingBlog(null);
+        setShowForm(false);
+        fetchBlogs();
+      } else {
+        const err = await res.json();
+        setBlogError(err.error || "Failed to save blog");
+      }
+    } catch {
+      setBlogError("Something went wrong");
+    } finally {
+      setBlogLoading(false);
+    }
+  };
+
+  const handleEdit = (blog) => {
+    setEditingBlog(blog);
+    setBlogForm({ title: blog.title, excerpt: blog.excerpt, content: blog.content || "", coverImage: blog.coverImage || "", category: blog.category, tags: (blog.tags || []).join(", "), author: blog.author, status: blog.status });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this blog post?")) return;
+    const token = localStorage.getItem("vencome_token");
+    await fetch(`${import.meta.env.VITE_API_URL}/blog/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    fetchBlogs();
+  };
+
+  const handlePublish = async (blog) => {
+    const token = localStorage.getItem("vencome_token");
+    await fetch(`${import.meta.env.VITE_API_URL}/blog/${blog._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: blog.status === "published" ? "draft" : "published" }),
+    });
+    fetchBlogs();
+  };
+
+  const inputStyle = { width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+  const labelStyle = { fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 };
+
+  return (
+    <>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Content & Blog</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">Create and manage blog posts</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(!showForm); setEditingBlog(null); setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" }); }}
+          style={{ padding: "10px 20px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+        >
+          {showForm ? "Cancel" : "+ New Blog Post"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: "#fff", borderRadius: 20, padding: 32, border: "1.5px solid #E5E7EB", marginBottom: 24 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 24 }}>
+            {editingBlog ? "Edit Blog Post" : "New Blog Post"}
+          </h3>
+          {blogError && <p style={{ color: "#DC2626", fontSize: 13, marginBottom: 16 }}>{blogError}</p>}
+          {blogSuccess && <p style={{ color: "#16A34A", fontSize: 13, marginBottom: 16 }}>{blogSuccess}</p>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>Title *</label>
+              <input style={inputStyle} value={blogForm.title} onChange={e => setBlogForm(p => ({ ...p, title: e.target.value }))} placeholder="Blog post title" />
+            </div>
+            <div>
+              <label style={labelStyle}>Category</label>
+              <select style={inputStyle} value={blogForm.category} onChange={e => setBlogForm(p => ({ ...p, category: e.target.value }))}>
+                {["News", "Guides", "Industry", "Tips", "Updates", "Case Studies"].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Excerpt * (max 300 chars)</label>
+            <textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={blogForm.excerpt} onChange={e => setBlogForm(p => ({ ...p, excerpt: e.target.value }))} placeholder="Short description shown in blog list..." maxLength={300} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Content * (HTML supported)</label>
+            <textarea style={{ ...inputStyle, height: 300, resize: "vertical", fontFamily: "monospace", fontSize: 13 }} value={blogForm.content} onChange={e => setBlogForm(p => ({ ...p, content: e.target.value }))} placeholder="<p>Write your blog content here...</p>" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>Cover Image URL</label>
+              <input style={inputStyle} value={blogForm.coverImage} onChange={e => setBlogForm(p => ({ ...p, coverImage: e.target.value }))} placeholder=" `https://...` " />
+            </div>
+            <div>
+              <label style={labelStyle}>Tags (comma separated)</label>
+              <input style={inputStyle} value={blogForm.tags} onChange={e => setBlogForm(p => ({ ...p, tags: e.target.value }))} placeholder="office, london, tips" />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+            <div>
+              <label style={labelStyle}>Author</label>
+              <input style={inputStyle} value={blogForm.author} onChange={e => setBlogForm(p => ({ ...p, author: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select style={inputStyle} value={blogForm.status} onChange={e => setBlogForm(p => ({ ...p, status: e.target.value }))}>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={blogLoading}
+            style={{ padding: "14px 32px", background: "#305CDE", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: blogLoading ? "not-allowed" : "pointer", opacity: blogLoading ? 0.7 : 1 }}
+          >
+            {blogLoading ? "Saving..." : editingBlog ? "Update Post" : "Create Post"}
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {blogs.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px 0", color: "#6B7280" }}>
+            <p style={{ fontSize: 16 }}>No blog posts yet. Create your first one above.</p>
+          </div>
+        ) : blogs.map((blog) => (
+          <div key={blog._id} style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1.5px solid #E5E7EB", display: "flex", alignItems: "center", gap: 16 }}>
+            {blog.coverImage ? (
+              <img src={blog.coverImage} alt={blog.title} style={{ width: 80, height: 60, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 80, height: 60, background: "linear-gradient(135deg, #0A1628, #305CDE)", borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 24 }}>✍️</span>
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: blog.status === "published" ? "#16A34A" : "#D97706", background: blog.status === "published" ? "#DCFCE7" : "#FEF3C7", padding: "2px 8px", borderRadius: 999 }}>
+                  {blog.status}
+                </span>
+                <span style={{ fontSize: 12, color: "#9CA3AF" }}>{blog.category}</span>
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{blog.title}</p>
+              <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>{blog.readTime} min read · {blog.views} views · {new Date(blog.createdAt).toLocaleDateString("en-GB")}</p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={() => handlePublish(blog)} style={{ padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", color: blog.status === "published" ? "#D97706" : "#16A34A" }}>
+                {blog.status === "published" ? "Unpublish" : "Publish"}
+              </button>
+              <button onClick={() => handleEdit(blog)} style={{ padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#305CDE" }}>
+                Edit
+              </button>
+              <button onClick={() => handleDelete(blog._id)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#FEF2F2", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#DC2626" }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function BookingsSection({ bookings, loading }) {
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -2852,6 +3037,12 @@ export default function AdminDashboard() {
   const [liveDisputes, setLiveDisputes] = useState([]);
   const [livePayments, setLivePayments] = useState([]);
   const [paymentStats, setPaymentStats] = useState({ gmv: 0, platformRevenue: 0, inEscrow: 0, awaitingPayout: 0 });
+  const [blogs, setBlogs] = useState([]);
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogForm, setBlogForm] = useState({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" });
+  const [editingBlog, setEditingBlog] = useState(null);
+  const [blogError, setBlogError] = useState("");
+  const [blogSuccess, setBlogSuccess] = useState("");
 
   const [moderationQueue, setModerationQueue] = useState([]);
   const [listingQueueFilter, setListingQueueFilter] = useState("all");
@@ -2907,6 +3098,21 @@ export default function AdminDashboard() {
     const timer = window.setTimeout(() => setResolvedFlashId(null), 800);
     return () => window.clearTimeout(timer);
   }, [resolvedFlashId]);
+
+  const fetchBlogs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/admin/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBlogs(data.blogs || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch blogs:", err);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -3087,6 +3293,23 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "bookings") {
     sectionContent = <BookingsSection bookings={bookings} loading={loading} />;
+  } else if (activeSection === "content") {
+    sectionContent = (
+      <ContentSection
+        blogs={blogs}
+        fetchBlogs={fetchBlogs}
+        blogForm={blogForm}
+        setBlogForm={setBlogForm}
+        editingBlog={editingBlog}
+        setEditingBlog={setEditingBlog}
+        blogError={blogError}
+        setBlogError={setBlogError}
+        blogSuccess={blogSuccess}
+        setBlogSuccess={setBlogSuccess}
+        blogLoading={blogLoading}
+        setBlogLoading={setBlogLoading}
+      />
+    );
   } else if (activeSection === "payments") {
     sectionContent = (
       <PaymentsSection
