@@ -310,6 +310,12 @@ const normalizePropertyData = (property) => {
     property.host?.name ||
     "VenCome Host";
   const location = [
+    property.location?.city,
+    property.location?.country,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const fullAddress = [
     property.location?.address,
     property.location?.city,
     property.location?.country,
