@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -301,6 +301,21 @@ export default function SearchPage() {
         ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
         : `${import.meta.env.VITE_API_URL}/properties?limit=20`;
 
+      // Check cache for this exact query
+      const cacheKey = `vencome_search_${url}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            setListings(data);
+            setTotal(data.length);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
+
       const response = await fetch(url);
       const data = await response.json();
       let results = data.properties || [];
@@ -328,6 +343,13 @@ export default function SearchPage() {
         });
       }
 
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          data: results,
+          timestamp: Date.now(),
+        })
+      );
       setListings(results);
       setTotal(results.length);
     } catch (err) {

@@ -786,13 +786,40 @@ export default function Homepage() {
   const [loadingListings, setLoadingListings] = useState(true);
 
   useEffect(() => {
+    const CACHE_KEY = "vencome_homepage_listings";
+    const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
     const fetchListings = async () => {
       try {
+        // Load from cache first for instant display
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            const { data, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_TTL) {
+              setFeaturedListings(data.slice(0, 4));
+              setPopularListings(data.slice(0, 8));
+              setLoadingListings(false);
+              // Still fetch fresh data in background
+            }
+          } catch {}
+        }
+
+        // Fetch fresh data
         const response = await fetch(`${import.meta.env.VITE_API_URL}/properties?limit=8`);
         const data = await response.json();
         const properties = data.properties || [];
         setFeaturedListings(properties.slice(0, 4));
         setPopularListings(properties.slice(0, 8));
+
+        // Save to cache
+        localStorage.setItem(
+          CACHE_KEY,
+          JSON.stringify({
+            data: properties,
+            timestamp: Date.now(),
+          })
+        );
       } catch (err) {
         console.error("Failed to fetch listings:", err);
       } finally {
