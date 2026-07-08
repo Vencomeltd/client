@@ -145,6 +145,7 @@ function AppContent() {
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/accessibility" element={<Accessibility />} />
         <Route path="/blogs" element={<BlogList />} />
+        <Route path="/blog" element={<BlogList />} />
         <Route path="/blog/:slug" element={<BlogDetails />} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
