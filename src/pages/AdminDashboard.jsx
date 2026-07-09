@@ -908,6 +908,12 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
             </button>
             <button
               type="button"
+              onClick={() => {
+                localStorage.removeItem("vencome_token");
+                localStorage.removeItem("vencome_refresh_token");
+                localStorage.removeItem("vencome_user");
+                window.location.href = "/admin/login";
+              }}
               className="mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/50 transition hover:bg-white/8 hover:text-white"
             >
               <LogOut size={16} />
