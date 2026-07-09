@@ -1966,6 +1966,293 @@ function ListingsSection({
   );
 }
 
+function MarketsSection({ stats, bookings, livePayments }) {
+  const ukBookings = bookings.filter(b => b.property?.location?.country?.toLowerCase().includes("united kingdom") || b.property?.location?.country?.toLowerCase().includes("uk")).length;
+  const meBookings = bookings.filter(b => {
+    const country = b.property?.location?.country?.toLowerCase() || "";
+    return country.includes("saudi") || country.includes("uae") || country.includes("dubai") || country.includes("qatar");
+  }).length;
+  const otherBookings = bookings.length - ukBookings - meBookings;
+
+  const markets = [
+    { name: "United Kingdom", flag: "🇬🇧", bookings: ukBookings, status: "Active", color: "#16A34A", cities: ["London", "Manchester", "Birmingham", "Edinburgh"] },
+    { name: "Saudi Arabia", flag: "🇸🇦", bookings: meBookings, status: "Active", color: "#16A34A", cities: ["Riyadh", "Jeddah", "Dammam"] },
+    { name: "UAE", flag: "🇦🇪", bookings: 0, status: "Coming Soon", color: "#D97706", cities: ["Dubai", "Abu Dhabi"] },
+    { name: "Qatar", flag: "🇶🇦", bookings: 0, status: "Planned", color: "#6B7280", cities: ["Doha"] },
+  ];
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Markets</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Geographic market overview and expansion status</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, marginBottom: 24 }}>
+        {markets.map((market) => (
+          <div key={market.name} style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 28 }}>{market.flag}</span>
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{market.name}</p>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: market.color, background: `${market.color}18`, padding: "2px 8px", borderRadius: 999 }}>{market.status}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontSize: 24, fontWeight: 800, color: "#0A1628", margin: 0 }}>{market.bookings}</p>
+                <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>bookings</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {market.cities.map(city => (
+                <span key={city} style={{ fontSize: 12, color: "#6B7280", background: "#F3F4F6", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Expansion Roadmap</h3>
+        {[
+          { phase: "Phase 1", markets: "UK — London, Manchester, Birmingham", status: "Live", color: "#16A34A" },
+          { phase: "Phase 2", markets: "Saudi Arabia — Riyadh, Jeddah", status: "Live", color: "#16A34A" },
+          { phase: "Phase 3", markets: "UAE — Dubai, Abu Dhabi", status: "In Progress", color: "#D97706" },
+          { phase: "Phase 4", markets: "Qatar, Bahrain, Kuwait", status: "Planned", color: "#6B7280" },
+        ].map((row) => (
+          <div key={row.phase} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", width: 70, flexShrink: 0 }}>{row.phase}</span>
+            <span style={{ fontSize: 14, color: "#374151", flex: 1 }}>{row.markets}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: row.color, background: `${row.color}18`, padding: "3px 12px", borderRadius: 999 }}>{row.status}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function BroadcastSection({ users }) {
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [target, setTarget] = useState("all");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  const targetCount = target === "all" ? users.length : target === "hosts" ? users.filter(u => u.role === "host" || u.isHost).length : users.filter(u => !u.isHost && u.role !== "host").length;
+
+  const handleSend = async () => {
+    if (!subject || !message) { setError("Subject and message are required"); return; }
+    setSending(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject, message, target }),
+      });
+      if (res.ok) {
+        setSent(true);
+        setSubject("");
+        setMessage("");
+      } else {
+        const err = await res.json();
+        setError(err.error || "Failed to send broadcast");
+      }
+    } catch {
+      setError("Something went wrong");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Broadcast</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Send announcements and updates to your users</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+        <div style={{ background: "#fff", borderRadius: 20, padding: 32, border: "1.5px solid #E5E7EB" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 20 }}>Compose Broadcast</h3>
+
+          {sent && (
+            <div style={{ background: "#DCFCE7", border: "1px solid #BBF7D0", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <p style={{ fontSize: 14, color: "#16A34A", fontWeight: 600, margin: 0 }}>✓ Broadcast sent successfully to {targetCount} users</p>
+            </div>
+          )}
+          {error && <p style={{ fontSize: 13, color: "#DC2626", marginBottom: 12 }}>{error}</p>}
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Send to</label>
+            <select value={target} onChange={e => { setTarget(e.target.value); setSent(false); }} style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none" }}>
+              <option value="all">All Users ({users.length})</option>
+              <option value="hosts">Hosts only ({users.filter(u => u.isHost).length})</option>
+              <option value="customers">Customers only ({users.filter(u => !u.isHost).length})</option>
+            </select>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Subject</label>
+            <input value={subject} onChange={e => { setSubject(e.target.value); setSent(false); }} placeholder="e.g. Important update from VenCome" style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Message</label>
+            <textarea value={message} onChange={e => { setMessage(e.target.value); setSent(false); }} placeholder="Write your message here..." rows={8} style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
+          </div>
+          <button onClick={handleSend} disabled={sending} style={{ padding: "14px 32px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.7 : 1 }}>
+            {sending ? "Sending..." : `Send to ${targetCount} users`}
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Audience</h3>
+            {[
+              { label: "Total Users", value: users.length, color: "#305CDE" },
+              { label: "Hosts", value: users.filter(u => u.isHost).length, color: "#16A34A" },
+              { label: "Customers", value: users.filter(u => !u.isHost).length, color: "#D97706" },
+            ].map(item => (
+              <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F3F4F6" }}>
+                <span style={{ fontSize: 14, color: "#374151" }}>{item.label}</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: item.color }}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "#FEF3C7", borderRadius: 20, padding: 20, border: "1px solid #FDE68A" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#92400E", marginBottom: 6 }}>⚠️ Before you send</p>
+            <p style={{ fontSize: 13, color: "#92400E", margin: 0, lineHeight: 1.5 }}>Broadcast emails are sent to all selected users immediately. This action cannot be undone.</p>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AnalyticsSection({ chartData, categoryData, stats, bookings, livePayments, paymentStats, loading }) {
+  const [chartRange, setChartRange] = useState("1Y");
+
+  const filterChartData = (data, range) => {
+    if (!data.length) return data;
+    const cutoffs = { "7D": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365 };
+    const days = cutoffs[range] || 365;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    return data.filter((item) => {
+      if (!item.date) return true;
+      return new Date(item.date) >= cutoff;
+    });
+  };
+
+  const activeChartData = filterChartData(chartData, chartRange);
+  const totalRevenue = livePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const confirmedBookings = bookings.filter((b) => b.status === "confirmed" || b.status === "completed").length;
+  const pendingBookings = bookings.filter((b) => b.status === "pending").length;
+  const cancelledBookings = bookings.filter((b) => b.status === "cancelled").length;
+  const conversionRate = bookings.length > 0 ? Math.round((confirmedBookings / bookings.length) * 100) : 0;
+
+  const statCards = [
+    { label: "Total Revenue", value: formatCurrency(paymentStats.gmv || totalRevenue), sub: "All time", color: "#16A34A", bg: "rgba(22,163,74,0.08)" },
+    { label: "Platform Revenue", value: formatCurrency(paymentStats.platformRevenue || 0), sub: "Commission earned", color: "#305CDE", bg: "rgba(48,92,222,0.08)" },
+    { label: "Total Bookings", value: bookings.length, sub: `${confirmedBookings} confirmed`, color: "#0A1628", bg: "rgba(10,22,40,0.06)" },
+    { label: "Conversion Rate", value: `${conversionRate}%`, sub: "Requests to confirmed", color: "#D97706", bg: "rgba(217,119,6,0.08)" },
+  ];
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Analytics</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Platform performance overview</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {statCards.map((card) => (
+          <div key={card.label} style={{ background: "#fff", borderRadius: 16, padding: 20, border: "1.5px solid #E5E7EB" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: card.bg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+              <BarChart2 size={18} color={card.color} />
+            </div>
+            <p style={{ fontSize: 22, fontWeight: 800, color: "#0A1628", margin: "0 0 4px" }}>{card.value}</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 2px" }}>{card.label}</p>
+            <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>{card.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", margin: 0 }}>Revenue & Bookings Over Time</h3>
+          <div style={{ display: "flex", gap: 6 }}>
+            {["7D", "1M", "3M", "6M", "1Y"].map((r) => (
+              <button key={r} onClick={() => setChartRange(r)} style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid", borderColor: chartRange === r ? "#0A1628" : "#E5E7EB", background: chartRange === r ? "#0A1628" : "#fff", color: chartRange === r ? "#fff" : "#6B7280", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <BarChart data={activeChartData.length > 0 ? activeChartData : [{ month: "No data", revenue: 0, bookings: 0 }]} />
+        </div>
+        <div style={{ display: "flex", gap: 20, marginTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 12, borderRadius: 2, background: "#0A1628" }} /><span style={{ fontSize: 12, color: "#6B7280" }}>Revenue</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 12, height: 3, background: "#305CDE", borderRadius: 2 }} /><span style={{ fontSize: 12, color: "#6B7280" }}>Bookings</span></div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+        <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Booking Status Breakdown</h3>
+          {[
+            { label: "Confirmed", count: confirmedBookings, color: "#16A34A", bg: "#DCFCE7" },
+            { label: "Pending", count: pendingBookings, color: "#D97706", bg: "#FEF3C7" },
+            { label: "Cancelled", count: cancelledBookings, color: "#DC2626", bg: "#FEE2E2" },
+          ].map((item) => (
+            <div key={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color }} />
+                <span style={{ fontSize: 14, color: "#374151" }}>{item.label}</span>
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", background: item.bg, padding: "2px 10px", borderRadius: 999 }}>{item.count}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Listings by Category</h3>
+          {categoryData.slice(0, 6).map((cat) => (
+            <div key={cat.category} style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: "#374151" }}>{cat.category}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#0A1628" }}>{cat.count}</span>
+              </div>
+              <div style={{ height: 6, background: "#F3F4F6", borderRadius: 999 }}>
+                <div style={{ height: "100%", borderRadius: 999, background: "#305CDE", width: `${Math.min(100, (cat.count / Math.max(1, categoryData[0]?.count)) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Platform Summary</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+          {[
+            { label: "Total Users", value: stats.totalUsers || 0 },
+            { label: "Active Listings", value: stats.totalListings || 0 },
+            { label: "In Escrow", value: formatCurrency(paymentStats.inEscrow || 0) },
+            { label: "Awaiting Payout", value: formatCurrency(paymentStats.awaitingPayout || 0) },
+          ].map((item) => (
+            <div key={item.label} style={{ textAlign: "center", padding: 16, background: "#F8F6F0", borderRadius: 12 }}>
+              <p style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", margin: "0 0 4px" }}>{item.value}</p>
+              <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog, setEditingBlog, blogError, setBlogError, blogSuccess, setBlogSuccess, blogLoading, setBlogLoading }) {
   const [showForm, setShowForm] = useState(false);
 
@@ -3293,6 +3580,26 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "bookings") {
     sectionContent = <BookingsSection bookings={bookings} loading={loading} />;
+  } else if (activeSection === "markets") {
+    sectionContent = (
+      <MarketsSection stats={stats} bookings={bookings} livePayments={livePayments} />
+    );
+  } else if (activeSection === "broadcast") {
+    sectionContent = (
+      <BroadcastSection users={users} />
+    );
+  } else if (activeSection === "analytics") {
+    sectionContent = (
+      <AnalyticsSection
+        chartData={chartData}
+        categoryData={categoryData}
+        stats={stats}
+        bookings={bookings}
+        livePayments={livePayments}
+        paymentStats={paymentStats}
+        loading={loading}
+      />
+    );
   } else if (activeSection === "content") {
     sectionContent = (
       <ContentSection
