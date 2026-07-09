@@ -1680,6 +1680,7 @@ function ListingsSection({
   setRejectionState,
   onToast,
 }) {
+  const [selectedListing, setSelectedListing] = useState(null);
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
     if (listingQueueFilter === "new_host") return listing.flags.includes("new_host");
@@ -1917,12 +1918,13 @@ function ListingsSection({
                   <td className="px-4 py-3.5 text-[13px] text-[#6B7280]">{formatDate(listing.createdAt)}</td>
                   <td className="px-4 py-3.5 text-[13px] font-semibold text-[#305CDE]">{getListingPriceLabel(listing)}</td>
                   <td className="px-4 py-3.5">
-                    <a
-                      href={`/property/${listing._id}`}
-                      className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                    <button
+                      type="button"
+                      onClick={() => setSelectedListing(listing)}
+                      className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
                     >
                       View
-                    </a>
+                    </button>
                   </td>
                 </motion.tr>
               ))
@@ -1963,18 +1965,86 @@ function ListingsSection({
                 <p className="mt-3 text-[12px] text-[#374151]">{getListingHostName(listing)}</p>
                 <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
                 <div className="mt-4">
-                  <a
-                    href={`/property/${listing._id}`}
-                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                  <button
+                    type="button"
+                    onClick={() => setSelectedListing(listing)}
+                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
                   >
                     View
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             ))
           )}
         </div>
       </div>
+      {selectedListing && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 32, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", margin: 0 }}>Listing Details</h2>
+              <button onClick={() => setSelectedListing(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280" }}>×</button>
+            </div>
+            {selectedListing.coverImage && (
+              <img src={selectedListing.coverImage} alt={selectedListing.title} style={{ width: "100%", height: 200, objectFit: "cover", borderRadius: 12, marginBottom: 20 }} />
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Title</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedListing.title}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Category</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.category || "—"}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Location</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{[selectedListing.location?.address, selectedListing.location?.city, selectedListing.location?.country].filter(Boolean).join(", ") || "—"}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Status</p>
+                  <p style={{ fontSize: 14, color: selectedListing.isActive ? "#16A34A" : "#DC2626", fontWeight: 700, margin: 0 }}>{selectedListing.isActive ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Hourly</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedListing.pricing?.hourly > 0 ? `£${selectedListing.pricing.hourly}` : "—"}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Daily</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedListing.pricing?.daily > 0 ? `£${selectedListing.pricing.daily}` : "—"}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Monthly</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedListing.pricing?.monthly > 0 ? `£${selectedListing.pricing.monthly}` : "—"}</p>
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Host</p>
+                <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.host?.displayName || selectedListing.host?.firstName || selectedListing.host || "—"}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Created</p>
+                <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.createdAt ? new Date(selectedListing.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"}</p>
+              </div>
+              {selectedListing.description && (
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Description</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0, lineHeight: 1.6 }}>{selectedListing.description?.slice(0, 300)}{selectedListing.description?.length > 300 ? "..." : ""}</p>
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+              <button onClick={() => setSelectedListing(null)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
+              <a href={`/property/${selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#0A1628", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>View Public Page</a>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
