@@ -395,7 +395,8 @@ const normalizePropertyData = (property) => {
       name: hostName,
       company: property.host?.company || "VenCome Host",
       avatar: property.host?.profileImage || property.host?.avatar || property.coverImage || "",
-      verified: Boolean(property.host?.verified || property.host?.isVerified),
+      verified: Boolean(property.host?.venComeVerified),
+      venComeVerified: Boolean(property.host?.venComeVerified),
       responseRate: property.host?.responseRate || 0,
       responseTime: property.host?.responseTime || "soon",
       joinedYear:
@@ -1973,10 +1974,10 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
           <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
             {property.bookingTypeLabel}
           </span>
-          {property.host.verified ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-[12px] font-medium text-[#0A1628]">
-              <Check size={14} className="text-[#305CDE]" />
-              Verified host
+          {property.host.venComeVerified ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#305CDE] bg-[#305CDE] px-3 py-1 text-[12px] font-medium text-white">
+              <Check size={14} className="text-white" />
+              VenCome Verified ✓
             </span>
           ) : null}
         </div>

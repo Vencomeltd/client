@@ -1109,7 +1109,7 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
   );
 }
 
-function UserMenu({ user, onClose }) {
+function UserMenu({ user, onClose, onVerify }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: -8 }}
@@ -1126,6 +1126,13 @@ function UserMenu({ user, onClose }) {
         onClick={onClose}
       />
       <UserMenuItem icon={Key} label="Reset Password" onClick={onClose} />
+      {user.isHost ? (
+        <UserMenuItem
+          icon={UserCheck}
+          label={user.venComeVerified ? "Revoke Verified" : "Grant VenCome Verified"}
+          onClick={() => { onVerify(user._id, user.venComeVerified ? "revoke" : "grant"); onClose(); }}
+        />
+      ) : null}
       <UserMenuItem icon={Trash2} label="Delete User" danger onClick={onClose} />
     </motion.div>
   );
@@ -1551,7 +1558,7 @@ function UsersSection({
                     </button>
                     <AnimatePresence>
                       {openUserMenuId === user._id ? (
-                        <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} />
+                        <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} onVerify={handleVerifyUser} />
                       ) : null}
                     </AnimatePresence>
                   </td>
@@ -3341,6 +3348,22 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [activeUserTab, setActiveUserTab] = useState("all");
   const [openUserMenuId, setOpenUserMenuId] = useState(null);
+  const handleVerifyUser = async (userId, action) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u._id === userId ? { ...u, venComeVerified: action === "grant" } : u));
+        showToast(action === "grant" ? "VenCome Verified granted" : "Verified status revoked");
+      }
+    } catch (err) {
+      console.error("Verify user error:", err);
+    }
+  };
 
   const [paymentsFilter, setPaymentsFilter] = useState("all");
   const [paymentsRange, setPaymentsRange] = useState("Last 30 days");
