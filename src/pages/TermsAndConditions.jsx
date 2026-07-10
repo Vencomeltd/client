@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 
 const SECTIONS = [
@@ -29,6 +29,22 @@ const SECTIONS = [
 
 export default function TermsAndConditions() {
   const [active, setActive] = useState(null);
+
+  useEffect(() => {
+    const scrollToCancellationPolicy = () => {
+      if (window.location.hash === "#cancellation-policy") {
+        setActive(3);
+        setTimeout(() => {
+          const el = document.getElementById("cancellation-policy");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      }
+    };
+
+    scrollToCancellationPolicy();
+    window.addEventListener("hashchange", scrollToCancellationPolicy);
+    return () => window.removeEventListener("hashchange", scrollToCancellationPolicy);
+  }, []);
 
   return (
     <div style={{ background: "#F8F6F0", minHeight: "100vh" }}>
@@ -67,7 +83,10 @@ export default function TermsAndConditions() {
           {SECTIONS.map((section) => {
             const isOpen = active === section.id;
             return (
-              <div key={section.id} style={{
+              <div
+                key={section.id}
+                id={section.id === 3 ? "cancellation-policy" : undefined}
+                style={{
                 background: "#fff", borderRadius: "14px",
                 border: `1px solid ${isOpen ? "#2E58EC" : "#E5E7EB"}`,
                 overflow: "hidden", transition: "border-color 0.2s ease",
