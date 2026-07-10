@@ -2023,7 +2023,7 @@ function ListingsSection({
               </div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Host</p>
-                <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.host?.displayName || selectedListing.host?.firstName || selectedListing.host || "—"}</p>
+                <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.host?.displayName || selectedListing.host?.firstName || (typeof selectedListing.host === "string" ? selectedListing.host : selectedListing.host?.email) || "—"}</p>
               </div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Created</p>
