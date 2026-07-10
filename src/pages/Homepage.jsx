@@ -652,6 +652,58 @@ function TrustSignals() {
   );
 }
 
+function RecentBlogs({ blogs, loading }) {
+  if (loading) return null;
+  if (!blogs || blogs.length === 0) return null;
+
+  return (
+    <section style={{ background: "#fff", padding: "80px 24px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 40 }}>
+          <div>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: "#0A1628", marginBottom: 8 }}>From the Blog</h2>
+            <p style={{ fontSize: 16, color: "#6B7280" }}>Insights and guides for commercial space renters and hosts.</p>
+          </div>
+          <a href="/blog" style={{ fontSize: 14, fontWeight: 700, color: "#305CDE", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+            View all posts →
+          </a>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
+          {blogs.slice(0, 3).map((blog) => (
+            <a key={blog._id} href={`/blog/${blog.slug}`} style={{ textDecoration: "none" }}>
+              <div
+                style={{ background: "#F8F6F0", borderRadius: 16, overflow: "hidden", border: "1.5px solid #E5E7EB", transition: "box-shadow 0.2s", cursor: "pointer" }}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.10)"}
+                onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
+              >
+                {blog.coverImage ? (
+                  <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", height: 180, objectFit: "cover" }} />
+                ) : (
+                  <div style={{ height: 180, background: "linear-gradient(135deg, #0A1628 0%, #305CDE 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 36 }}>✍️</span>
+                  </div>
+                )}
+                <div style={{ padding: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "3px 10px", borderRadius: 999 }}>
+                      {blog.category}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#9CA3AF" }}>{blog.readTime} min read</span>
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 8, lineHeight: 1.4 }}>{blog.title}</h3>
+                  <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6, marginBottom: 12 }}>{blog.excerpt?.slice(0, 100)}{blog.excerpt?.length > 100 ? "..." : ""}</p>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#305CDE" }}>Read more →</span>
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FAQSection() {
   const [openIndex, setOpenIndex] = useState(null);
 
@@ -784,6 +836,8 @@ export default function Homepage() {
   const [featuredListings, setFeaturedListings] = useState([]);
   const [popularListings, setPopularListings] = useState([]);
   const [loadingListings, setLoadingListings] = useState(true);
+  const [recentBlogs, setRecentBlogs] = useState([]);
+  const [loadingBlogs, setLoadingBlogs] = useState(true);
 
   useEffect(() => {
     const CACHE_KEY = "vencome_homepage_listings";
@@ -830,6 +884,21 @@ export default function Homepage() {
     fetchListings();
   }, []);
 
+  useEffect(() => {
+    const fetchBlogs = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/blog?limit=3`);
+        const data = await res.json();
+        setRecentBlogs(data.blogs || []);
+      } catch (err) {
+        console.error("Failed to fetch blogs:", err);
+      } finally {
+        setLoadingBlogs(false);
+      }
+    };
+    fetchBlogs();
+  }, []);
+
   return (
     <>
       <style>{`
@@ -857,6 +926,7 @@ export default function Homepage() {
         <HowItWorks />
         <BecomeAHost />
         <TrustSignals />
+        <RecentBlogs blogs={recentBlogs} loading={loadingBlogs} />
         <FAQSection />
       </main>
       <Footer />
