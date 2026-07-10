@@ -14,8 +14,8 @@ export default function BlogList() {
     const fetchBlogs = async () => {
       try {
         const url = activeCategory === "All"
-          ? `${import.meta.env.VITE_API_URL}/api/blog`
-          : `${import.meta.env.VITE_API_URL}/api/blog?category=${activeCategory}`;
+          ? `${import.meta.env.VITE_API_URL}/blog`
+          : `${import.meta.env.VITE_API_URL}/blog?category=${activeCategory}`;
         const res = await fetch(url);
         const data = await res.json();
         setBlogs(data.blogs || []);

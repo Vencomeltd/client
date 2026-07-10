@@ -2400,8 +2400,8 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
     try {
       const token = localStorage.getItem("vencome_token");
       const url = editingBlog
-        ? `${import.meta.env.VITE_API_URL}/api/blog/${editingBlog._id}`
-        : `${import.meta.env.VITE_API_URL}/api/blog`;
+        ? `${import.meta.env.VITE_API_URL}/blog/${editingBlog._id}`
+        : `${import.meta.env.VITE_API_URL}/blog`;
       const method = editingBlog ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -2435,13 +2435,13 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this blog post?")) return;
     const token = localStorage.getItem("vencome_token");
-    await fetch(`${import.meta.env.VITE_API_URL}/api/blog/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`${import.meta.env.VITE_API_URL}/blog/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     fetchBlogs();
   };
 
   const handlePublish = async (blog) => {
     const token = localStorage.getItem("vencome_token");
-    await fetch(`${import.meta.env.VITE_API_URL}/api/blog/${blog._id}`, {
+    await fetch(`${import.meta.env.VITE_API_URL}/blog/${blog._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ status: blog.status === "published" ? "draft" : "published" }),
@@ -3582,7 +3582,7 @@ export default function AdminDashboard() {
   const fetchBlogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("vencome_token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/blog/admin/all`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/admin/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
