@@ -8,6 +8,8 @@ export default function BlogDetails() {
   const [blog, setBlog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [recentBlogs, setRecentBlogs] = useState([]);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchBlog = async () => {
@@ -41,6 +43,17 @@ export default function BlogDetails() {
     };
     fetchBlog();
     return () => { document.title = "VenCome – Book & List Commercial Spaces | UK & Middle East"; };
+  }, [slug]);
+
+  useEffect(() => {
+    const fetchRecent = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/blog?limit=4`);
+        const data = await res.json();
+        setRecentBlogs((data.blogs || []).filter(b => b.slug !== slug).slice(0, 3));
+      } catch {}
+    };
+    fetchRecent();
   }, [slug]);
 
   if (loading) return (
@@ -108,10 +121,80 @@ export default function BlogDetails() {
         />
 
         {blog.tags?.length > 0 && (
-          <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #E5E7EB", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #E5E7EB", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#6B7280", marginRight: 4 }}>Tags:</span>
             {blog.tags.map((tag) => (
-              <span key={tag} style={{ fontSize: 13, color: "#6B7280", background: "#F3F4F6", padding: "4px 12px", borderRadius: 999 }}>#{tag}</span>
+              <span key={tag} style={{ fontSize: 13, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "4px 12px", borderRadius: 999, fontWeight: 500 }}>#{tag}</span>
             ))}
+          </div>
+        )}
+
+        {/* Share Section */}
+        <div style={{ marginTop: 32, padding: 24, background: "#F8F6F0", borderRadius: 16, border: "1.5px solid #E5E7EB" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Share this article</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(blog.title)}&url=${encodeURIComponent(window.location.href)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ padding: "8px 16px", borderRadius: 8, background: "#000", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              𝕏 Share
+            </a>
+            <a
+              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ padding: "8px 16px", borderRadius: 8, background: "#1877F2", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+            >
+              Facebook
+            </a>
+            <a
+              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ padding: "8px 16px", borderRadius: 8, background: "#0077B5", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+            >
+              LinkedIn
+            </a>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(blog.title + " " + window.location.href)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ padding: "8px 16px", borderRadius: 8, background: "#25D366", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none" }}
+            >
+              WhatsApp
+            </a>
+            <button
+              onClick={() => { navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              style={{ padding: "8px 16px", borderRadius: 8, background: copied ? "#16A34A" : "#0A1628", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer" }}
+            >
+              {copied ? "✓ Copied!" : "Copy Link"}
+            </button>
+          </div>
+        </div>
+
+        {recentBlogs.length > 0 && (
+          <div style={{ marginTop: 56 }}>
+            <h3 style={{ fontSize: 22, fontWeight: 800, color: "#0A1628", marginBottom: 24 }}>Recent Articles</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
+              {recentBlogs.map((rb) => (
+                <a key={rb._id} href={`/blog/${rb.slug}`} style={{ textDecoration: "none" }}>
+                  <div style={{ background: "#F8F6F0", borderRadius: 14, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
+                    {rb.coverImage ? (
+                      <img src={rb.coverImage} alt={rb.title} style={{ width: "100%", height: 130, objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ height: 130, background: "linear-gradient(135deg, #0A1628, #305CDE)" }} />
+                    )}
+                    <div style={{ padding: 16 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "2px 8px", borderRadius: 999 }}>{rb.category}</span>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: "8px 0 4px", lineHeight: 1.4 }}>{rb.title}</p>
+                      <p style={{ fontSize: 12, color: "#6B7280" }}>{rb.readTime} min read</p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
           </div>
         )}
 
