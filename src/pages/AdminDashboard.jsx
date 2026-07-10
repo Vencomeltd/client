@@ -2479,8 +2479,34 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={labelStyle}>Cover Image URL</label>
-              <input style={inputStyle} value={blogForm.coverImage} onChange={e => setBlogForm(p => ({ ...p, coverImage: e.target.value }))} placeholder=" `https://...` " />
+              <label style={labelStyle}>Cover Image</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input style={{ ...inputStyle, flex: 1 }} value={blogForm.coverImage} onChange={e => setBlogForm(p => ({ ...p, coverImage: e.target.value }))} placeholder="Paste image URL or upload below..." />
+                <label style={{ padding: "10px 16px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#F8F6F0", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#374151" }}>
+                  Upload
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    try {
+                      const token = localStorage.getItem("vencome_token");
+                      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${token}` },
+                        body: formData,
+                      });
+                      const data = await res.json();
+                      if (data.url) setBlogForm(p => ({ ...p, coverImage: data.url }));
+                    } catch (err) {
+                      console.error("Upload error:", err);
+                    }
+                  }} />
+                </label>
+              </div>
+              {blogForm.coverImage && (
+                <img src={blogForm.coverImage} alt="Cover preview" style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 8, marginTop: 8 }} />
+              )}
             </div>
             <div>
               <label style={labelStyle}>Tags (comma separated)</label>
