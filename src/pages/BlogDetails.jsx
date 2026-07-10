@@ -12,7 +12,7 @@ export default function BlogDetails() {
   useEffect(() => {
     const fetchBlog = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${slug}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/blog/${slug}`);
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
         const b = data.blog;
