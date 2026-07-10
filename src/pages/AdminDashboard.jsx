@@ -450,14 +450,12 @@ const NAV_ITEMS = [
     section: "users",
     group: "MANAGEMENT",
     icon: Users,
-    badge: { value: "2", tone: "gold" },
   },
   {
     label: "Listings",
     section: "listings",
     group: "MANAGEMENT",
     icon: Building2,
-    badge: { value: "4", tone: "gold" },
   },
   {
     label: "Bookings",
@@ -476,7 +474,6 @@ const NAV_ITEMS = [
     section: "disputes",
     group: "MANAGEMENT",
     icon: AlertTriangle,
-    badge: { value: "7", tone: "red" },
   },
   {
     label: "Analytics",
@@ -880,13 +877,17 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
                     >
                       <Icon size={18} />
                       <span className="flex-1 text-[14px] font-medium">{item.label}</span>
-                      {item.badge ? (
-                        <span
-                          className={`flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${
-                            item.badge.tone === "red" ? "bg-[#EF4444]" : "bg-[#305CDE]"
-                          }`}
-                        >
-                          {item.badge.value}
+                      {item.section === "users" && stats.totalUsers > 0 ? (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#305CDE]">
+                          {stats.totalUsers}
+                        </span>
+                      ) : item.section === "listings" && stats.totalListings > 0 ? (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#305CDE]">
+                          {stats.totalListings}
+                        </span>
+                      ) : item.section === "disputes" && liveDisputes.length > 0 ? (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#EF4444]">
+                          {liveDisputes.length}
                         </span>
                       ) : null}
                     </motion.button>
@@ -1404,6 +1405,7 @@ function UsersSection({
   setActiveUserTab,
   openUserMenuId,
   setOpenUserMenuId,
+  onVerifyUser,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1564,7 +1566,7 @@ function UsersSection({
                     </button>
                     <AnimatePresence>
                       {openUserMenuId === user._id ? (
-                        <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} onVerify={handleVerifyUser} />
+                        <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} onVerify={onVerifyUser} />
                       ) : null}
                     </AnimatePresence>
                   </td>
@@ -3481,7 +3483,14 @@ function PlaceholderSection({ title }) {
 
 export default function AdminDashboard() {
   const token = localStorage.getItem("vencome_token");
-  const [activeSection, setActiveSection] = useState("overview");
+  const [activeSection, setActiveSection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("section") || "overview";
+  });
+  const navigateToSection = (section) => {
+    setActiveSection(section);
+    window.history.pushState({}, "", `/admin?section=${section}`);
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
   const [users, setUsers] = useState([]);
@@ -3727,7 +3736,7 @@ export default function AdminDashboard() {
   if (activeSection === "overview") {
     sectionContent = (
       <OverviewSection
-        onSectionChange={setActiveSection}
+        onSectionChange={navigateToSection}
         moderationQueue={moderationQueue}
         setReviewOpenId={setReviewOpenId}
         stats={stats}
@@ -3753,6 +3762,7 @@ export default function AdminDashboard() {
         setActiveUserTab={setActiveUserTab}
         openUserMenuId={openUserMenuId}
         setOpenUserMenuId={setOpenUserMenuId}
+        onVerifyUser={handleVerifyUser}
       />
     );
   } else if (activeSection === "listings") {
@@ -3877,7 +3887,7 @@ export default function AdminDashboard() {
       <AdminLayout
         activeSection={activeSection}
         onSectionChange={(section) => {
-          setActiveSection(section);
+          navigateToSection(section);
           setOpenUserMenuId(null);
         }}
         searchQuery={searchQuery}
