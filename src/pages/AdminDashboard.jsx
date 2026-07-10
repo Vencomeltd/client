@@ -3606,7 +3606,7 @@ export default function AdminDashboard() {
 
         const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes, paymentsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
-          fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=open&limit=10`, { headers }),
