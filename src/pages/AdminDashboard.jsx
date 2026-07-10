@@ -877,17 +877,13 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
                     >
                       <Icon size={18} />
                       <span className="flex-1 text-[14px] font-medium">{item.label}</span>
-                      {item.section === "users" && stats.totalUsers > 0 ? (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#305CDE]">
-                          {stats.totalUsers}
-                        </span>
-                      ) : item.section === "listings" && stats.totalListings > 0 ? (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#305CDE]">
-                          {stats.totalListings}
-                        </span>
-                      ) : item.section === "disputes" && liveDisputes.length > 0 ? (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white bg-[#EF4444]">
-                          {liveDisputes.length}
+                      {item.badge ? (
+                        <span
+                          className={`flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${
+                            item.badge.tone === "red" ? "bg-[#EF4444]" : "bg-[#305CDE]"
+                          }`}
+                        >
+                          {item.badge.value}
                         </span>
                       ) : null}
                     </motion.button>
