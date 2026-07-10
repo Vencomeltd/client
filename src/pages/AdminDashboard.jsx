@@ -1994,7 +1994,7 @@ function ListingsSection({
                 </div>
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Category</p>
-                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.category || "—"}</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedListing.category?.name || selectedListing.category || "—"}</p>
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
