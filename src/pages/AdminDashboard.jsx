@@ -2340,33 +2340,50 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    if (document.getElementById("tinymce-script")) return;
-    const script = document.createElement("script");
-    script.id = "tinymce-script";
-    script.src = "https://cdn.tiny.cloud/1/d3ph19mc06oelgecrd2lzifkp7481i19iu8z3zv9w3zz2e76/tinymce/8/tinymce.min.js";
-    script.referrerPolicy = "origin";
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      if (window.tinymce) {
-        window.tinymce.init({
-          selector: "#blog-content-editor",
-          plugins: "anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount",
-          toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat",
-          height: 400,
-          menubar: false,
-          skin: "oxide",
-          content_css: "default",
-          setup: (editor) => {
-            editor.on("change keyup", () => {
-              setBlogForm(p => ({ ...p, content: editor.getContent() }));
-            });
-          },
-        });
+    if (!showForm) return;
+
+    const initTinyMCE = () => {
+      if (!window.tinymce) return;
+      if (window.tinymce.get("blog-content-editor")) {
+        window.tinymce.get("blog-content-editor").remove();
       }
+      window.tinymce.init({
+        selector: "#blog-content-editor",
+        plugins: "anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount",
+        toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat",
+        height: 400,
+        menubar: false,
+        skin: "oxide",
+        content_css: "default",
+        setup: (editor) => {
+          editor.on("change keyup input", () => {
+            setBlogForm(p => ({ ...p, content: editor.getContent() }));
+          });
+        },
+      });
     };
-    document.head.appendChild(script);
+
+    if (window.tinymce) {
+      setTimeout(initTinyMCE, 100);
+    } else {
+      const existing = document.getElementById("tinymce-script");
+      if (existing) {
+        existing.addEventListener("load", () => setTimeout(initTinyMCE, 100));
+        return;
+      }
+      const script = document.createElement("script");
+      script.id = "tinymce-script";
+      script.src = "https://cdn.tiny.cloud/1/d3ph19mc06oelgecrd2lzifkp7481i19iu8z3zv9w3zz2e76/tinymce/8/tinymce.min.js";
+      script.referrerPolicy = "origin";
+      script.crossOrigin = "anonymous";
+      script.onload = () => setTimeout(initTinyMCE, 100);
+      document.head.appendChild(script);
+    }
+
     return () => {
-      if (window.tinymce) window.tinymce.remove("#blog-content-editor");
+      if (window.tinymce?.get("blog-content-editor")) {
+        window.tinymce.get("blog-content-editor").remove();
+      }
     };
   }, [showForm]);
 
