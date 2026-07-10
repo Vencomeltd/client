@@ -102,6 +102,7 @@ export default function BlogDetails() {
         )}
 
         <div
+          className="blog-content"
           style={{ fontSize: 16, lineHeight: 1.8, color: "#374151" }}
           dangerouslySetInnerHTML={{ __html: blog.content }}
         />
