@@ -2339,6 +2339,37 @@ function AnalyticsSection({ chartData, categoryData, stats, bookings, livePaymen
 function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog, setEditingBlog, blogError, setBlogError, blogSuccess, setBlogSuccess, blogLoading, setBlogLoading }) {
   const [showForm, setShowForm] = useState(false);
 
+  useEffect(() => {
+    if (document.getElementById("tinymce-script")) return;
+    const script = document.createElement("script");
+    script.id = "tinymce-script";
+    script.src = "https://cdn.tiny.cloud/1/d3ph19mc06oelgecrd2lzifkp7481i19iu8z3zv9w3zz2e76/tinymce/8/tinymce.min.js";
+    script.referrerPolicy = "origin";
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (window.tinymce) {
+        window.tinymce.init({
+          selector: "#blog-content-editor",
+          plugins: "anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount",
+          toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat",
+          height: 400,
+          menubar: false,
+          skin: "oxide",
+          content_css: "default",
+          setup: (editor) => {
+            editor.on("change keyup", () => {
+              setBlogForm(p => ({ ...p, content: editor.getContent() }));
+            });
+          },
+        });
+      }
+    };
+    document.head.appendChild(script);
+    return () => {
+      if (window.tinymce) window.tinymce.remove("#blog-content-editor");
+    };
+  }, [showForm]);
+
   useEffect(() => { fetchBlogs(); }, [fetchBlogs]);
 
   const handleSubmit = async () => {
@@ -2362,7 +2393,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
       });
       if (res.ok) {
         setBlogSuccess(editingBlog ? "Blog updated successfully" : "Blog created successfully");
-        setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" });
+        setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft", seoTitle: "", seoDescription: "", ogImage: "" });
         setEditingBlog(null);
         setShowForm(false);
         fetchBlogs();
@@ -2412,7 +2443,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
           <p className="mt-1 text-[13px] text-[#6B7280]">Create and manage blog posts</p>
         </div>
         <button
-          onClick={() => { setShowForm(!showForm); setEditingBlog(null); setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" }); }}
+          onClick={() => { setShowForm(!showForm); setEditingBlog(null); setBlogForm({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft", seoTitle: "", seoDescription: "", ogImage: "" }); }}
           style={{ padding: "10px 20px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}
         >
           {showForm ? "Cancel" : "+ New Blog Post"}
@@ -2443,8 +2474,8 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
             <textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={blogForm.excerpt} onChange={e => setBlogForm(p => ({ ...p, excerpt: e.target.value }))} placeholder="Short description shown in blog list..." maxLength={300} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Content * (HTML supported)</label>
-            <textarea style={{ ...inputStyle, height: 300, resize: "vertical", fontFamily: "monospace", fontSize: 13 }} value={blogForm.content} onChange={e => setBlogForm(p => ({ ...p, content: e.target.value }))} placeholder="<p>Write your blog content here...</p>" />
+            <label style={labelStyle}>Content *</label>
+            <textarea id="blog-content-editor" defaultValue={blogForm.content} style={{ width: "100%", minHeight: 400 }} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
@@ -2456,7 +2487,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
               <input style={inputStyle} value={blogForm.tags} onChange={e => setBlogForm(p => ({ ...p, tags: e.target.value }))} placeholder="office, london, tips" />
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={labelStyle}>Author</label>
               <input style={inputStyle} value={blogForm.author} onChange={e => setBlogForm(p => ({ ...p, author: e.target.value }))} />
@@ -2469,6 +2500,26 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
               </select>
             </div>
           </div>
+
+          {/* SEO Section */}
+          <div style={{ background: "#F8F6F0", borderRadius: 12, padding: 20, marginBottom: 24, border: "1.5px solid #E5E7EB" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 }}>SEO Settings</p>
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Meta Title <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(defaults to blog title)</span></label>
+              <input style={inputStyle} value={blogForm.seoTitle || ""} onChange={e => setBlogForm(p => ({ ...p, seoTitle: e.target.value }))} placeholder={blogForm.title || "Meta title for search engines"} maxLength={60} />
+              <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>{(blogForm.seoTitle || "").length}/60 characters</p>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Meta Description <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(defaults to excerpt)</span></label>
+              <textarea style={{ ...inputStyle, height: 70, resize: "vertical" }} value={blogForm.seoDescription || ""} onChange={e => setBlogForm(p => ({ ...p, seoDescription: e.target.value }))} placeholder={blogForm.excerpt || "Meta description for search engines"} maxLength={160} />
+              <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>{(blogForm.seoDescription || "").length}/160 characters</p>
+            </div>
+            <div>
+              <label style={labelStyle}>OG Image URL <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(defaults to cover image)</span></label>
+              <input style={inputStyle} value={blogForm.ogImage || ""} onChange={e => setBlogForm(p => ({ ...p, ogImage: e.target.value }))} placeholder="https://..." />
+            </div>
+          </div>
+
           <button
             onClick={handleSubmit}
             disabled={blogLoading}
@@ -3409,7 +3460,7 @@ export default function AdminDashboard() {
   const [paymentStats, setPaymentStats] = useState({ gmv: 0, platformRevenue: 0, inEscrow: 0, awaitingPayout: 0 });
   const [blogs, setBlogs] = useState([]);
   const [blogLoading, setBlogLoading] = useState(false);
-  const [blogForm, setBlogForm] = useState({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft" });
+  const [blogForm, setBlogForm] = useState({ title: "", excerpt: "", content: "", coverImage: "", category: "News", tags: "", author: "VenCome Team", status: "draft", seoTitle: "", seoDescription: "", ogImage: "" });
   const [editingBlog, setEditingBlog] = useState(null);
   const [blogError, setBlogError] = useState("");
   const [blogSuccess, setBlogSuccess] = useState("");

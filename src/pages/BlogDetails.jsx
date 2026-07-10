@@ -15,8 +15,24 @@ export default function BlogDetails() {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${slug}`);
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
-        setBlog(data.blog);
-        if (data.blog?.title) document.title = `${data.blog.title} | VenCome Blog`;
+        const b = data.blog;
+        setBlog(b);
+        if (b?.title) {
+          document.title = `${b.seoTitle || b.title} | VenCome Blog`;
+          const setMeta = (selector, attr, content) => {
+            let el = document.querySelector(selector);
+            if (!el) { el = document.createElement("meta"); document.head.appendChild(el); }
+            el.setAttribute(attr, content);
+          };
+          setMeta('meta[name="description"]', "content", b.seoDescription || b.excerpt || "");
+          setMeta('meta[property="og:title"]', "content", `${b.seoTitle || b.title} | VenCome Blog`);
+          setMeta('meta[property="og:description"]', "content", b.seoDescription || b.excerpt || "");
+          setMeta('meta[property="og:image"]', "content", b.ogImage || b.coverImage || "https://www.vencome.com/vencome-og.jpg");
+          setMeta('meta[property="og:url"]', "content", `https://www.vencome.com/blog/${b.slug}`);
+          let canonical = document.querySelector('link[rel="canonical"]');
+          if (!canonical) { canonical = document.createElement("link"); canonical.setAttribute("rel", "canonical"); document.head.appendChild(canonical); }
+          canonical.setAttribute("href", `https://www.vencome.com/blog/${b.slug}`);
+        }
       } catch {
         setNotFound(true);
       } finally {
