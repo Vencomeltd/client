@@ -142,16 +142,14 @@ const CALENDAR_PROVIDERS = [
   {
     id: "apple",
     name: "Apple iCal / CalDAV",
-    description: "Connect any CalDAV compatible calendar",
-    type: "oauth",
-    comingSoon: true,
+    description: "Blocks dates from your iCloud calendar",
+    type: "credentials",
   },
   {
     id: "calendly",
     name: "Calendly",
-    description: "Sync via Calendly webhook & API",
+    description: "Blocks dates from your existing Calendly bookings",
     type: "oauth",
-    comingSoon: true,
   },
   {
     id: "calcom",
@@ -162,9 +160,8 @@ const CALENDAR_PROVIDERS = [
   {
     id: "ical",
     name: "iCal Feed (URL)",
-    description: "Paste any .ics calendar feed URL",
+    description: "Paste any .ics calendar feed URL — applies to this listing only",
     type: "ical",
-    comingSoon: true,
   },
 ];
 
@@ -231,6 +228,7 @@ const defaultState = {
   bookingApproval: "approveFirstFive",
   blockedDates: [],
   leaseAgreement: null,
+  icalUrl: "",
 };
 
 const formatCurrency = (value) =>
@@ -426,9 +424,12 @@ export default function CreateSpace() {
   const [customBeforeUnit, setCustomBeforeUnit] = useState("minutes");
   const [customAfterUnit, setCustomAfterUnit] = useState("minutes");
   const [connectingCalendar, setConnectingCalendar] = useState(null);
-  const [hostCalendarStatus, setHostCalendarStatus] = useState({ google: null, outlook: null, calcom: null });
+  const [hostCalendarStatus, setHostCalendarStatus] = useState({ google: null, outlook: null, calcom: null, calendly: null, apple: null });
   const [calcomApiKeyInput, setCalcomApiKeyInput] = useState("");
   const [connectingCalcom, setConnectingCalcom] = useState(false);
+  const [appleUsernameInput, setAppleUsernameInput] = useState("");
+  const [applePasswordInput, setApplePasswordInput] = useState("");
+  const [connectingApple, setConnectingApple] = useState(false);
   const [calendarStatusLoading, setCalendarStatusLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -724,21 +725,27 @@ export default function CreateSpace() {
 
     const fetchCalendarStatus = async () => {
       try {
-        const [googleRes, outlookRes, calcomRes] = await Promise.all([
+        const [googleRes, outlookRes, calcomRes, calendlyRes, appleRes] = await Promise.all([
           apiFetch("/calendar/google/status"),
           apiFetch("/calendar/outlook/status"),
           apiFetch("/calendar/calcom/status"),
+          apiFetch("/calendar/calendly/status"),
+          apiFetch("/calendar/apple/status"),
         ]);
         const google = await googleRes.json();
         const outlook = await outlookRes.json();
         const calcom = await calcomRes.json();
-        if (!cancelled) setHostCalendarStatus({ google, outlook, calcom });
+        const calendly = await calendlyRes.json();
+        const apple = await appleRes.json();
+        if (!cancelled) setHostCalendarStatus({ google, outlook, calcom, calendly, apple });
       } catch (err) {
         if (!cancelled) {
           setHostCalendarStatus({
             google: { connected: false },
             outlook: { connected: false },
             calcom: { connected: false },
+            calendly: { connected: false },
+            apple: { connected: false },
           });
         }
       } finally {
@@ -813,7 +820,7 @@ export default function CreateSpace() {
   // per-listing "connected" toggle. Connecting from inside the wizard opens a
   // popup instead of redirecting the tab away, so wizard progress is never lost.
   const handleCalendarConnect = async (providerId) => {
-    if (providerId !== "google" && providerId !== "outlook") return;
+    if (providerId !== "google" && providerId !== "outlook" && providerId !== "calendly") return;
 
     setConnectingCalendar(providerId);
     try {
@@ -850,9 +857,9 @@ export default function CreateSpace() {
             console.error("Failed to refresh calendar status:", err);
           }
         } else {
-          setValidationError(
-            `Failed to connect ${providerId === "google" ? "Google Calendar" : "Outlook"}. Please try again.`
-          );
+          const providerLabel =
+            providerId === "google" ? "Google Calendar" : providerId === "outlook" ? "Outlook" : "Calendly";
+          setValidationError(`Failed to connect ${providerLabel}. Please try again.`);
         }
       };
 
@@ -897,6 +904,38 @@ export default function CreateSpace() {
       setValidationError(err.message || "Couldn't verify that Cal.com API key.");
     } finally {
       setConnectingCalcom(false);
+    }
+  };
+
+  // Apple Calendar connects via Apple ID + app-specific password, also a
+  // direct request rather than the OAuth popup flow (Apple has no practical
+  // OAuth flow for CalDAV).
+  const handleAppleConnect = async () => {
+    if (!appleUsernameInput.trim() || !applePasswordInput.trim()) {
+      setValidationError("Enter your Apple ID and app-specific password first.");
+      return;
+    }
+    setConnectingApple(true);
+    try {
+      const res = await apiFetch("/calendar/apple/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          username: appleUsernameInput.trim(),
+          password: applePasswordInput.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect");
+      setHostCalendarStatus((current) => ({
+        ...current,
+        apple: { connected: true, username: data.username },
+      }));
+      setAppleUsernameInput("");
+      setApplePasswordInput("");
+    } catch (err) {
+      setValidationError(err.message || "Couldn't connect — check the Apple ID and app-specific password.");
+    } finally {
+      setConnectingApple(false);
     }
   };
 
@@ -1136,6 +1175,9 @@ export default function CreateSpace() {
       formData.append("discounts", JSON.stringify(form.discounts || {}));
       formData.append("blockedDates", JSON.stringify(form.blockedDates || []));
       formData.append("bookingApproval", form.bookingApproval || "approveFirstFive");
+      if (form.icalUrl) {
+        formData.append("icalUrl", form.icalUrl);
+      }
 
       if (form.leaseAgreement instanceof File) {
         // Field name must match the backend's multer config (upload.fields
@@ -1200,8 +1242,12 @@ export default function CreateSpace() {
     }
   };
 
-  const saveDraft = async () => {
-    setSavingDraft(true);
+  // `silent` is used by the autosave effect below — skips the blocking
+  // alert() feedback and setSavingDraft spinner that make sense for the
+  // manual "Save Draft" button but would be jarring if they fired on every
+  // step change.
+  const saveDraft = async (silent = false) => {
+    if (!silent) setSavingDraft(true);
     try {
       // Raw File objects can't survive JSON.stringify (they silently become
       // {} and crash the Photos/Lease steps on restore) — upload anything
@@ -1249,14 +1295,36 @@ export default function CreateSpace() {
         const data = await res.json();
         setDraftId(data.draft._id);
       }
-      alert("Draft saved! You can continue later from your dashboard.");
+      if (!silent) alert("Draft saved! You can continue later from your dashboard.");
     } catch (err) {
       console.error("Failed to save draft:", err);
-      alert("Failed to save draft. Please try again.");
+      if (!silent) alert("Failed to save draft. Please try again.");
     } finally {
-      setSavingDraft(false);
+      if (!silent) setSavingDraft(false);
     }
   };
+
+  // Autosave — silently persists progress as a draft whenever the host
+  // moves between steps, so leaving mid-flow (closed tab, lost connection,
+  // etc.) never loses more than the current step's work. Starts from step 2
+  // onward since step 1 alone (category only) isn't worth a draft yet, and
+  // nextStep()'s validation means every step from 2 up already has at least
+  // a location, title, or photo attached to it.
+  const autoSaveTimerRef = useRef(null);
+  useEffect(() => {
+    if (entryPhase !== "wizard") return;
+    if (step <= 1) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      saveDraft(true).catch((err) => console.error("Autosave failed:", err));
+    }, 800);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, entryPhase]);
 
   if (entryPhase === "loading") {
     return (
@@ -3837,8 +3905,16 @@ export default function CreateSpace() {
                         ? hostCalendarStatus.outlook
                         : provider.id === "calcom"
                         ? hostCalendarStatus.calcom
+                        : provider.id === "calendly"
+                        ? hostCalendarStatus.calendly
+                        : provider.id === "apple"
+                        ? hostCalendarStatus.apple
                         : null;
-                    const connected = Boolean(status?.connected);
+                    // iCal Feed is per-listing (saved on this property, not the
+                    // host account), so its "connected" state comes from the
+                    // wizard's own form data rather than hostCalendarStatus.
+                    const connected =
+                      provider.id === "ical" ? Boolean(form.icalUrl) : Boolean(status?.connected);
                     const loading = connectingCalendar === provider.id;
                     const statusLabel = status?.email || status?.username;
 
@@ -3869,6 +3945,24 @@ export default function CreateSpace() {
                             <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-3.5 py-1.5 text-[12px] font-semibold text-[#6B7280]">
                               Coming soon
                             </span>
+                          ) : provider.type === "ical" ? (
+                            <div>
+                              <input
+                                type="url"
+                                value={form.icalUrl}
+                                onChange={(e) =>
+                                  setForm((prev) => ({ ...prev, icalUrl: e.target.value }))
+                                }
+                                placeholder="https://.../calendar.ics"
+                                className="h-10 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+                              />
+                              {connected ? (
+                                <span className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[#16A34A]">
+                                  <Check size={12} />
+                                  Saved — will sync after this listing is published
+                                </span>
+                              ) : null}
+                            </div>
                           ) : connected ? (
                             <div>
                               <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-3.5 py-1.5 text-[12px] font-semibold text-[#16A34A]">
@@ -3907,6 +4001,40 @@ export default function CreateSpace() {
                                 )}
                               </button>
                             </div>
+                          ) : provider.type === "credentials" ? (
+                            <div className="flex flex-col gap-2">
+                              <input
+                                type="text"
+                                value={appleUsernameInput}
+                                onChange={(e) => setAppleUsernameInput(e.target.value)}
+                                placeholder="Apple ID email"
+                                className="h-10 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+                              />
+                              <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                  type="password"
+                                  value={applePasswordInput}
+                                  onChange={(e) => setApplePasswordInput(e.target.value)}
+                                  placeholder="App-specific password"
+                                  className="h-10 flex-1 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={connectingApple}
+                                  onClick={handleAppleConnect}
+                                  className="inline-flex items-center justify-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                  {connectingApple ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    "Connect"
+                                  )}
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-[#9CA3AF]">
+                                Generate one at appleid.apple.com → Sign-In and Security → App-Specific Passwords.
+                              </p>
+                            </div>
                           ) : (
                             <button
                               type="button"
@@ -3933,7 +4061,9 @@ export default function CreateSpace() {
                 <AnimatePresence>
                   {hostCalendarStatus.google?.connected ||
                   hostCalendarStatus.outlook?.connected ||
-                  hostCalendarStatus.calcom?.connected ? (
+                  hostCalendarStatus.calcom?.connected ||
+                  hostCalendarStatus.calendly?.connected ||
+                  hostCalendarStatus.apple?.connected ? (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -3947,7 +4077,7 @@ export default function CreateSpace() {
                         />
                         <div>
                           <p className="text-[15px] font-semibold text-[#16A34A]">
-                            {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected].filter(Boolean).length} calendar connected
+                            {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected, hostCalendarStatus.calendly?.connected, hostCalendarStatus.apple?.connected].filter(Boolean).length} calendar connected
                           </p>
                           <p className="mt-1 text-[13px] text-[#6B7280]">
                             Your VenCome availability will now sync automatically.
@@ -4077,7 +4207,7 @@ export default function CreateSpace() {
                       <p>
                         Connected calendars:{" "}
                         <span className="font-semibold text-[#0A1628]">
-                          {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected].filter(Boolean).length}
+                          {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected, hostCalendarStatus.calendly?.connected, hostCalendarStatus.apple?.connected].filter(Boolean).length}
                         </span>
                       </p>
                     </div>
@@ -4165,7 +4295,7 @@ export default function CreateSpace() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={saveDraft}
+                onClick={() => saveDraft(false)}
                 disabled={savingDraft}
                 style={{
                   padding: "10px 20px",

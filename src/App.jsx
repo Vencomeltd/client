@@ -37,6 +37,7 @@ import MyListings from "./pages/MyListings";
 import HostProfile from "./pages/HostProfile";
 import CategoryPage from "./pages/CategoryPage";
 import HostBookings from "./pages/HostBookings";
+import HostCalendar from "./pages/HostCalendar";
 import MyBookings from "./pages/MyBookings";
 import BlogList from "./pages/BlogList";
 import BlogDetails from "./pages/BlogDetails";
@@ -396,6 +397,14 @@ function AppContent() {
           element={
             <PrivateRoute requireHost>
               <HostBookings />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/host/calendar"
+          element={
+            <PrivateRoute requireHost>
+              <HostCalendar />
             </PrivateRoute>
           }
         />

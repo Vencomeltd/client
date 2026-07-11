@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Building2, Edit2, Eye, MapPin, Plus } from "lucide-react";
+import { Building2, Edit2, Eye, Loader2, MapPin, Plus } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function MyListings() {
@@ -8,6 +8,44 @@ export default function MyListings() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+
+  // Unpublishing a listing just flips isActive to false on the same
+  // Property document -- same listing ID, same booking/review history,
+  // it just stops showing up in search/booking until republished. The
+  // host can still edit and preview it while unpublished.
+  const toggleListingStatus = async (listing) => {
+    setTogglingId(listing._id);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const nextIsActive = !listing.isActive;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/properties/${listing._id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ isActive: nextIsActive }),
+        }
+      );
+      if (!response.ok) throw new Error("Failed to update listing status");
+      setListings((current) =>
+        current.map((item) =>
+          item._id === listing._id ? { ...item, isActive: nextIsActive } : item
+        )
+      );
+    } catch (err) {
+      alert(
+        listing.isActive
+          ? "Failed to unpublish listing. Please try again."
+          : "Failed to republish listing. Please try again."
+      );
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchMyListings = async () => {
@@ -105,7 +143,7 @@ export default function MyListings() {
                       listing.isActive ? "bg-[#16A34A] text-white" : "bg-[#9CA3AF] text-white"
                     }`}
                   >
-                    {listing.isActive ? "Active" : "Inactive"}
+                    {listing.isActive ? "Live" : "Draft"}
                   </span>
                 </div>
 
@@ -140,6 +178,21 @@ export default function MyListings() {
                         <Eye size={14} />
                         View
                       </a>
+                      <button
+                        type="button"
+                        onClick={() => toggleListingStatus(listing)}
+                        disabled={togglingId === listing._id}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border-[1.5px] px-3.5 py-2 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          listing.isActive
+                            ? "border-[#E5E7EB] text-[#DC2626] hover:border-[#DC2626]"
+                            : "border-[#E5E7EB] text-[#16A34A] hover:border-[#16A34A]"
+                        }`}
+                      >
+                        {togglingId === listing._id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : null}
+                        {listing.isActive ? "Unpublish" : "Republish"}
+                      </button>
                     </div>
                   </div>
                 </div>

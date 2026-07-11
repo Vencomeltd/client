@@ -67,6 +67,7 @@ const getMainItems = (pendingCount, unreadCount, isHost) => [
 
 const HOSTING_ITEMS = [
   { label: "My Listings", path: "/host/listings", icon: Building2 },
+  { label: "Calendar", path: "/host/calendar", icon: CalendarDays },
   { label: "Add New Space", path: "/host/create", icon: Plus },
   { label: "Analytics", path: "/host/analytics", icon: BarChart2 },
 ];

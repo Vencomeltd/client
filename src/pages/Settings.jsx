@@ -31,6 +31,12 @@ export default function Settings() {
   const [calcomStatus, setCalcomStatus] = useState(null);
   const [calcomApiKeyInput, setCalcomApiKeyInput] = useState("");
   const [connectingCalcom, setConnectingCalcom] = useState(false);
+  const [calendlyStatus, setCalendlyStatus] = useState(null);
+  const [connectingCalendly, setConnectingCalendly] = useState(false);
+  const [appleStatus, setAppleStatus] = useState(null);
+  const [appleUsernameInput, setAppleUsernameInput] = useState("");
+  const [applePasswordInput, setApplePasswordInput] = useState("");
+  const [connectingApple, setConnectingApple] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -67,19 +73,25 @@ export default function Settings() {
   useEffect(() => {
     const fetchCalendarStatus = async () => {
       try {
-        const [googleRes, outlookRes, calcomRes] = await Promise.all([
+        const [googleRes, outlookRes, calcomRes, calendlyRes, appleRes] = await Promise.all([
           apiFetch("/calendar/google/status"),
           apiFetch("/calendar/outlook/status"),
           apiFetch("/calendar/calcom/status"),
+          apiFetch("/calendar/calendly/status"),
+          apiFetch("/calendar/apple/status"),
         ]);
         setGoogleCalendar(await googleRes.json());
         setOutlookCalendar(await outlookRes.json());
         setCalcomStatus(await calcomRes.json());
+        setCalendlyStatus(await calendlyRes.json());
+        setAppleStatus(await appleRes.json());
       } catch (err) {
         console.error("Failed to load calendar status", err);
         setGoogleCalendar({ connected: false });
         setOutlookCalendar({ connected: false });
         setCalcomStatus({ connected: false });
+        setCalendlyStatus({ connected: false });
+        setAppleStatus({ connected: false });
       } finally {
         setCalendarLoading(false);
       }
@@ -186,6 +198,74 @@ export default function Settings() {
       toast.error("Failed to disconnect Cal.com");
     } finally {
       setConnectingCalcom(false);
+    }
+  };
+
+  const handleConnectCalendly = async () => {
+    setConnectingCalendly(true);
+    try {
+      const res = await apiFetch("/calendar/calendly/connect");
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Failed to start connection");
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err.message || "Failed to connect Calendly");
+      setConnectingCalendly(false);
+    }
+  };
+
+  const handleDisconnectCalendly = async () => {
+    setConnectingCalendly(true);
+    try {
+      const res = await apiFetch("/calendar/calendly/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setCalendlyStatus({ connected: false });
+      toast.success("Calendly disconnected");
+    } catch (err) {
+      toast.error("Failed to disconnect Calendly");
+    } finally {
+      setConnectingCalendly(false);
+    }
+  };
+
+  const handleConnectApple = async () => {
+    if (!appleUsernameInput.trim() || !applePasswordInput.trim()) {
+      toast.error("Enter your Apple ID and app-specific password first");
+      return;
+    }
+    setConnectingApple(true);
+    try {
+      const res = await apiFetch("/calendar/apple/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          username: appleUsernameInput.trim(),
+          password: applePasswordInput.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect");
+      setAppleStatus({ connected: true, username: data.username });
+      setAppleUsernameInput("");
+      setApplePasswordInput("");
+      toast.success("Apple Calendar connected");
+    } catch (err) {
+      toast.error(err.message || "Couldn't connect — check the Apple ID and app-specific password");
+    } finally {
+      setConnectingApple(false);
+    }
+  };
+
+  const handleDisconnectApple = async () => {
+    setConnectingApple(true);
+    try {
+      const res = await apiFetch("/calendar/apple/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setAppleStatus({ connected: false });
+      toast.success("Apple Calendar disconnected");
+    } catch (err) {
+      toast.error("Failed to disconnect Apple Calendar");
+    } finally {
+      setConnectingApple(false);
     }
   };
 
@@ -606,7 +686,7 @@ export default function Settings() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "14px", marginBottom: "24px" }}>
                     {/* Google Calendar — the real, working option */}
                     <div style={{
                       border: googleCalendar?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
@@ -682,10 +762,60 @@ export default function Settings() {
                         {calcomStatus?.connected ? "Connected" : "Not connected"}
                       </span>
                     </div>
+
+                    {/* Calendly — real OAuth, same live pattern as Google/Outlook */}
+                    <div style={{
+                      border: calendlyStatus?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: calendlyStatus?.connected ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <CalendarDays size={26} color={calendlyStatus?.connected ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Calendly
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        {calendlyStatus?.connected
+                          ? `Connected as ${calendlyStatus.email || "your account"}`
+                          : "Blocks VenCome dates from your existing Calendly bookings."}
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: calendlyStatus?.connected ? "rgba(22,163,74,0.12)" : "rgba(46,88,236,0.1)",
+                        color: calendlyStatus?.connected ? "#16A34A" : "#2E58EC",
+                      }}>
+                        {calendlyStatus?.connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
+
+                    {/* Apple Calendar — CalDAV via Apple ID + app-specific password */}
+                    <div style={{
+                      border: appleStatus?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: appleStatus?.connected ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <CalendarDays size={26} color={appleStatus?.connected ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Apple Calendar
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        {appleStatus?.connected
+                          ? `Connected as ${appleStatus.username || "your account"}`
+                          : "Blocks VenCome dates from your iCloud calendar."}
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: appleStatus?.connected ? "rgba(22,163,74,0.12)" : "rgba(46,88,236,0.1)",
+                        color: appleStatus?.connected ? "#16A34A" : "#2E58EC",
+                      }}>
+                        {appleStatus?.connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{
-                    display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px",
+                    display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px",
                   }}>
                     <div style={{
                       padding: "20px 24px", textAlign: "center",
@@ -756,6 +886,41 @@ export default function Settings() {
                           : "Connect Outlook"}
                       </button>
                     </div>
+
+                    <div style={{
+                      padding: "20px 24px", textAlign: "center",
+                      border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                    }}>
+                      <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+                        {calendlyStatus?.connected
+                          ? calendlyStatus.lastSyncedAt
+                            ? `Last synced ${new Date(calendlyStatus.lastSyncedAt).toLocaleString("en-GB")}`
+                            : "Connected — first sync runs within 30 minutes."
+                          : "Connect Calendly to block VenCome dates from your existing bookings."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={calendlyStatus?.connected ? handleDisconnectCalendly : handleConnectCalendly}
+                        disabled={connectingCalendly}
+                        style={{
+                          padding: "12px 28px", borderRadius: "10px",
+                          border: calendlyStatus?.connected ? "1.5px solid #DC2626" : "none",
+                          background: connectingCalendly ? "#9CA3AF" : calendlyStatus?.connected ? "#fff" : "#2E58EC",
+                          color: connectingCalendly ? "#fff" : calendlyStatus?.connected ? "#DC2626" : "#fff",
+                          fontSize: "14px", fontWeight: "600",
+                          cursor: connectingCalendly ? "not-allowed" : "pointer",
+                          display: "inline-flex", alignItems: "center", gap: "8px",
+                        }}
+                      >
+                        {connectingCalendly && <Loader2 size={14} className="animate-spin" />}
+                        {connectingCalendly
+                          ? "Redirecting..."
+                          : calendlyStatus?.connected
+                          ? "Disconnect Calendly"
+                          : "Connect Calendly"}
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{
@@ -813,6 +978,77 @@ export default function Settings() {
                           >
                             {connectingCalcom && <Loader2 size={14} className="animate-spin" />}
                             {connectingCalcom ? "Verifying..." : "Connect Cal.com"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{
+                    marginTop: "14px", padding: "20px 24px",
+                    border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                  }}>
+                    {appleStatus?.connected ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+                        <p style={{ fontSize: "13px", color: "#6B7280" }}>
+                          {appleStatus.lastSyncedAt
+                            ? `Apple Calendar last synced ${new Date(appleStatus.lastSyncedAt).toLocaleString("en-GB")}`
+                            : "Apple Calendar connected — first sync runs within 30 minutes."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleDisconnectApple}
+                          disabled={connectingApple}
+                          style={{
+                            padding: "10px 20px", borderRadius: "10px",
+                            border: "1.5px solid #DC2626", background: "#fff", color: "#DC2626",
+                            fontSize: "13px", fontWeight: "600",
+                            cursor: connectingApple ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Disconnect Apple Calendar
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "12px" }}>
+                          Enter your Apple ID and an app-specific password (generate one at appleid.apple.com → Sign-In and Security → App-Specific Passwords) to block VenCome dates from your iCloud calendar.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          <input
+                            type="text"
+                            value={appleUsernameInput}
+                            onChange={(e) => setAppleUsernameInput(e.target.value)}
+                            placeholder="Apple ID email"
+                            style={{
+                              flex: "1 1 200px", padding: "12px 14px", borderRadius: "10px",
+                              border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none",
+                            }}
+                          />
+                          <input
+                            type="password"
+                            value={applePasswordInput}
+                            onChange={(e) => setApplePasswordInput(e.target.value)}
+                            placeholder="App-specific password"
+                            style={{
+                              flex: "1 1 200px", padding: "12px 14px", borderRadius: "10px",
+                              border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleConnectApple}
+                            disabled={connectingApple}
+                            style={{
+                              padding: "12px 24px", borderRadius: "10px", border: "none",
+                              background: connectingApple ? "#9CA3AF" : "#2E58EC", color: "#fff",
+                              fontSize: "14px", fontWeight: "600",
+                              cursor: connectingApple ? "not-allowed" : "pointer",
+                              display: "inline-flex", alignItems: "center", gap: "8px",
+                            }}
+                          >
+                            {connectingApple && <Loader2 size={14} className="animate-spin" />}
+                            {connectingApple ? "Verifying..." : "Connect Apple Calendar"}
                           </button>
                         </div>
                       </div>
