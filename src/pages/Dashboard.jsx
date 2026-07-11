@@ -447,7 +447,7 @@ export default function Dashboard() {
       <section className="mb-7">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 className="text-[18px] font-bold text-[#0A1628]">Recent Listings</h3>
-          <Link to="/dashboard/my-listings" className="text-[14px] font-medium text-[#305CDE]">
+          <Link to="/host/listings" className="text-[14px] font-medium text-[#305CDE]">
             View listings →
           </Link>
         </div>

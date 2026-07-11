@@ -156,9 +156,8 @@ const CALENDAR_PROVIDERS = [
   {
     id: "calcom",
     name: "Cal.com",
-    description: "Open-source scheduling via Cal.com API",
-    type: "oauth",
-    comingSoon: true,
+    description: "Blocks dates from your existing Cal.com bookings",
+    type: "apikey",
   },
   {
     id: "ical",
@@ -427,7 +426,9 @@ export default function CreateSpace() {
   const [customBeforeUnit, setCustomBeforeUnit] = useState("minutes");
   const [customAfterUnit, setCustomAfterUnit] = useState("minutes");
   const [connectingCalendar, setConnectingCalendar] = useState(null);
-  const [hostCalendarStatus, setHostCalendarStatus] = useState({ google: null, outlook: null });
+  const [hostCalendarStatus, setHostCalendarStatus] = useState({ google: null, outlook: null, calcom: null });
+  const [calcomApiKeyInput, setCalcomApiKeyInput] = useState("");
+  const [connectingCalcom, setConnectingCalcom] = useState(false);
   const [calendarStatusLoading, setCalendarStatusLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -723,16 +724,22 @@ export default function CreateSpace() {
 
     const fetchCalendarStatus = async () => {
       try {
-        const [googleRes, outlookRes] = await Promise.all([
+        const [googleRes, outlookRes, calcomRes] = await Promise.all([
           apiFetch("/calendar/google/status"),
           apiFetch("/calendar/outlook/status"),
+          apiFetch("/calendar/calcom/status"),
         ]);
         const google = await googleRes.json();
         const outlook = await outlookRes.json();
-        if (!cancelled) setHostCalendarStatus({ google, outlook });
+        const calcom = await calcomRes.json();
+        if (!cancelled) setHostCalendarStatus({ google, outlook, calcom });
       } catch (err) {
         if (!cancelled) {
-          setHostCalendarStatus({ google: { connected: false }, outlook: { connected: false } });
+          setHostCalendarStatus({
+            google: { connected: false },
+            outlook: { connected: false },
+            calcom: { connected: false },
+          });
         }
       } finally {
         if (!cancelled) setCalendarStatusLoading(false);
@@ -863,6 +870,33 @@ export default function CreateSpace() {
     } catch (err) {
       setConnectingCalendar(null);
       setValidationError(err.message || `Failed to connect ${providerId}`);
+    }
+  };
+
+  // Cal.com connects via a pasted API key, not OAuth, so it doesn't need the
+  // popup flow above — just a direct request.
+  const handleCalcomConnect = async () => {
+    if (!calcomApiKeyInput.trim()) {
+      setValidationError("Paste your Cal.com API key first.");
+      return;
+    }
+    setConnectingCalcom(true);
+    try {
+      const res = await apiFetch("/calendar/calcom/connect", {
+        method: "POST",
+        body: JSON.stringify({ apiKey: calcomApiKeyInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect");
+      setHostCalendarStatus((current) => ({
+        ...current,
+        calcom: { connected: true, username: data.username },
+      }));
+      setCalcomApiKeyInput("");
+    } catch (err) {
+      setValidationError(err.message || "Couldn't verify that Cal.com API key.");
+    } finally {
+      setConnectingCalcom(false);
     }
   };
 
@@ -1020,6 +1054,19 @@ export default function CreateSpace() {
     setStep((current) => Math.max(current - 1, 1));
   };
 
+  // Uploads a single File to R2 via the generic upload endpoint and returns
+  // its URL. Used to resolve pending Files into serializable strings before
+  // saving a draft — raw File objects can't survive JSON.stringify (they
+  // silently become {} and crash the Photos/Lease steps on restore).
+  const uploadFileToR2 = async (file) => {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await apiFetch("/upload", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok || !data.url) throw new Error(data.error || "Upload failed");
+    return data.url;
+  };
+
   const handlePublish = async () => {
     setIsLoading(true);
     setIsPublishing(true);
@@ -1091,7 +1138,14 @@ export default function CreateSpace() {
       formData.append("bookingApproval", form.bookingApproval || "approveFirstFive");
 
       if (form.leaseAgreement instanceof File) {
-        formData.append("leaseAgreement", form.leaseAgreement);
+        // Field name must match the backend's multer config (upload.fields
+        // expects "leaseFile", not "leaseAgreement" — this mismatch meant
+        // lease uploads were silently dropped before).
+        formData.append("leaseFile", form.leaseAgreement);
+      } else if (typeof form.leaseAgreement === "string" && form.leaseAgreement) {
+        // Already uploaded earlier (e.g. resumed from a draft) — pass its
+        // URL through directly instead of re-uploading.
+        formData.append("existingLeaseAgreement", form.leaseAgreement);
       }
 
       if (form.category) {
@@ -1107,11 +1161,18 @@ export default function CreateSpace() {
       }
 
       if (form.images && form.images.length > 0) {
+        const existingImageUrls = [];
         form.images.forEach((image) => {
           if (image instanceof File) {
             formData.append("images", image);
+          } else if (typeof image === "string" && image) {
+            // Already uploaded earlier (e.g. resumed from a draft).
+            existingImageUrls.push(image);
           }
         });
+        if (existingImageUrls.length > 0) {
+          formData.append("existingImages", JSON.stringify(existingImageUrls));
+        }
       }
       const res = await apiFetch("/properties", {
         method: "POST",
@@ -1142,12 +1203,34 @@ export default function CreateSpace() {
   const saveDraft = async () => {
     setSavingDraft(true);
     try {
+      // Raw File objects can't survive JSON.stringify (they silently become
+      // {} and crash the Photos/Lease steps on restore) — upload anything
+      // pending to R2 first and store the URLs instead. Also update local
+      // state so re-saving the same draft doesn't re-upload duplicates.
+      const resolvedImages = await Promise.all(
+        (form.images || []).map((image) =>
+          image instanceof File ? uploadFileToR2(image) : image
+        )
+      );
+      const resolvedLease =
+        form.leaseAgreement instanceof File
+          ? await uploadFileToR2(form.leaseAgreement)
+          : form.leaseAgreement;
+
+      setForm((prev) => ({
+        ...prev,
+        images: resolvedImages,
+        leaseAgreement: resolvedLease,
+      }));
+
       const payload = {
         title: form.title || form.locationName || "Untitled space",
         step,
-        coverImage: form.photoUrls?.[0] || "",
+        coverImage: resolvedImages[0] || "",
         formData: {
           ...form,
+          images: resolvedImages,
+          leaseAgreement: resolvedLease,
           bufferBefore: effectiveBufferBefore,
           bufferAfter: effectiveBufferAfter,
         },
@@ -2065,7 +2148,11 @@ export default function CreateSpace() {
                         {(form.images?.length > 0 ? form.images : form.photoUrls || []).map(
                           (photo, index) => {
                             const src =
-                              typeof photo === "string" ? photo : URL.createObjectURL(photo);
+                              typeof photo === "string"
+                                ? photo
+                                : photo instanceof File
+                                ? URL.createObjectURL(photo)
+                                : "";
                             const isSelected = (form.coverImageIndex ?? 0) === index;
 
                             return (
@@ -3653,10 +3740,14 @@ export default function CreateSpace() {
                             margin: "0 0 2px",
                           }}
                         >
-                          {form.leaseAgreement.name}
+                          {form.leaseAgreement instanceof File
+                            ? form.leaseAgreement.name
+                            : "Lease agreement uploaded"}
                         </p>
                         <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
-                          {(form.leaseAgreement.size / 1024).toFixed(1)} KB
+                          {form.leaseAgreement instanceof File
+                            ? `${(form.leaseAgreement.size / 1024).toFixed(1)} KB`
+                            : "Saved from your draft"}
                         </p>
                       </div>
                     </div>

@@ -787,7 +787,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                   <>
                     {[
                       { label: "Host Dashboard", to: "/dashboard" },
-                      { label: "My Listings", to: "/dashboard/my-listings" },
+                      { label: "My Listings", to: "/host/listings" },
                       { label: "Add New Space", to: "/create-space" },
                       { label: "My Bookings", to: "/dashboard/bookings" },
                       { label: "Messages", to: "/chat" },
