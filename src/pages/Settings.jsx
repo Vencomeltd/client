@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
+import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { toast } from "react-toastify";
@@ -23,6 +23,11 @@ export default function Settings() {
   const [payoutStatusLoading, setPayoutStatusLoading] = useState(true);
   const [connectingPayout, setConnectingPayout] = useState(false);
   const [payoutError, setPayoutError] = useState("");
+  const [googleCalendar, setGoogleCalendar] = useState(null);
+  const [outlookCalendar, setOutlookCalendar] = useState(null);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const [connectingOutlook, setConnectingOutlook] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -55,6 +60,91 @@ export default function Settings() {
     };
     fetchPayoutStatus();
   }, []);
+
+  useEffect(() => {
+    const fetchCalendarStatus = async () => {
+      try {
+        const [googleRes, outlookRes] = await Promise.all([
+          apiFetch("/calendar/google/status"),
+          apiFetch("/calendar/outlook/status"),
+        ]);
+        setGoogleCalendar(await googleRes.json());
+        setOutlookCalendar(await outlookRes.json());
+      } catch (err) {
+        console.error("Failed to load calendar status", err);
+        setGoogleCalendar({ connected: false });
+        setOutlookCalendar({ connected: false });
+      } finally {
+        setCalendarLoading(false);
+      }
+    };
+    fetchCalendarStatus();
+
+    // Land back here from the OAuth redirect (routes/calendarSync.js) —
+    // shared by both Google and Outlook.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("calendar") === "connected") {
+      toast.success("Calendar connected");
+      window.history.replaceState({}, "", "/settings");
+    } else if (params.get("calendar") === "error") {
+      toast.error("Couldn't connect calendar — please try again");
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, []);
+
+  const handleConnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      const res = await apiFetch("/calendar/google/connect");
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Failed to start connection");
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err.message || "Failed to connect Google Calendar");
+      setConnectingCalendar(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      const res = await apiFetch("/calendar/google/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setGoogleCalendar({ connected: false });
+      toast.success("Google Calendar disconnected");
+    } catch (err) {
+      toast.error("Failed to disconnect Google Calendar");
+    } finally {
+      setConnectingCalendar(false);
+    }
+  };
+
+  const handleConnectOutlook = async () => {
+    setConnectingOutlook(true);
+    try {
+      const res = await apiFetch("/calendar/outlook/connect");
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Failed to start connection");
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err.message || "Failed to connect Outlook");
+      setConnectingOutlook(false);
+    }
+  };
+
+  const handleDisconnectOutlook = async () => {
+    setConnectingOutlook(true);
+    try {
+      const res = await apiFetch("/calendar/outlook/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setOutlookCalendar({ connected: false });
+      toast.success("Outlook disconnected");
+    } catch (err) {
+      toast.error("Failed to disconnect Outlook");
+    } finally {
+      setConnectingOutlook(false);
+    }
+  };
 
   const handleConnectPayout = async () => {
     setConnectingPayout(true);
@@ -152,6 +242,7 @@ export default function Settings() {
     { key: "notifications", label: "Notifications", icon: Bell },
     { key: "payments", label: "Payments", icon: CreditCard },
     { key: "payout", label: "Payouts", icon: Building2 },
+    { key: "calendar", label: "Calendar Sync", icon: CalendarDays },
     { key: "verification", label: "Verification", icon: BadgeCheck },
   ];
 
@@ -453,6 +544,149 @@ export default function Settings() {
                         ? "Continue setup"
                         : "Connect bank account"}
                     </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === "calendar" && (
+            <div>
+              <p style={sectionTitle}>Calendar Sync</p>
+              <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
+                Connect an external calendar so bookings sync both ways — VenCome bookings show up there, and events there block VenCome availability.
+              </p>
+
+              {calendarLoading ? (
+                <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+                  <Loader2 size={24} className="animate-spin" color="#2E58EC" />
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "24px" }}>
+                    {/* Google Calendar — the real, working option */}
+                    <div style={{
+                      border: googleCalendar?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: googleCalendar?.connected ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <CalendarDays size={26} color={googleCalendar?.connected ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Google Calendar
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        {googleCalendar?.connected
+                          ? `Connected as ${googleCalendar.email}`
+                          : "Two-way sync with your Google Calendar."}
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: googleCalendar?.connected ? "rgba(22,163,74,0.12)" : "rgba(46,88,236,0.1)",
+                        color: googleCalendar?.connected ? "#16A34A" : "#2E58EC",
+                      }}>
+                        {googleCalendar?.connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
+
+                    {/* Outlook — same live pattern as Google Calendar */}
+                    <div style={{
+                      border: outlookCalendar?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: outlookCalendar?.connected ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <CalendarDays size={26} color={outlookCalendar?.connected ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Outlook
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        {outlookCalendar?.connected
+                          ? `Connected as ${outlookCalendar.email}`
+                          : "Two-way sync with Outlook / Microsoft 365."}
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: outlookCalendar?.connected ? "rgba(22,163,74,0.12)" : "rgba(46,88,236,0.1)",
+                        color: outlookCalendar?.connected ? "#16A34A" : "#2E58EC",
+                      }}>
+                        {outlookCalendar?.connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px",
+                  }}>
+                    <div style={{
+                      padding: "20px 24px", textAlign: "center",
+                      border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                    }}>
+                      <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+                        {googleCalendar?.connected
+                          ? googleCalendar.lastSyncedAt
+                            ? `Last synced ${new Date(googleCalendar.lastSyncedAt).toLocaleString("en-GB")}`
+                            : "Connected — first sync runs within 30 minutes."
+                          : "Connect Google Calendar to enable two-way sync across all your listings."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={googleCalendar?.connected ? handleDisconnectCalendar : handleConnectCalendar}
+                        disabled={connectingCalendar}
+                        style={{
+                          padding: "12px 28px", borderRadius: "10px",
+                          border: googleCalendar?.connected ? "1.5px solid #DC2626" : "none",
+                          background: connectingCalendar ? "#9CA3AF" : googleCalendar?.connected ? "#fff" : "#2E58EC",
+                          color: connectingCalendar ? "#fff" : googleCalendar?.connected ? "#DC2626" : "#fff",
+                          fontSize: "14px", fontWeight: "600",
+                          cursor: connectingCalendar ? "not-allowed" : "pointer",
+                          display: "inline-flex", alignItems: "center", gap: "8px",
+                        }}
+                      >
+                        {connectingCalendar && <Loader2 size={14} className="animate-spin" />}
+                        {connectingCalendar
+                          ? "Redirecting..."
+                          : googleCalendar?.connected
+                          ? "Disconnect Google"
+                          : "Connect Google Calendar"}
+                      </button>
+                    </div>
+
+                    <div style={{
+                      padding: "20px 24px", textAlign: "center",
+                      border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                    }}>
+                      <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+                        {outlookCalendar?.connected
+                          ? outlookCalendar.lastSyncedAt
+                            ? `Last synced ${new Date(outlookCalendar.lastSyncedAt).toLocaleString("en-GB")}`
+                            : "Connected — first sync runs within 30 minutes."
+                          : "Connect Outlook to enable two-way sync across all your listings."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={outlookCalendar?.connected ? handleDisconnectOutlook : handleConnectOutlook}
+                        disabled={connectingOutlook}
+                        style={{
+                          padding: "12px 28px", borderRadius: "10px",
+                          border: outlookCalendar?.connected ? "1.5px solid #DC2626" : "none",
+                          background: connectingOutlook ? "#9CA3AF" : outlookCalendar?.connected ? "#fff" : "#2E58EC",
+                          color: connectingOutlook ? "#fff" : outlookCalendar?.connected ? "#DC2626" : "#fff",
+                          fontSize: "14px", fontWeight: "600",
+                          cursor: connectingOutlook ? "not-allowed" : "pointer",
+                          display: "inline-flex", alignItems: "center", gap: "8px",
+                        }}
+                      >
+                        {connectingOutlook && <Loader2 size={14} className="animate-spin" />}
+                        {connectingOutlook
+                          ? "Redirecting..."
+                          : outlookCalendar?.connected
+                          ? "Disconnect Outlook"
+                          : "Connect Outlook"}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
