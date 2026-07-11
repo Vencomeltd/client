@@ -95,6 +95,8 @@ function AppContent() {
     location.pathname.startsWith("/admin") ||
     location.pathname.startsWith("/bookings/") ||
     location.pathname.startsWith("/availability/") ||
+    location.pathname === "/my-bookings" ||
+    location.pathname.startsWith("/chat") ||
     location.pathname === "/create-space" ||
     location.pathname.startsWith("/edit-space/") ||
     location.pathname === "/my-listings" ||

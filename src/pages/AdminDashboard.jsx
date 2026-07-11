@@ -1101,7 +1101,7 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
   );
 }
 
-function UserMenu({ user, onClose, onVerify }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: -8 }}
@@ -1109,15 +1109,24 @@ function UserMenu({ user, onClose, onVerify }) {
       exit={{ opacity: 0, scale: 0.95, y: -8 }}
       className="absolute right-4 top-12 z-20 min-w-[180px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
     >
-      <UserMenuItem icon={Eye} label="View Profile" onClick={onClose} />
-      {!user.isVerified ? <UserMenuItem icon={UserCheck} label="Verify User" onClick={onClose} /> : null}
+      {user.isHost ? (
+        <UserMenuItem
+          icon={Eye}
+          label="View Profile"
+          onClick={() => { window.open(`/host/${user._id}`, "_blank"); onClose(); }}
+        />
+      ) : null}
       <UserMenuItem
         icon={ShieldOff}
         label={user.isBanned ? "Unsuspend" : "Suspend"}
         danger={!user.isBanned}
-        onClick={onClose}
+        onClick={() => { onSuspend(user._id, !user.isBanned); onClose(); }}
       />
-      <UserMenuItem icon={Key} label="Reset Password" onClick={onClose} />
+      <UserMenuItem
+        icon={Key}
+        label="Reset Password"
+        onClick={() => { onResetPassword(user._id); onClose(); }}
+      />
       {user.isHost ? (
         <UserMenuItem
           icon={UserCheck}
@@ -1125,7 +1134,12 @@ function UserMenu({ user, onClose, onVerify }) {
           onClick={() => { onVerify(user._id, user.venComeVerified ? "revoke" : "grant"); onClose(); }}
         />
       ) : null}
-      <UserMenuItem icon={Trash2} label="Delete User" danger onClick={onClose} />
+      <UserMenuItem
+        icon={Trash2}
+        label="Delete User"
+        danger
+        onClick={() => { onDelete(user); onClose(); }}
+      />
     </motion.div>
   );
 }
@@ -1391,6 +1405,9 @@ function UsersSection({
   openUserMenuId,
   setOpenUserMenuId,
   onVerifyUser,
+  onSuspendUser,
+  onResetPasswordUser,
+  onDeleteUser,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1551,7 +1568,14 @@ function UsersSection({
                     </button>
                     <AnimatePresence>
                       {openUserMenuId === user._id ? (
-                        <UserMenu user={user} onClose={() => setOpenUserMenuId(null)} onVerify={onVerifyUser} />
+                        <UserMenu
+                          user={user}
+                          onClose={() => setOpenUserMenuId(null)}
+                          onVerify={onVerifyUser}
+                          onSuspend={onSuspendUser}
+                          onResetPassword={onResetPasswordUser}
+                          onDelete={onDeleteUser}
+                        />
                       ) : null}
                     </AnimatePresence>
                   </td>
@@ -1680,6 +1704,36 @@ function ListingsSection({
     setRejectionState({ id: null, reason: "" });
   };
 
+  const patchProperty = async (id, body) => {
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("Request failed");
+  };
+
+  const handleApprove = async (id) => {
+    try {
+      await patchProperty(id, { isActive: true });
+      removeQueueItem(id);
+      onToast("Listing approved and published");
+    } catch {
+      onToast("Couldn't approve listing");
+    }
+  };
+
+  const handleReject = async (id, reason) => {
+    try {
+      await patchProperty(id, { isActive: false, rejectionReason: reason });
+      removeQueueItem(id);
+      onToast("Listing rejected and removed from queue");
+    } catch {
+      onToast("Couldn't reject listing");
+    }
+  };
+
   return (
     <>
       <div className="mb-5 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
@@ -1769,6 +1823,7 @@ function ListingsSection({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => window.open(`/property/${listing.id}`, "_blank")}
                     className="inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827]"
                   >
                     <Eye size={14} />
@@ -1776,10 +1831,7 @@ function ListingsSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      removeQueueItem(listing.id);
-                      onToast("Listing approved and published");
-                    }}
+                    onClick={() => handleApprove(listing.id)}
                     className="rounded-lg border border-[rgba(22,163,74,0.3)] bg-[rgba(22,163,74,0.1)] px-4 py-2 text-[13px] font-semibold text-[#16A34A] transition hover:bg-[#16A34A] hover:text-white"
                   >
                     Approve
@@ -1816,10 +1868,7 @@ function ListingsSection({
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            removeQueueItem(listing.id);
-                            onToast("Listing rejected and removed from queue");
-                          }}
+                          onClick={() => handleReject(listing.id, rejectionState.reason)}
                           className="rounded-lg bg-[#DC2626] px-4 py-2 text-[13px] font-semibold text-white"
                         >
                           Confirm Reject
@@ -4397,6 +4446,61 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSuspendUser = async (userId, ban) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}/ban`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ban }),
+      });
+      if (res.ok) {
+        setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, isBanned: ban } : u)));
+        showToast(ban ? "User suspended" : "User unsuspended");
+      } else {
+        showToast("Couldn't update user", "error");
+      }
+    } catch (err) {
+      console.error("Suspend user error:", err);
+      showToast("Couldn't update user", "error");
+    }
+  };
+
+  const handleResetPasswordUser = async (userId) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}/reset-password`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      showToast(res.ok ? "Reset code emailed to the user" : "Couldn't send reset code", res.ok ? "success" : "error");
+    } catch (err) {
+      console.error("Reset password error:", err);
+      showToast("Couldn't send reset code", "error");
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUsers((prev) => prev.filter((u) => u._id !== user._id));
+        showToast("User deleted");
+      } else {
+        showToast(data.error || "Couldn't delete user", "error");
+      }
+    } catch (err) {
+      console.error("Delete user error:", err);
+      showToast("Couldn't delete user", "error");
+    }
+  };
+
   const [paymentsFilter, setPaymentsFilter] = useState("all");
   const [paymentsRange, setPaymentsRange] = useState("Last 30 days");
 
@@ -4606,6 +4710,9 @@ export default function AdminDashboard() {
         openUserMenuId={openUserMenuId}
         setOpenUserMenuId={setOpenUserMenuId}
         onVerifyUser={handleVerifyUser}
+        onSuspendUser={handleSuspendUser}
+        onResetPasswordUser={handleResetPasswordUser}
+        onDeleteUser={handleDeleteUser}
       />
     );
   } else if (activeSection === "listings") {
