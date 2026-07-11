@@ -413,6 +413,11 @@ export default function CreateSpace() {
   const [direction, setDirection] = useState(1);
   const [form, setForm] = useState(defaultState);
   const [publishSuccess, setPublishSuccess] = useState(false);
+  const [entryPhase, setEntryPhase] = useState("loading"); // "loading" | "choice" | "wizard"
+  const [draftsList, setDraftsList] = useState([]);
+  const [draftId, setDraftId] = useState(null);
+  const [draftActionLoading, setDraftActionLoading] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [beforeSelection, setBeforeSelection] = useState(0);
   const [afterSelection, setAfterSelection] = useState(0);
   const [bufferBefore, setBufferBefore] = useState(0);
@@ -449,7 +454,6 @@ export default function CreateSpace() {
   const [recurringFrom, setRecurringFrom] = useState("");
   const [recurringTo, setRecurringTo] = useState("");
   const locationInputRef = useRef(null);
-  const autocompleteRef = useRef(null);
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -556,63 +560,14 @@ export default function CreateSpace() {
           setMapsLoaded(true);
         }, 100);
 
-        const autocomplete = new window.google.maps.places.Autocomplete(input, {
-          types: ["establishment", "geocode"],
-          fields: ["formatted_address", "geometry", "name", "address_components"],
-        });
-
-        autocompleteRef.current = autocomplete;
-
+        // Note: intentionally not using google.maps.places.Autocomplete here —
+        // as of March 2025 Google blocks that legacy widget for new API
+        // projects/keys ("not available to new customers"), which is why it
+        // silently produced no dropdown. The custom dropdown below (driven by
+        // AutocompleteService + PlacesService, rendered in JSX) still works
+        // and is what actually handles selection.
         const marker = new window.google.maps.Marker({ map });
         markerRef.current = marker;
-
-        autocomplete.addListener("place_changed", () => {
-          const place = autocomplete.getPlace();
-          if (!place.geometry) return;
-
-          map.setCenter(place.geometry.location);
-          map.setZoom(16);
-          marker.setPosition(place.geometry.location);
-
-          let address = "";
-          let city = "";
-          let country = "";
-          let postcode = "";
-
-          place.address_components?.forEach((component) => {
-            const types = component.types;
-            if (types.includes("street_number") || types.includes("route")) {
-              address += `${component.long_name} `;
-            }
-            if (types.includes("postal_town") || types.includes("locality")) {
-              city = component.long_name;
-            }
-            if (types.includes("country")) {
-              country = component.long_name;
-            }
-            if (types.includes("postal_code")) {
-              postcode = component.long_name;
-            }
-          });
-
-          setForm((prev) => ({
-            ...prev,
-            locationName: place.name || place.formatted_address || prev.locationName,
-            address: address.trim() || place.formatted_address || "",
-            city,
-            country,
-            postcode,
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            latitude: place.geometry.location.lat(),
-            longitude: place.geometry.location.lng(),
-          }));
-          setLocationInputValue(
-            place.name || place.formatted_address || place.formatted_address || ""
-          );
-          setLocationSuggestions([]);
-          setShowLocationDropdown(false);
-        });
       };
 
       if (window.google?.maps?.places) {
@@ -648,29 +603,62 @@ export default function CreateSpace() {
   }, [step]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("vencome_draft");
-    if (saved) {
+    const fetchDrafts = async () => {
       try {
-        const draft = JSON.parse(saved);
-        if (draft && draft.title) {
-          const restore = window.confirm(
-            "You have a saved draft. Would you like to continue where you left off?"
-          );
-          if (restore) {
-            setForm({
-              ...defaultState,
-              ...draft,
-            });
-            if (draft.step) setStep(draft.step);
-            if (draft.bufferBefore) setBufferBefore(draft.bufferBefore);
-            if (draft.bufferAfter) setBufferAfter(draft.bufferAfter);
-          }
-        }
+        const res = await apiFetch("/drafts");
+        const data = await res.json();
+        const list = data.drafts || [];
+        setDraftsList(list);
+        setEntryPhase(list.length > 0 ? "choice" : "wizard");
       } catch (err) {
-        console.error("Failed to load draft:", err);
+        console.error("Failed to load drafts:", err);
+        setEntryPhase("wizard");
       }
-    }
+    };
+    fetchDrafts();
   }, []);
+
+  const continueDraft = async (id) => {
+    setDraftActionLoading(id);
+    try {
+      const res = await apiFetch(`/drafts/${id}`);
+      if (!res.ok) throw new Error("Failed to load draft");
+      const data = await res.json();
+      const savedForm = data.draft.formData || {};
+      setForm({ ...defaultState, ...savedForm });
+      if (savedForm.bufferBefore) setBufferBefore(savedForm.bufferBefore);
+      if (savedForm.bufferAfter) setBufferAfter(savedForm.bufferAfter);
+      setDraftId(data.draft._id);
+      setStep(data.draft.step || 1);
+      setEntryPhase("wizard");
+    } catch (err) {
+      console.error("Failed to load draft:", err);
+      alert("Failed to load that draft. Please try again.");
+    } finally {
+      setDraftActionLoading(null);
+    }
+  };
+
+  const deleteDraftFromList = async (id) => {
+    if (!window.confirm("Delete this draft? This can't be undone.")) return;
+    setDraftActionLoading(id);
+    try {
+      await apiFetch(`/drafts/${id}`, { method: "DELETE" });
+      setDraftsList((current) => current.filter((d) => d._id !== id));
+    } catch (err) {
+      console.error("Failed to delete draft:", err);
+      alert("Failed to delete draft. Please try again.");
+    } finally {
+      setDraftActionLoading(null);
+    }
+  };
+
+  const startNewSpace = () => {
+    setDraftId(null);
+    setForm(defaultState);
+    setStep(1);
+    setEntryPhase("wizard");
+  };
 
   useEffect(() => {
     if (step !== 2 || !mapsLoaded || !mapRef.current || !window.google?.maps) return;
@@ -815,28 +803,63 @@ export default function CreateSpace() {
   // Google/Outlook calendars connect at the host account level (one connection
   // syncs across all of a host's listings), so this step just reflects real
   // status from the same endpoints Settings.jsx uses, rather than faking a
-  // per-listing "connected" toggle.
+  // per-listing "connected" toggle. Connecting from inside the wizard opens a
+  // popup instead of redirecting the tab away, so wizard progress is never lost.
   const handleCalendarConnect = async (providerId) => {
     if (providerId !== "google" && providerId !== "outlook") return;
 
     setConnectingCalendar(providerId);
     try {
-      const res = await apiFetch(`/calendar/${providerId}/connect`);
+      const res = await apiFetch(`/calendar/${providerId}/connect?popup=1`);
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error || "Failed to start connection");
 
-      // Preserve wizard progress — the OAuth callback redirects back to
-      // /settings, not here, so save the draft first so it can be resumed.
-      localStorage.setItem(
-        "vencome_draft",
-        JSON.stringify({
-          ...form,
-          bufferBefore: effectiveBufferBefore,
-          bufferAfter: effectiveBufferAfter,
-          step,
-        })
+      const popup = window.open(
+        data.url,
+        "vencome-calendar-connect",
+        "width=520,height=650,menubar=no,toolbar=no,status=no"
       );
-      window.location.href = data.url;
+      if (!popup) {
+        throw new Error("Please allow popups for VenCome to connect your calendar");
+      }
+
+      const apiOrigin = new URL(API).origin;
+      let popupWatcher = null;
+
+      const handleMessage = async (event) => {
+        if (event.origin !== apiOrigin) return;
+        if (event.data?.type !== "vencome-calendar" || event.data.provider !== providerId) return;
+
+        window.removeEventListener("message", handleMessage);
+        if (popupWatcher) window.clearInterval(popupWatcher);
+        setConnectingCalendar(null);
+
+        if (event.data.success) {
+          try {
+            const statusRes = await apiFetch(`/calendar/${providerId}/status`);
+            const status = await statusRes.json();
+            setHostCalendarStatus((current) => ({ ...current, [providerId]: status }));
+          } catch (err) {
+            console.error("Failed to refresh calendar status:", err);
+          }
+        } else {
+          setValidationError(
+            `Failed to connect ${providerId === "google" ? "Google Calendar" : "Outlook"}. Please try again.`
+          );
+        }
+      };
+
+      window.addEventListener("message", handleMessage);
+
+      // If the host closes the popup without finishing, don't leave the
+      // button stuck on "Connecting...".
+      popupWatcher = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(popupWatcher);
+          window.removeEventListener("message", handleMessage);
+          setConnectingCalendar(null);
+        }
+      }, 500);
     } catch (err) {
       setConnectingCalendar(null);
       setValidationError(err.message || `Failed to connect ${providerId}`);
@@ -1105,7 +1128,9 @@ export default function CreateSpace() {
       }
 
       setPublishSuccess(true);
-      localStorage.removeItem("vencome_draft");
+      if (draftId) {
+        apiFetch(`/drafts/${draftId}`, { method: "DELETE" }).catch(() => {});
+      }
     } catch (err) {
       setError("Network error. Please try again.");
     } finally {
@@ -1115,20 +1140,125 @@ export default function CreateSpace() {
   };
 
   const saveDraft = async () => {
+    setSavingDraft(true);
     try {
-      const token = localStorage.getItem("vencome_token");
-      const draft = {
-        ...form,
-        bufferBefore: effectiveBufferBefore,
-        bufferAfter: effectiveBufferAfter,
+      const payload = {
+        title: form.title || form.locationName || "Untitled space",
         step,
+        coverImage: form.photoUrls?.[0] || "",
+        formData: {
+          ...form,
+          bufferBefore: effectiveBufferBefore,
+          bufferAfter: effectiveBufferAfter,
+        },
       };
-      localStorage.setItem("vencome_draft", JSON.stringify(draft));
+
+      if (draftId) {
+        await apiFetch(`/drafts/${draftId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        const res = await apiFetch("/drafts", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        setDraftId(data.draft._id);
+      }
       alert("Draft saved! You can continue later from your dashboard.");
     } catch (err) {
       console.error("Failed to save draft:", err);
+      alert("Failed to save draft. Please try again.");
+    } finally {
+      setSavingDraft(false);
     }
   };
+
+  if (entryPhase === "loading") {
+    return (
+      <DashboardLayout title="Create Space">
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2 size={28} className="animate-spin text-[#305CDE]" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (entryPhase === "choice") {
+    return (
+      <DashboardLayout title="Create Space">
+        <div className="mx-auto max-w-[720px] px-4 py-10 sm:py-16">
+          <h1 className="text-[26px] font-bold text-[#0A1628]">
+            Continue where you left off?
+          </h1>
+          <p className="mt-2 text-[14px] text-[#6B7280]">
+            You have {draftsList.length} saved draft
+            {draftsList.length === 1 ? "" : "s"}. Pick one to continue, or
+            start a new space.
+          </p>
+
+          <div className="mt-8 space-y-3">
+            {draftsList.map((draft) => (
+              <div
+                key={draft._id}
+                className="flex items-center gap-4 rounded-[14px] border-[1.5px] border-[#E5E7EB] bg-white p-4"
+              >
+                {draft.coverImage ? (
+                  <img
+                    src={draft.coverImage}
+                    alt=""
+                    className="h-14 w-14 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#F8F6F0] text-[#9CA3AF]">
+                    <ImageIcon size={20} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-bold text-[#0A1628]">
+                    {draft.title || "Untitled space"}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-[#6B7280]">
+                    Step {draft.step} of {STEP_LABELS.length} · Last saved{" "}
+                    {new Date(draft.updatedAt).toLocaleDateString("en-GB")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteDraftFromList(draft._id)}
+                  disabled={draftActionLoading === draft._id}
+                  className="shrink-0 text-[12px] text-[#DC2626] transition hover:underline disabled:opacity-50"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => continueDraft(draft._id)}
+                  disabled={draftActionLoading === draft._id}
+                  className="inline-flex shrink-0 items-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {draftActionLoading === draft._id ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    "Continue"
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={startNewSpace}
+            className="mt-8 w-full rounded-[14px] border-[1.5px] border-dashed border-[#E5E7EB] bg-white py-4 text-[14px] font-semibold text-[#0A1628] transition hover:border-[#305CDE]"
+          >
+            + Start a New Space
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Create Space">
@@ -3918,6 +4048,7 @@ export default function CreateSpace() {
               <button
                 type="button"
                 onClick={saveDraft}
+                disabled={savingDraft}
                 style={{
                   padding: "10px 20px",
                   borderRadius: "10px",
@@ -3926,13 +4057,15 @@ export default function CreateSpace() {
                   color: "#6B7280",
                   fontSize: "13px",
                   fontWeight: "600",
-                  cursor: "pointer",
+                  cursor: savingDraft ? "not-allowed" : "pointer",
+                  opacity: savingDraft ? 0.7 : 1,
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
                 }}
               >
-                Save Draft
+                {savingDraft ? <Loader2 size={14} className="animate-spin" /> : null}
+                {savingDraft ? "Saving..." : "Save Draft"}
               </button>
               <p className="text-center text-[13px] text-[#6B7280]">
                 Step {step} of 14
