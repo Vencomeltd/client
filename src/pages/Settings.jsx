@@ -28,6 +28,9 @@ export default function Settings() {
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [connectingCalendar, setConnectingCalendar] = useState(false);
   const [connectingOutlook, setConnectingOutlook] = useState(false);
+  const [calcomStatus, setCalcomStatus] = useState(null);
+  const [calcomApiKeyInput, setCalcomApiKeyInput] = useState("");
+  const [connectingCalcom, setConnectingCalcom] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -64,16 +67,19 @@ export default function Settings() {
   useEffect(() => {
     const fetchCalendarStatus = async () => {
       try {
-        const [googleRes, outlookRes] = await Promise.all([
+        const [googleRes, outlookRes, calcomRes] = await Promise.all([
           apiFetch("/calendar/google/status"),
           apiFetch("/calendar/outlook/status"),
+          apiFetch("/calendar/calcom/status"),
         ]);
         setGoogleCalendar(await googleRes.json());
         setOutlookCalendar(await outlookRes.json());
+        setCalcomStatus(await calcomRes.json());
       } catch (err) {
         console.error("Failed to load calendar status", err);
         setGoogleCalendar({ connected: false });
         setOutlookCalendar({ connected: false });
+        setCalcomStatus({ connected: false });
       } finally {
         setCalendarLoading(false);
       }
@@ -143,6 +149,43 @@ export default function Settings() {
       toast.error("Failed to disconnect Outlook");
     } finally {
       setConnectingOutlook(false);
+    }
+  };
+
+  const handleConnectCalcom = async () => {
+    if (!calcomApiKeyInput.trim()) {
+      toast.error("Paste your Cal.com API key first");
+      return;
+    }
+    setConnectingCalcom(true);
+    try {
+      const res = await apiFetch("/calendar/calcom/connect", {
+        method: "POST",
+        body: JSON.stringify({ apiKey: calcomApiKeyInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to connect");
+      setCalcomStatus({ connected: true, username: data.username });
+      setCalcomApiKeyInput("");
+      toast.success("Cal.com connected");
+    } catch (err) {
+      toast.error(err.message || "Couldn't verify that Cal.com API key");
+    } finally {
+      setConnectingCalcom(false);
+    }
+  };
+
+  const handleDisconnectCalcom = async () => {
+    setConnectingCalcom(true);
+    try {
+      const res = await apiFetch("/calendar/calcom/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setCalcomStatus({ connected: false });
+      toast.success("Cal.com disconnected");
+    } catch (err) {
+      toast.error("Failed to disconnect Cal.com");
+    } finally {
+      setConnectingCalcom(false);
     }
   };
 
@@ -563,7 +606,7 @@ export default function Settings() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "24px" }}>
                     {/* Google Calendar — the real, working option */}
                     <div style={{
                       border: googleCalendar?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
@@ -611,6 +654,32 @@ export default function Settings() {
                         color: outlookCalendar?.connected ? "#16A34A" : "#2E58EC",
                       }}>
                         {outlookCalendar?.connected ? "Connected" : "Not connected"}
+                      </span>
+                    </div>
+
+                    {/* Cal.com — pull-only (no arbitrary "create event" API),
+                        connects via a pasted personal API key instead of OAuth. */}
+                    <div style={{
+                      border: calcomStatus?.connected ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: calcomStatus?.connected ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <CalendarDays size={26} color={calcomStatus?.connected ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Cal.com
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        {calcomStatus?.connected
+                          ? `Connected as ${calcomStatus.username || "your account"}`
+                          : "Blocks VenCome dates from your existing Cal.com bookings."}
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: calcomStatus?.connected ? "rgba(22,163,74,0.12)" : "rgba(46,88,236,0.1)",
+                        color: calcomStatus?.connected ? "#16A34A" : "#2E58EC",
+                      }}>
+                        {calcomStatus?.connected ? "Connected" : "Not connected"}
                       </span>
                     </div>
                   </div>
@@ -687,6 +756,67 @@ export default function Settings() {
                           : "Connect Outlook"}
                       </button>
                     </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: "14px", padding: "20px 24px",
+                    border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                  }}>
+                    {calcomStatus?.connected ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+                        <p style={{ fontSize: "13px", color: "#6B7280" }}>
+                          {calcomStatus.lastSyncedAt
+                            ? `Cal.com last synced ${new Date(calcomStatus.lastSyncedAt).toLocaleString("en-GB")}`
+                            : "Cal.com connected — first sync runs within 30 minutes."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleDisconnectCalcom}
+                          disabled={connectingCalcom}
+                          style={{
+                            padding: "10px 20px", borderRadius: "10px",
+                            border: "1.5px solid #DC2626", background: "#fff", color: "#DC2626",
+                            fontSize: "13px", fontWeight: "600",
+                            cursor: connectingCalcom ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          Disconnect Cal.com
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "12px" }}>
+                          Paste your Cal.com API key (Cal.com dashboard → Settings → Developer → API Keys) to block VenCome dates from your existing bookings.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                          <input
+                            type="text"
+                            value={calcomApiKeyInput}
+                            onChange={(e) => setCalcomApiKeyInput(e.target.value)}
+                            placeholder="cal_live_..."
+                            style={{
+                              flex: "1 1 240px", padding: "12px 14px", borderRadius: "10px",
+                              border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleConnectCalcom}
+                            disabled={connectingCalcom}
+                            style={{
+                              padding: "12px 24px", borderRadius: "10px", border: "none",
+                              background: connectingCalcom ? "#9CA3AF" : "#2E58EC", color: "#fff",
+                              fontSize: "14px", fontWeight: "600",
+                              cursor: connectingCalcom ? "not-allowed" : "pointer",
+                              display: "inline-flex", alignItems: "center", gap: "8px",
+                            }}
+                          >
+                            {connectingCalcom && <Loader2 size={14} className="animate-spin" />}
+                            {connectingCalcom ? "Verifying..." : "Connect Cal.com"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

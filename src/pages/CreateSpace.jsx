@@ -3835,9 +3835,12 @@ export default function CreateSpace() {
                         ? hostCalendarStatus.google
                         : provider.id === "outlook"
                         ? hostCalendarStatus.outlook
+                        : provider.id === "calcom"
+                        ? hostCalendarStatus.calcom
                         : null;
                     const connected = Boolean(status?.connected);
                     const loading = connectingCalendar === provider.id;
+                    const statusLabel = status?.email || status?.username;
 
                     return (
                       <motion.div
@@ -3870,7 +3873,7 @@ export default function CreateSpace() {
                             <div>
                               <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-3.5 py-1.5 text-[12px] font-semibold text-[#16A34A]">
                                 <Check size={12} />
-                                Connected{status?.email ? ` as ${status.email}` : ""}
+                                Connected{statusLabel ? ` as ${statusLabel}` : ""}
                               </span>
                               <div>
                                 <button
@@ -3881,6 +3884,28 @@ export default function CreateSpace() {
                                   Manage in Settings
                                 </button>
                               </div>
+                            </div>
+                          ) : provider.type === "apikey" ? (
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <input
+                                type="text"
+                                value={calcomApiKeyInput}
+                                onChange={(e) => setCalcomApiKeyInput(e.target.value)}
+                                placeholder="cal_live_..."
+                                className="h-10 flex-1 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+                              />
+                              <button
+                                type="button"
+                                disabled={connectingCalcom}
+                                onClick={handleCalcomConnect}
+                                className="inline-flex items-center justify-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {connectingCalcom ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  "Connect"
+                                )}
+                              </button>
                             </div>
                           ) : (
                             <button
@@ -3906,7 +3931,9 @@ export default function CreateSpace() {
                 </div>
 
                 <AnimatePresence>
-                  {hostCalendarStatus.google?.connected || hostCalendarStatus.outlook?.connected ? (
+                  {hostCalendarStatus.google?.connected ||
+                  hostCalendarStatus.outlook?.connected ||
+                  hostCalendarStatus.calcom?.connected ? (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -3920,7 +3947,7 @@ export default function CreateSpace() {
                         />
                         <div>
                           <p className="text-[15px] font-semibold text-[#16A34A]">
-                            {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected].filter(Boolean).length} calendar connected
+                            {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected].filter(Boolean).length} calendar connected
                           </p>
                           <p className="mt-1 text-[13px] text-[#6B7280]">
                             Your VenCome availability will now sync automatically.
@@ -4050,7 +4077,7 @@ export default function CreateSpace() {
                       <p>
                         Connected calendars:{" "}
                         <span className="font-semibold text-[#0A1628]">
-                          {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected].filter(Boolean).length}
+                          {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected, hostCalendarStatus.calcom?.connected].filter(Boolean).length}
                         </span>
                       </p>
                     </div>
