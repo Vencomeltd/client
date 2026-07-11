@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { Loader2, Bell, Lock, CreditCard, Building2, Shield } from "lucide-react";
+import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { toast } from "react-toastify";
+import IdentityVerification from "../components/IdentityVerification";
+import BusinessVerification from "../components/BusinessVerification";
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -17,6 +19,10 @@ export default function Settings() {
     smsBookings: false,
     smsReminders: false,
   });
+  const [payoutStatus, setPayoutStatus] = useState(null);
+  const [payoutStatusLoading, setPayoutStatusLoading] = useState(true);
+  const [connectingPayout, setConnectingPayout] = useState(false);
+  const [payoutError, setPayoutError] = useState("");
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -33,6 +39,36 @@ export default function Settings() {
     };
     fetchUser();
   }, []);
+
+  useEffect(() => {
+    const fetchPayoutStatus = async () => {
+      try {
+        const res = await apiFetch("/payouts/connect/status");
+        const data = await res.json();
+        setPayoutStatus(data.status || "not_connected");
+      } catch (err) {
+        console.error("Failed to load payout status", err);
+        setPayoutStatus("not_connected");
+      } finally {
+        setPayoutStatusLoading(false);
+      }
+    };
+    fetchPayoutStatus();
+  }, []);
+
+  const handleConnectPayout = async () => {
+    setConnectingPayout(true);
+    setPayoutError("");
+    try {
+      const res = await apiFetch("/payouts/connect/onboarding-link", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Failed to start onboarding");
+      window.location.href = data.url;
+    } catch (err) {
+      setPayoutError(err.message || "Failed to start onboarding");
+      setConnectingPayout(false);
+    }
+  };
 
   const handleAccountSave = async () => {
     setSaving(true);
@@ -116,6 +152,7 @@ export default function Settings() {
     { key: "notifications", label: "Notifications", icon: Bell },
     { key: "payments", label: "Payments", icon: CreditCard },
     { key: "payout", label: "Payouts", icon: Building2 },
+    { key: "verification", label: "Verification", icon: BadgeCheck },
   ];
 
   const inputStyle = {
@@ -325,17 +362,109 @@ export default function Settings() {
           {activeTab === "payout" && (
             <div>
               <p style={sectionTitle}>Payout Settings</p>
-              <div style={{
-                padding: "40px 24px", textAlign: "center",
-                border: "1.5px dashed #E5E7EB", borderRadius: "12px",
-              }}>
-                <Building2 size={40} color="#D1D5DB" style={{ marginBottom: "12px" }} />
-                <p style={{ fontSize: "15px", fontWeight: "600", color: "#0A1628", marginBottom: "6px" }}>
-                  Payout methods
-                </p>
-                <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
-                  Add a bank account or card to receive your payouts.
-                </p>
+              <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
+                Choose how you'd like to receive your payouts.
+              </p>
+
+              {payoutStatusLoading ? (
+                <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+                  <Loader2 size={24} className="animate-spin" color="#2E58EC" />
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "24px" }}>
+                    {/* Bank Account — the real, working option */}
+                    <div style={{
+                      border: payoutStatus === "connected" ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
+                      borderRadius: "14px", padding: "20px",
+                      background: payoutStatus === "connected" ? "rgba(22,163,74,0.04)" : "rgba(46,88,236,0.04)",
+                    }}>
+                      <Building2 size={26} color={payoutStatus === "connected" ? "#16A34A" : "#2E58EC"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Bank Account
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        Direct deposit via Stripe. You'll enter your account details directly with Stripe — VenCome never sees or stores them.
+                      </p>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: "5px",
+                        padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                        background: payoutStatus === "connected" ? "rgba(22,163,74,0.12)" : payoutStatus === "pending" ? "rgba(217,119,6,0.12)" : "rgba(46,88,236,0.1)",
+                        color: payoutStatus === "connected" ? "#16A34A" : payoutStatus === "pending" ? "#D97706" : "#2E58EC",
+                      }}>
+                        {payoutStatus === "connected" ? "Connected" : payoutStatus === "pending" ? "Verification pending" : "Not connected"}
+                      </span>
+                    </div>
+
+                    {/* PayPal — coming soon */}
+                    <div style={{
+                      border: "1.5px dashed #E5E7EB", borderRadius: "14px", padding: "20px", opacity: 0.65,
+                    }}>
+                      <Wallet size={26} color="#D1D5DB" />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        PayPal
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        Receive payouts directly to your PayPal account.
+                      </p>
+                      <span style={{
+                        display: "inline-block", padding: "4px 10px", borderRadius: "9999px",
+                        background: "#F3F4F6", color: "#6B7280", fontSize: "11px", fontWeight: "700",
+                      }}>
+                        Coming soon
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: "20px 24px", textAlign: "center",
+                    border: "1px solid #F3F4F6", borderRadius: "12px", background: "#FCFCFC",
+                  }}>
+                    <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+                      {payoutStatus === "connected"
+                        ? "Payouts release automatically 24 hours after each completed booking."
+                        : payoutStatus === "pending"
+                        ? "You've started onboarding, but Stripe still needs a few more details before payouts can go out."
+                        : "You'll need to connect a bank account before you can receive payouts."}
+                    </p>
+
+                    {payoutError && (
+                      <p style={{ fontSize: "13px", color: "#DC2626", marginBottom: "14px" }}>{payoutError}</p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleConnectPayout}
+                      disabled={connectingPayout}
+                      style={{
+                        padding: "12px 28px", borderRadius: "10px", border: "none",
+                        background: connectingPayout ? "#9CA3AF" : "#2E58EC",
+                        color: "#fff", fontSize: "14px", fontWeight: "600",
+                        cursor: connectingPayout ? "not-allowed" : "pointer",
+                        display: "inline-flex", alignItems: "center", gap: "8px",
+                      }}
+                    >
+                      {connectingPayout && <Loader2 size={14} className="animate-spin" />}
+                      {connectingPayout
+                        ? "Redirecting to Stripe..."
+                        : payoutStatus === "connected"
+                        ? "Manage bank account"
+                        : payoutStatus === "pending"
+                        ? "Continue setup"
+                        : "Connect bank account"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === "verification" && (
+            <div>
+              <p style={sectionTitle}>Verification</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                <IdentityVerification user={user || {}} />
+                <BusinessVerification />
               </div>
             </div>
           )}

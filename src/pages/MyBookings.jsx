@@ -134,8 +134,19 @@ export default function MyBookings() {
     setSelectedBooking(booking);
   };
 
-  const handleMessageHost = (booking) => {
-    window.location.href = `/customer/messages`;
+  const handleMessageHost = async (booking) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/messages/booking/${booking.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to open conversation");
+      const base = booking.isHost ? "/dashboard/messages" : "/customer/messages";
+      window.location.href = `${base}/${data.conversation._id}`;
+    } catch (e) {
+      alert("Couldn't open the conversation. Please try again.");
+    }
   };
 
   const handleCancel = async (booking) => {
@@ -144,14 +155,20 @@ export default function MyBookings() {
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${booking.id}/cancel`, {
-        method: "POST",
+        method: "DELETE",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setAllBookings((prev) => prev.map((b) => b.id === booking.id ? { ...b, status: "Cancelled", tab: "cancelled" } : b));
+        const refund = data.refund;
+        if (refund?.amount > 0) {
+          alert(`Booking cancelled. A refund of £${refund.amount} will be processed (${refund.reason}).`);
+        } else if (refund) {
+          alert(`Booking cancelled. ${refund.reason}`);
+        }
       } else {
-        const err = await res.json();
-        alert(err.error || "Failed to cancel booking");
+        alert(data.error || "Failed to cancel booking");
       }
     } catch (e) {
       alert("Something went wrong. Please try again.");
