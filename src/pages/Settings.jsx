@@ -9,7 +9,14 @@ import BusinessVerification from "../components/BusinessVerification";
 export default function Settings() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("account");
+  // Supports landing directly on a specific tab via ?tab=calendar (used by
+  // the host onboarding checklist's "Connect your calendar" step) instead
+  // of always dropping onto the default Account tab.
+  const [activeTab, setActiveTab] = useState(() => {
+    const validTabs = ["account", "password", "notifications", "payments", "payout", "calendar", "verification"];
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    return validTabs.includes(requestedTab) ? requestedTab : "account";
+  });
   const [saving, setSaving] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
   const [notifications, setNotifications] = useState({

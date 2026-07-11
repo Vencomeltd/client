@@ -19,6 +19,9 @@ const STATUS_COLORS = {
 
 const EXTERNAL_DOT = "#9CA3AF";
 
+const formatTime = (value) =>
+  new Date(value).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
+
 // Local calendar-day key (YYYY-MM-DD) — deliberately not toISOString(),
 // which would shift dates across midnight in non-UTC timezones.
 const dayKey = (date) =>
@@ -328,6 +331,16 @@ export default function HostCalendar() {
                           }}
                         >
                           {event.data.status}
+                        </span>
+                      </div>
+                      <div className="mt-2.5 flex items-center gap-3 border-t border-[#F3F4F6] pt-2.5 text-[11px] text-[#6B7280]">
+                        <span>
+                          <span className="font-semibold text-[#111827]">Check-in </span>
+                          {formatTime(event.data.checkIn)}
+                        </span>
+                        <span>
+                          <span className="font-semibold text-[#111827]">Check-out </span>
+                          {formatTime(event.data.checkOut)}
                         </span>
                       </div>
                     </Link>
