@@ -144,24 +144,28 @@ const CALENDAR_PROVIDERS = [
     name: "Apple iCal / CalDAV",
     description: "Connect any CalDAV compatible calendar",
     type: "oauth",
+    comingSoon: true,
   },
   {
     id: "calendly",
     name: "Calendly",
     description: "Sync via Calendly webhook & API",
     type: "oauth",
+    comingSoon: true,
   },
   {
     id: "calcom",
     name: "Cal.com",
     description: "Open-source scheduling via Cal.com API",
     type: "oauth",
+    comingSoon: true,
   },
   {
     id: "ical",
     name: "iCal Feed (URL)",
     description: "Paste any .ics calendar feed URL",
     type: "ical",
+    comingSoon: true,
   },
 ];
 
@@ -417,10 +421,9 @@ export default function CreateSpace() {
   const [customAfter, setCustomAfter] = useState("");
   const [customBeforeUnit, setCustomBeforeUnit] = useState("minutes");
   const [customAfterUnit, setCustomAfterUnit] = useState("minutes");
-  const [connectedCalendars, setConnectedCalendars] = useState([]);
   const [connectingCalendar, setConnectingCalendar] = useState(null);
-  const [icalUrl, setIcalUrl] = useState("");
-  const [showIcalInput, setShowIcalInput] = useState(false);
+  const [hostCalendarStatus, setHostCalendarStatus] = useState({ google: null, outlook: null });
+  const [calendarStatusLoading, setCalendarStatusLoading] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -534,13 +537,7 @@ export default function CreateSpace() {
         return;
       }
 
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.id = "google-maps-script";
-
-      script.onload = () => {
+      const initMapAndAutocomplete = () => {
         if (cancelled) return;
 
         const map = new window.google.maps.Map(mapDiv, {
@@ -618,11 +615,29 @@ export default function CreateSpace() {
         });
       };
 
-      if (!document.getElementById("google-maps-script") && !window.google?.maps) {
-        document.head.appendChild(script);
-      } else if (window.google?.maps) {
-        script.onload();
+      if (window.google?.maps?.places) {
+        // Maps already loaded (e.g. by the navbar's location picker on an
+        // earlier page) — init immediately.
+        initMapAndAutocomplete();
+        return;
       }
+
+      const existingScript = document.getElementById("google-maps-script");
+      if (existingScript) {
+        // Script tag exists but is still loading (common case: the navbar
+        // kicks off this same load on every page mount). Wait for it instead
+        // of silently doing nothing.
+        existingScript.addEventListener("load", initMapAndAutocomplete);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.id = "google-maps-script";
+      script.onload = initMapAndAutocomplete;
+      document.head.appendChild(script);
     };
 
     waitForDomAndInit();
@@ -649,7 +664,6 @@ export default function CreateSpace() {
             if (draft.step) setStep(draft.step);
             if (draft.bufferBefore) setBufferBefore(draft.bufferBefore);
             if (draft.bufferAfter) setBufferAfter(draft.bufferAfter);
-            if (draft.connectedCalendars) setConnectedCalendars(draft.connectedCalendars);
           }
         }
       } catch (err) {
@@ -715,6 +729,34 @@ export default function CreateSpace() {
     }
   }, [step, mapsLoaded, form.lat, form.lng, form.latitude, form.longitude]);
 
+  useEffect(() => {
+    if (step !== 13) return;
+    let cancelled = false;
+
+    const fetchCalendarStatus = async () => {
+      try {
+        const [googleRes, outlookRes] = await Promise.all([
+          apiFetch("/calendar/google/status"),
+          apiFetch("/calendar/outlook/status"),
+        ]);
+        const google = await googleRes.json();
+        const outlook = await outlookRes.json();
+        if (!cancelled) setHostCalendarStatus({ google, outlook });
+      } catch (err) {
+        if (!cancelled) {
+          setHostCalendarStatus({ google: { connected: false }, outlook: { connected: false } });
+        }
+      } finally {
+        if (!cancelled) setCalendarStatusLoading(false);
+      }
+    };
+
+    fetchCalendarStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [step]);
+
   const effectiveBufferBefore =
     beforeSelection === "custom"
       ? getCustomMinutes(customBefore, customBeforeUnit)
@@ -770,20 +812,35 @@ export default function CreateSpace() {
     if (optionValue !== "custom") setBufferAfter(optionValue);
   };
 
-  const handleCalendarConnect = (providerId) => {
+  // Google/Outlook calendars connect at the host account level (one connection
+  // syncs across all of a host's listings), so this step just reflects real
+  // status from the same endpoints Settings.jsx uses, rather than faking a
+  // per-listing "connected" toggle.
+  const handleCalendarConnect = async (providerId) => {
+    if (providerId !== "google" && providerId !== "outlook") return;
+
     setConnectingCalendar(providerId);
+    try {
+      const res = await apiFetch(`/calendar/${providerId}/connect`);
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Failed to start connection");
 
-    window.setTimeout(() => {
-      setConnectedCalendars((current) =>
-        current.includes(providerId) ? current : [...current, providerId]
+      // Preserve wizard progress — the OAuth callback redirects back to
+      // /settings, not here, so save the draft first so it can be resumed.
+      localStorage.setItem(
+        "vencome_draft",
+        JSON.stringify({
+          ...form,
+          bufferBefore: effectiveBufferBefore,
+          bufferAfter: effectiveBufferAfter,
+          step,
+        })
       );
+      window.location.href = data.url;
+    } catch (err) {
       setConnectingCalendar(null);
-      if (providerId === "ical") setShowIcalInput(false);
-    }, 2000);
-  };
-
-  const disconnectCalendar = (providerId) => {
-    setConnectedCalendars((current) => current.filter((item) => item !== providerId));
+      setValidationError(err.message || `Failed to connect ${providerId}`);
+    }
   };
 
   const getBlockDaysInMonth = (date) => {
@@ -1064,7 +1121,6 @@ export default function CreateSpace() {
         ...form,
         bufferBefore: effectiveBufferBefore,
         bufferAfter: effectiveBufferAfter,
-        connectedCalendars,
         step,
       };
       localStorage.setItem("vencome_draft", JSON.stringify(draft));
@@ -3518,7 +3574,7 @@ export default function CreateSpace() {
 
                 <button
                   type="button"
-                  onClick={() => setStep(9)}
+                  onClick={() => setStep(14)}
                   className="mb-8 text-[13px] font-medium text-[#305CDE] transition hover:underline"
                 >
                   Skip for now — set up later in settings
@@ -3553,7 +3609,13 @@ export default function CreateSpace() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   {CALENDAR_PROVIDERS.map((provider) => {
-                    const connected = connectedCalendars.includes(provider.id);
+                    const status =
+                      provider.id === "google"
+                        ? hostCalendarStatus.google
+                        : provider.id === "outlook"
+                        ? hostCalendarStatus.outlook
+                        : null;
+                    const connected = Boolean(status?.connected);
                     const loading = connectingCalendar === provider.id;
 
                     return (
@@ -3579,78 +3641,30 @@ export default function CreateSpace() {
                         </div>
 
                         <div className="mt-4">
-                          {connected ? (
+                          {provider.comingSoon ? (
+                            <span className="inline-flex items-center rounded-full bg-[#F3F4F6] px-3.5 py-1.5 text-[12px] font-semibold text-[#6B7280]">
+                              Coming soon
+                            </span>
+                          ) : connected ? (
                             <div>
                               <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-3.5 py-1.5 text-[12px] font-semibold text-[#16A34A]">
                                 <Check size={12} />
-                                Connected
+                                Connected{status?.email ? ` as ${status.email}` : ""}
                               </span>
                               <div>
                                 <button
                                   type="button"
-                                  onClick={() => disconnectCalendar(provider.id)}
-                                  className="mt-2 text-[12px] text-[#DC2626] transition hover:underline"
+                                  onClick={() => navigate("/settings")}
+                                  className="mt-2 text-[12px] text-[#305CDE] transition hover:underline"
                                 >
-                                  Disconnect
+                                  Manage in Settings
                                 </button>
                               </div>
-                            </div>
-                          ) : provider.type === "ical" ? (
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setShowIcalInput((current) => !current)}
-                                className="rounded-lg border-[1.5px] border-[#E5E7EB] px-4 py-2 text-[13px] font-medium text-[#111827] transition hover:border-[#0A1628]"
-                              >
-                                Add URL
-                              </button>
-
-                              <AnimatePresence initial={false}>
-                                {showIcalInput ? (
-                                  <motion.div
-                                    key="ical-input"
-                                    layout
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                  >
-                                    <div className="mt-4 flex flex-col gap-3">
-                                      <input
-                                        className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-4 text-[14px] outline-none focus:border-[#0A1628]"
-                                        placeholder="Paste your .ics feed URL"
-                                        value={icalUrl}
-                                        onChange={(event) =>
-                                          setIcalUrl(event.target.value)
-                                        }
-                                      />
-                                      <button
-                                        type="button"
-                                        disabled={!icalUrl || loading}
-                                        onClick={() => handleCalendarConnect("ical")}
-                                        className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-60 sm:w-fit"
-                                      >
-                                        {loading ? (
-                                          <>
-                                            <Loader2
-                                              size={14}
-                                              className="mr-2 animate-spin"
-                                            />
-                                            Connecting...
-                                          </>
-                                        ) : (
-                                          "Add Calendar"
-                                        )}
-                                      </button>
-                                    </div>
-                                  </motion.div>
-                                ) : null}
-                              </AnimatePresence>
                             </div>
                           ) : (
                             <button
                               type="button"
-                              disabled={loading}
+                              disabled={loading || calendarStatusLoading}
                               onClick={() => handleCalendarConnect(provider.id)}
                               className="inline-flex items-center rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#254FC7] disabled:cursor-not-allowed disabled:opacity-70"
                             >
@@ -3671,7 +3685,7 @@ export default function CreateSpace() {
                 </div>
 
                 <AnimatePresence>
-                  {connectedCalendars.length > 0 ? (
+                  {hostCalendarStatus.google?.connected || hostCalendarStatus.outlook?.connected ? (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -3685,7 +3699,7 @@ export default function CreateSpace() {
                         />
                         <div>
                           <p className="text-[15px] font-semibold text-[#16A34A]">
-                            {connectedCalendars.length} calendar connected
+                            {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected].filter(Boolean).length} calendar connected
                           </p>
                           <p className="mt-1 text-[13px] text-[#6B7280]">
                             Your VenCome availability will now sync automatically.
@@ -3815,7 +3829,7 @@ export default function CreateSpace() {
                       <p>
                         Connected calendars:{" "}
                         <span className="font-semibold text-[#0A1628]">
-                          {connectedCalendars.length || 0}
+                          {[hostCalendarStatus.google?.connected, hostCalendarStatus.outlook?.connected].filter(Boolean).length}
                         </span>
                       </p>
                     </div>
