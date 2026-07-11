@@ -2115,13 +2115,19 @@ function HostSection({ property }) {
           </p>
         </div>
         <button
-          onClick={() => {
+          onClick={async () => {
             const token = localStorage.getItem("vencome_token");
             if (!token) {
               window.location.href = "/login";
               return;
             }
-            window.location.href = `/chat?hostId=${property?.host?._id}&propertyId=${property?._id}`;
+            try {
+              const res = await apiFetch(`/messages/property/${property?._id}`);
+              const data = await res.json();
+              window.location.href = `/customer/messages/${data.conversation._id}`;
+            } catch (err) {
+              console.error("Failed to open conversation:", err);
+            }
           }}
           style={{
             padding: "10px 20px",

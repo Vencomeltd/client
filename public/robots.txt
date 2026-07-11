@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vencome.com/sitemap.xml
+Sitemap: https://www.vencome.com/sitemap.xml
 
 Disallow: /admin
 Disallow: /dashboard

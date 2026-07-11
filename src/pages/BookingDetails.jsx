@@ -840,8 +840,9 @@ export default function BookingDetails() {
   const [leaseSignedAt, setLeaseSignedAt] = useState(null);
 
   // Determine if current user is the host
-  // const isHost = currentUser && property && currentUser._id === property.hostId;
-  const isHost = false;
+  const isHost = Boolean(
+    currentUser && property?.host && currentUser._id === property.host._id
+  );
   useEffect(() => {
     const fetchBooking = async () => {
       try {
@@ -943,6 +944,19 @@ export default function BookingDetails() {
       setActionLoading(false);
     }
   }, [id]);
+
+  const handleMessage = useCallback(async () => {
+    try {
+      const data = await apiFetch({
+        endpoint: `/messages/booking/${id}`,
+        method: "GET",
+      });
+      const base = isHost ? "/dashboard/messages" : "/customer/messages";
+      navigate(`${base}/${data.conversation._id}`);
+    } catch {
+      showToast("Couldn't open the conversation.", "error");
+    }
+  }, [id, isHost, navigate]);
 
   const handleLeaseSign = useCallback(async () => {
     setActionLoading(true);
@@ -1245,9 +1259,7 @@ export default function BookingDetails() {
                       </button>
                     )}
                     <button
-                      onClick={() =>
-                        navigate(`/messages?guest=${guest?._id}&booking=${id}`)
-                      }
+                      onClick={handleMessage}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold transition cursor-pointer"
                     >
                       <MessageSquare size={16} />
@@ -1260,11 +1272,7 @@ export default function BookingDetails() {
                 {!isHost && (
                   <>
                     <button
-                      onClick={() =>
-                        navigate(
-                          `/messages?host=${property?.hostId}&booking=${id}`
-                        )
-                      }
+                      onClick={handleMessage}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold transition cursor-pointer"
                     >
                       <MessageSquare size={16} />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { apiFetch } from "../utils/api";
+import { initSocket } from "../utils/socket";
 import VencomeLoader from "../components/Loader";
 import DashboardLayout from "../layouts/DashboardLayout";
 
@@ -38,6 +39,28 @@ export default function ConversationPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Live receive — join this conversation's room and append incoming
+  // messages without a reload. Dedupe against our own optimistic sends,
+  // since the server also broadcasts back to the sender's own socket.
+  useEffect(() => {
+    const token = localStorage.getItem("vencome_token");
+    if (!token) return;
+
+    const socket = initSocket(token);
+    socket.emit("joinConversation", id);
+
+    const handleIncoming = (msg) => {
+      setMessages((prev) =>
+        prev.some((m) => m._id === msg._id) ? prev : [...prev, msg]
+      );
+    };
+    socket.on("message", handleIncoming);
+
+    return () => {
+      socket.off("message", handleIncoming);
+    };
+  }, [id]);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
