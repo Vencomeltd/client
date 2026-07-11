@@ -10,10 +10,7 @@ import {
   Clock,
   Download,
   ExternalLink,
-  Link as LinkIcon,
-  MapPin,
   MessageSquare,
-  MoreHorizontal,
   PoundSterling,
   RefreshCw,
   Star,
@@ -23,95 +20,16 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 
-const MOCK_LISTING = {
-  id: 1,
-  title: "The Shard Executive Suite",
-  location: "London Bridge, London",
-  category: "Office Space",
-  image:
-    "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=200&q=80",
-  defaultCheckIn: "09:00",
-  defaultCheckOut: "18:00",
-  minNotice: 24,
-  maxAdvanceBooking: 365,
-  instantBook: true,
+const REASON_OPTIONS = [
+  { value: "personal", label: "Personal use" },
+  { value: "maintenance", label: "Maintenance" },
+];
+const REASON_LABELS = {
+  personal: "Personal use",
+  maintenance: "Maintenance",
+  external: "External calendar",
+  booked: "Booked",
 };
-
-const MOCK_BOOKINGS = [
-  {
-    id: 1,
-    startDate: "2026-05-19",
-    endDate: "2026-05-19",
-    startTime: "09:00",
-    endTime: "13:00",
-    guest: "Sarah Mitchell",
-    status: "confirmed",
-    price: 340,
-    ref: "VC-2026-001",
-  },
-  {
-    id: 2,
-    startDate: "2026-05-23",
-    endDate: "2026-05-23",
-    startTime: "09:00",
-    endTime: "18:00",
-    guest: "Ahmed Khalid",
-    status: "confirmed",
-    price: 580,
-    ref: "VC-2026-002",
-  },
-  {
-    id: 3,
-    startDate: "2026-05-27",
-    endDate: "2026-05-27",
-    startTime: "14:00",
-    endTime: "17:00",
-    guest: "Priya Sharma",
-    status: "pending",
-    price: 255,
-    ref: "VC-2026-003",
-  },
-  {
-    id: 4,
-    startDate: "2026-06-02",
-    endDate: "2026-06-04",
-    startTime: "09:00",
-    endTime: "18:00",
-    guest: "TechCorp Ltd",
-    status: "confirmed",
-    price: 1740,
-    ref: "VC-2026-004",
-  },
-  {
-    id: 5,
-    startDate: "2026-06-10",
-    endDate: "2026-06-10",
-    startTime: "10:00",
-    endTime: "16:00",
-    guest: "James Okafor",
-    status: "confirmed",
-    price: 510,
-    ref: "VC-2026-005",
-  },
-];
-
-const MOCK_BLOCKED = [
-  { id: 1, startDate: "2026-05-30", endDate: "2026-05-31", reason: "Personal use" },
-  { id: 2, startDate: "2026-06-15", endDate: "2026-06-18", reason: "Renovation work" },
-];
-
-const MOCK_CONNECTED_CALENDARS = [
-  {
-    id: 1,
-    provider: "Google Calendar",
-    email: "james@thorntonproperties.co.uk",
-    status: "connected",
-    lastSynced: "2 minutes ago",
-    color: "#4285F4",
-  },
-];
-
-const QUICK_REASONS = ["Personal use", "Maintenance", "Renovation", "Other"];
 const BUFFER_OPTIONS = [
   { label: "None", value: 0 },
   { label: "30 min", value: 30 },
@@ -122,13 +40,6 @@ const BUFFER_OPTIONS = [
 ];
 const DAY_HEADERS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const WEEK_HOURS = Array.from({ length: 12 }, (_, index) => 9 + index);
-const ADD_CALENDAR_OPTIONS = [
-  { id: "google", label: "Google", provider: "Google Calendar", color: "#4285F4" },
-  { id: "outlook", label: "Outlook", provider: "Microsoft Outlook", color: "#0078D4" },
-  { id: "apple", label: "Apple", provider: "Apple iCal / CalDAV", color: "#555555" },
-  { id: "calendly", label: "Calendly", provider: "Calendly", color: "#006BFF" },
-  { id: "calcom", label: "Cal.com", provider: "Cal.com", color: "#111827" },
-];
 
 // Get all days in a month as Date objects
 function getDaysInMonthGrid(year, month) {
@@ -207,6 +118,13 @@ function addDays(date, amount) {
   return next;
 }
 
+function combineDateAndTime(date, timeStr) {
+  const [hour, minute] = (timeStr || "00:00").split(":").map(Number);
+  const combined = new Date(date);
+  combined.setHours(hour || 0, minute || 0, 0, 0);
+  return combined;
+}
+
 function getEventSpan(event, dayDate) {
   const dayStr = toDateKey(dayDate);
   if (event.startDate > dayStr || event.endDate < dayStr) return null;
@@ -217,7 +135,7 @@ function getEventSpan(event, dayDate) {
 }
 
 function formatCurrency(value) {
-  return `£${new Intl.NumberFormat("en-GB").format(value)}`;
+  return `£${new Intl.NumberFormat("en-GB").format(Math.round(value || 0))}`;
 }
 
 function getDurationHours(startTime, endTime) {
@@ -279,15 +197,6 @@ function formatBufferValue(minutes) {
     return `${hours} hour${hours === 1 ? "" : "s"}`;
   }
   return `${minutes} minutes`;
-}
-
-function getProviderInitial(provider) {
-  if (provider === "Google Calendar") return "G";
-  if (provider === "Microsoft Outlook") return "O";
-  if (provider === "Apple iCal / CalDAV") return "A";
-  if (provider === "Calendly") return "C";
-  if (provider === "Cal.com") return "cal";
-  return "iCal";
 }
 
 function ToggleSwitch({ enabled, onChange, size = "md" }) {
@@ -366,47 +275,60 @@ function BufferOptionsRow({ value, onChange }) {
 export default function PropertyAvailability() {
   const navigate = useNavigate();
   const { listingId } = useParams();
+  const token = localStorage.getItem("vencome_token");
+  const apiBase = import.meta.env.VITE_API_URL;
 
-  const today = new Date(2026, 4, 18);
+  const today = useMemo(() => new Date(), []);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [property, setProperty] = useState(null);
+
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [calView, setCalView] = useState("month");
   const [direction, setDirection] = useState(1);
-  const [bookings, setBookings] = useState(MOCK_BOOKINGS);
-  const [blockedDates, setBlockedDates] = useState(MOCK_BLOCKED);
+
+  const [rawBookings, setRawBookings] = useState([]);
+  const [rawBlockedDates, setRawBlockedDates] = useState([]);
+  const [savingBlocks, setSavingBlocks] = useState(false);
+
   const [sidebarPanel, setSidebarPanel] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectStart, setSelectStart] = useState(null);
   const [selectEnd, setSelectEnd] = useState(null);
   const [hoverDate, setHoverDate] = useState(null);
-  const [bufferExpanded, setBufferExpanded] = useState(false);
-  const [bufferBefore, setBufferBefore] = useState(60);
-  const [bufferAfter, setBufferAfter] = useState(60);
-  const [connectedCalendars, setConnectedCalendars] = useState(MOCK_CONNECTED_CALENDARS);
-  const [connectingCalendar, setConnectingCalendar] = useState(null);
-  const [showAddCalendar, setShowAddCalendar] = useState(false);
-  const [instantBook, setInstantBook] = useState(MOCK_LISTING.instantBook);
-  const [weekendAvailable, setWeekendAvailable] = useState(true);
-  const [toastMessage, setToastMessage] = useState(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncingCalendarId, setSyncingCalendarId] = useState(null);
-  const [blockReason, setBlockReason] = useState("");
-  const [blockAllDay, setBlockAllDay] = useState(true);
-  const [blockStartTime, setBlockStartTime] = useState(MOCK_LISTING.defaultCheckIn);
-  const [blockEndTime, setBlockEndTime] = useState(MOCK_LISTING.defaultCheckOut);
-  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [openCalendarMenu, setOpenCalendarMenu] = useState(null);
-  const [icalUrl, setIcalUrl] = useState("");
-  const [showIcalInput, setShowIcalInput] = useState(false);
-  const [seasonalTooltip, setSeasonalTooltip] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
 
-  // Settings
-  const [minNotice, setMinNotice] = useState("24 hours");
-  const [maxAdvance, setMaxAdvance] = useState("1 year");
+  const [bufferExpanded, setBufferExpanded] = useState(false);
+  const [bufferBefore, setBufferBefore] = useState(0);
+  const [bufferAfter, setBufferAfter] = useState(0);
+  const [savingBuffer, setSavingBuffer] = useState(false);
+
+  const [instantBook, setInstantBook] = useState(false);
+  const [weekendAvailable, setWeekendAvailable] = useState(true);
+  const [minNotice, setMinNotice] = useState("No minimum");
+  const [maxAdvance, setMaxAdvance] = useState("No limit");
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("18:00");
   const [sameDayCutoff, setSameDayCutoff] = useState("No cutoff");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const [calendarUrl, setCalendarUrl] = useState("");
+  const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
+  const [calendarLastSynced, setCalendarLastSynced] = useState(null);
+  const [calendarSyncError, setCalendarSyncError] = useState(null);
+  const [savingCalendar, setSavingCalendar] = useState(false);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
+  const [calendarMessage, setCalendarMessage] = useState("");
+
+  const [toastMessage, setToastMessage] = useState(null);
+  const [blockReason, setBlockReason] = useState("personal");
+  const [blockAllDay, setBlockAllDay] = useState(true);
+  const [blockStartTime, setBlockStartTime] = useState("09:00");
+  const [blockEndTime, setBlockEndTime] = useState("18:00");
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [seasonalTooltip, setSeasonalTooltip] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
 
   function showToast(message) {
     setToastMessage(message);
@@ -418,6 +340,69 @@ export default function PropertyAvailability() {
     center: { x: 0, opacity: 1 },
     exit: (dir) => ({ x: dir * -60, opacity: 0 }),
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const [propRes, availRes, bookingsRes] = await Promise.all([
+          fetch(`${apiBase}/properties/${listingId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
+          fetch(`${apiBase}/properties/${listingId}/availability`),
+          fetch(`${apiBase}/bookings/host`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        if (!propRes.ok) throw new Error("Listing not found");
+        const propData = await propRes.json();
+        const p = propData.property || propData;
+
+        const availData = availRes.ok ? await availRes.json() : {};
+        const bookingsData = bookingsRes.ok ? await bookingsRes.json() : [];
+
+        if (cancelled) return;
+
+        setProperty(p);
+        setRawBlockedDates(availData.blockedDates || p.blockedDates || []);
+        setRawBookings(
+          (Array.isArray(bookingsData) ? bookingsData : []).filter(
+            (b) => String(b.property?._id || b.property) === String(listingId)
+          )
+        );
+
+        setBufferBefore(p.bookingSettings?.bufferBefore || 0);
+        setBufferAfter(p.bookingSettings?.bufferAfter || 0);
+        setInstantBook(!!p.bookingSettings?.instantBook);
+        setWeekendAvailable(p.availability?.weekendAvailable !== false);
+        setMinNotice(p.availability?.minNotice || "No minimum");
+        setMaxAdvance(p.availability?.maxAdvance || "No limit");
+        setOpenTime(p.availability?.openTime || "09:00");
+        setCloseTime(p.availability?.closeTime || "18:00");
+        setSameDayCutoff(p.availability?.sameDayCutoff || "No cutoff");
+        setBlockStartTime(p.availability?.openTime || "09:00");
+        setBlockEndTime(p.availability?.closeTime || "18:00");
+
+        setCalendarUrl(p.icalUrl || "");
+        setCalendarSavedUrl(p.icalUrl || "");
+        setCalendarLastSynced(p.icalLastSyncedAt || null);
+        setCalendarSyncError(p.icalLastSyncError || null);
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || "Failed to load listing");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    if (listingId) load();
+    return () => {
+      cancelled = true;
+    };
+  }, [listingId, apiBase, token]);
 
   useEffect(() => {
     const handleEscape = (event) => {
@@ -457,6 +442,44 @@ export default function PropertyAvailability() {
     () => getWeekDays(new Date(viewYear, viewMonth, today.getDate())),
     [viewYear, viewMonth, today]
   );
+
+  const bookings = useMemo(
+    () =>
+      rawBookings
+        .filter((b) => ["pending", "confirmed"].includes(b.status))
+        .map((b) => {
+          const checkIn = new Date(b.checkIn);
+          const checkOut = new Date(b.checkOut);
+          return {
+            id: b._id,
+            startDate: toDateKey(checkIn),
+            endDate: toDateKey(checkOut),
+            startTime: checkIn.toTimeString().slice(0, 5),
+            endTime: checkOut.toTimeString().slice(0, 5),
+            guest: b.guest?.name || b.guest?.displayName || "Guest",
+            status: b.status,
+            price: b.totalPrice || 0,
+            ref: `VC-${String(b._id).slice(-8).toUpperCase()}`,
+          };
+        }),
+    [rawBookings]
+  );
+
+  const blockedDates = useMemo(
+    () =>
+      rawBlockedDates
+        .filter((b) => !b.bookingId)
+        .map((b) => ({
+          id: b._id,
+          startDate: toDateKey(new Date(b.start)),
+          endDate: toDateKey(new Date(b.end)),
+          reason: REASON_LABELS[b.reason] || "Blocked",
+          rawReason: b.reason,
+          isExternal: b.reason === "external",
+        })),
+    [rawBlockedDates]
+  );
+
   const bufferDays = useMemo(
     () => getBufferDays(bookings, bufferBefore, bufferAfter),
     [bookings, bufferBefore, bufferAfter]
@@ -467,15 +490,34 @@ export default function PropertyAvailability() {
     year: "numeric",
   });
 
-  const stats = useMemo(
-    () => ({
-      bookings: "5",
-      revenue: "£2,425",
-      occupancy: "72%",
-      rating: "4.92",
-    }),
-    []
-  );
+  const stats = useMemo(() => {
+    const monthBookings = bookings.filter((b) => {
+      const d = parseDate(b.startDate);
+      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+    });
+    const confirmedRevenue = monthBookings
+      .filter((b) => b.status === "confirmed")
+      .reduce((sum, b) => sum + (b.price || 0), 0);
+
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    let bookedDayCount = 0;
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const dayKey = toDateKey(new Date(viewYear, viewMonth, day));
+      const hasEvent =
+        bookings.some(
+          (b) => b.status === "confirmed" && b.startDate <= dayKey && b.endDate >= dayKey
+        ) || blockedDates.some((b) => b.startDate <= dayKey && b.endDate >= dayKey);
+      if (hasEvent) bookedDayCount += 1;
+    }
+    const occupancy = daysInMonth ? Math.round((bookedDayCount / daysInMonth) * 100) : 0;
+
+    return {
+      bookings: String(monthBookings.length),
+      revenue: formatCurrency(confirmedRevenue),
+      occupancy: `${occupancy}%`,
+      rating: property?.rating ? property.rating.toFixed(2) : "—",
+    };
+  }, [bookings, blockedDates, viewYear, viewMonth, property]);
 
   const selectedRange = useMemo(() => {
     if (!selectStart) return null;
@@ -530,7 +572,7 @@ export default function PropertyAvailability() {
   };
 
   const openBlockedEditor = (blocked) => {
-    setSelectedEvent({ ...blocked, draftReason: blocked.reason || "" });
+    setSelectedEvent({ ...blocked, draftReason: blocked.rawReason || "personal" });
     setShowRemoveConfirm(false);
     setSidebarPanel("block-editor");
   };
@@ -554,145 +596,269 @@ export default function PropertyAvailability() {
 
     setSelectEnd(date);
     setSidebarPanel("new-block");
-    setBlockReason("");
+    setBlockReason("personal");
     setBlockAllDay(true);
     setBlockStartTime(openTime);
     setBlockEndTime(closeTime);
   };
 
-  const handleBlockDates = () => {
+  const persistBlockedDates = async (nextRaw) => {
+    setSavingBlocks(true);
+    try {
+      const res = await fetch(`${apiBase}/properties/${listingId}/availability`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ blockedDates: nextRaw }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to update blocked dates");
+      setRawBlockedDates(data.blockedDates || nextRaw);
+      return true;
+    } catch (err) {
+      showToast(err.message || "Failed to update blocked dates");
+      return false;
+    } finally {
+      setSavingBlocks(false);
+    }
+  };
+
+  const handleBlockDates = async () => {
     if (!selectedRange) return;
 
-    const newBlock = {
-      id: Date.now(),
-      startDate: toDateKey(selectedRange.start),
-      endDate: toDateKey(selectedRange.end),
-      reason: blockReason || "Blocked",
-      startTime: blockAllDay ? null : blockStartTime,
-      endTime: blockAllDay ? null : blockEndTime,
-    };
+    const start = blockAllDay
+      ? selectedRange.start
+      : combineDateAndTime(selectedRange.start, blockStartTime);
+    const end = blockAllDay
+      ? selectedRange.end
+      : combineDateAndTime(selectedRange.end, blockEndTime);
 
-    setBlockedDates((current) => [...current, newBlock]);
+    const nextRaw = [
+      ...rawBlockedDates,
+      { start: start.toISOString(), end: end.toISOString(), reason: blockReason || "personal" },
+    ];
+
+    const ok = await persistBlockedDates(nextRaw);
     setSelectStart(null);
     setSelectEnd(null);
     setHoverDate(null);
     setSidebarPanel(null);
-    showToast("Dates blocked successfully");
+    if (ok) showToast("Dates blocked successfully");
   };
 
-  const handleUpdateBlock = () => {
-    setBlockedDates((current) =>
-      current.map((block) =>
-        block.id === selectedEvent.id
-          ? { ...block, reason: selectedEvent.draftReason || "Blocked" }
-          : block
-      )
+  const handleUpdateBlock = async () => {
+    const nextRaw = rawBlockedDates.map((b) =>
+      String(b._id) === String(selectedEvent.id)
+        ? { ...b, reason: selectedEvent.draftReason || "personal" }
+        : b
     );
+    const ok = await persistBlockedDates(nextRaw);
     clearContextPanel();
-    showToast("Blocked period updated");
+    if (ok) showToast("Blocked period updated");
   };
 
-  const handleRemoveBlock = () => {
-    setBlockedDates((current) => current.filter((block) => block.id !== selectedEvent.id));
+  const handleRemoveBlock = async () => {
+    const nextRaw = rawBlockedDates.filter((b) => String(b._id) !== String(selectedEvent.id));
+    const ok = await persistBlockedDates(nextRaw);
     clearContextPanel();
-    showToast("Blocked period removed");
+    if (ok) showToast("Blocked period removed");
   };
 
   const handleQuickBlock = () => {
     setSelectStart(today);
     setSelectEnd(addDays(today, 6));
     setSidebarPanel("new-block");
-    setBlockReason("");
+    setBlockReason("personal");
     setBlockAllDay(true);
   };
 
-  const handleSaveAvailabilitySettings = () => {
-    showToast("Availability settings saved");
+  const handleSaveAvailabilitySettings = async () => {
+    setSavingSettings(true);
+    try {
+      const res = await fetch(`${apiBase}/properties/${listingId}/availability`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          availability: { minNotice, maxAdvance, openTime, closeTime, sameDayCutoff, weekendAvailable },
+          bookingSettings: { instantBook },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save settings");
+      showToast("Availability settings saved");
+    } catch (err) {
+      showToast(err.message || "Failed to save settings");
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
-  const handleConnectCalendar = (provider) => {
-    setConnectingCalendar(provider.id);
-    setTimeout(() => {
-      setConnectedCalendars((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          provider: provider.provider,
-          email:
-            provider.id === "apple"
-              ? "calendar@icloud.example"
-              : `james+${provider.id}@thorntonproperties.co.uk`,
-          status: "connected",
-          lastSynced: "just now",
-          color: provider.color,
-        },
-      ]);
-      setConnectingCalendar(null);
-      setShowAddCalendar(false);
-      setShowIcalInput(false);
-      setIcalUrl("");
-      showToast(`${provider.provider} connected`);
-    }, 2000);
+  const handleSaveBuffer = async () => {
+    setSavingBuffer(true);
+    try {
+      const res = await fetch(`${apiBase}/properties/${listingId}/availability`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bookingSettings: { bufferBefore, bufferAfter } }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save buffer settings");
+      setBufferExpanded(false);
+      showToast("Buffer settings saved");
+    } catch (err) {
+      showToast(err.message || "Failed to save buffer settings");
+    } finally {
+      setSavingBuffer(false);
+    }
   };
 
-  const handleConnectIcal = () => {
-    if (!icalUrl) return;
-    setConnectingCalendar("ical");
-    setTimeout(() => {
-      setConnectedCalendars((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          provider: "iCal Feed",
-          email: icalUrl.replace(/^https?:\/\//, ""),
-          status: "connected",
-          lastSynced: "just now",
-          color: "#6B7280",
-        },
-      ]);
-      setConnectingCalendar(null);
-      setShowAddCalendar(false);
-      setShowIcalInput(false);
-      setIcalUrl("");
-      showToast("iCal calendar connected");
-    }, 2000);
+  const handleSaveCalendarUrl = async () => {
+    setSavingCalendar(true);
+    setCalendarMessage("");
+    try {
+      const res = await fetch(`${apiBase}/properties/${listingId}/calendar-sync`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ icalUrl: calendarUrl.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCalendarMessage(data.error || "Failed to save calendar URL");
+        return;
+      }
+      setCalendarSavedUrl(data.icalUrl || "");
+      setCalendarLastSynced(null);
+      setCalendarSyncError(null);
+      setCalendarMessage(data.icalUrl ? "Calendar connected" : "Calendar disconnected");
+    } catch {
+      setCalendarMessage("Failed to save calendar URL");
+    } finally {
+      setSavingCalendar(false);
+    }
   };
 
-  const handleSyncCalendar = (calendarId) => {
-    setSyncing(true);
-    setSyncingCalendarId(calendarId);
-    setTimeout(() => {
-      setConnectedCalendars((current) =>
-        current.map((calendar) =>
-          calendar.id === calendarId ? { ...calendar, lastSynced: "just now" } : calendar
+  const handleSyncNow = async () => {
+    setSyncingCalendar(true);
+    setCalendarMessage("");
+    try {
+      const res = await fetch(`${apiBase}/properties/${listingId}/calendar-sync/run`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCalendarSyncError(data.error || "Sync failed");
+        setCalendarMessage(data.error || "Sync failed");
+        return;
+      }
+      setCalendarLastSynced(data.lastSyncedAt);
+      setCalendarSyncError(null);
+      setCalendarMessage(`Synced — ${data.synced ?? 0} event(s) blocked`);
+
+      const availRes = await fetch(`${apiBase}/properties/${listingId}/availability`);
+      if (availRes.ok) {
+        const availData = await availRes.json();
+        setRawBlockedDates(availData.blockedDates || []);
+      }
+    } catch {
+      setCalendarMessage("Sync failed");
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
+
+  const handleApproveBooking = async () => {
+    try {
+      const res = await fetch(`${apiBase}/bookings/${selectedEvent.id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "confirmed" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to approve booking");
+      setRawBookings((current) =>
+        current.map((b) =>
+          String(b._id) === String(selectedEvent.id) ? { ...b, status: "confirmed" } : b
         )
       );
-      setSyncing(false);
-      setSyncingCalendarId(null);
-      showToast("Calendar synced");
-    }, 1500);
+      setSelectedEvent((current) => ({ ...current, status: "confirmed" }));
+      showToast("Booking approved");
+    } catch (err) {
+      showToast(err.message || "Failed to approve booking");
+    }
   };
 
-  const handleDisconnectCalendar = (calendarId) => {
-    setConnectedCalendars((current) => current.filter((calendar) => calendar.id !== calendarId));
-    setOpenCalendarMenu(null);
-    showToast("Calendar disconnected");
+  const handleDeclineBooking = async () => {
+    try {
+      const res = await fetch(`${apiBase}/bookings/${selectedEvent.id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "declined" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to decline booking");
+      setRawBookings((current) =>
+        current.filter((b) => String(b._id) !== String(selectedEvent.id))
+      );
+      clearContextPanel();
+      showToast("Booking declined");
+    } catch (err) {
+      showToast(err.message || "Failed to decline booking");
+    }
   };
 
-  const handleApproveBooking = () => {
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === selectedEvent.id ? { ...booking, status: "confirmed" } : booking
-      )
-    );
-    setSelectedEvent((current) => ({ ...current, status: "confirmed" }));
-    showToast("Booking approved");
-  };
+  const handleExportIcs = () => {
+    const escapeIcs = (str) =>
+      String(str || "")
+        .replace(/[\\;,]/g, (m) => `\\${m}`)
+        .replace(/\n/g, "\\n");
+    const toIcsDate = (dateStr, timeStr) => {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const [hour, minute] = (timeStr || "00:00").split(":").map(Number);
+      const d = new Date(year, month - 1, day, hour, minute);
+      return `${d.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+    };
 
-  const handleDeclineBooking = () => {
-    setBookings((current) => current.filter((booking) => booking.id !== selectedEvent.id));
-    clearContextPanel();
-    showToast("Booking declined");
+    const events = [
+      ...bookings.map((b) => ({
+        uid: `booking-${b.id}@vencome`,
+        summary: `${property?.title || "Booking"} — ${b.guest}`,
+        start: toIcsDate(b.startDate, b.startTime),
+        end: toIcsDate(b.endDate, b.endTime),
+      })),
+      ...blockedDates.map((b) => ({
+        uid: `block-${b.id}@vencome`,
+        summary: `Blocked — ${b.reason}`,
+        start: toIcsDate(b.startDate, "00:00"),
+        end: toIcsDate(b.endDate, "23:59"),
+      })),
+    ];
+
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//VenCome//Availability//EN",
+      ...events.flatMap((event) => [
+        "BEGIN:VEVENT",
+        `UID:${event.uid}`,
+        `DTSTAMP:${toIcsDate(toDateKey(today), "00:00")}`,
+        `DTSTART:${event.start}`,
+        `DTEND:${event.end}`,
+        `SUMMARY:${escapeIcs(event.summary)}`,
+        "END:VEVENT",
+      ]),
+      "END:VCALENDAR",
+    ];
+
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(property?.title || "listing").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-calendar.ics`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("Calendar exported");
   };
 
   const monthGridDays = useMemo(() => {
@@ -701,24 +867,67 @@ export default function PropertyAvailability() {
     return totalCells;
   }, [monthDays]);
 
+  if (loading) {
+    return (
+      <DashboardLayout title="Availability & Calendar">
+        <div className="flex items-center justify-center py-24 text-[14px] text-[#6B7280]">
+          Loading listing…
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (loadError || !property) {
+    return (
+      <DashboardLayout title="Availability & Calendar">
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center">
+          <p className="text-[14px] text-[#DC2626]">{loadError || "Listing not found"}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/host/listings")}
+            className="mt-4 text-[13px] text-[#305CDE] hover:underline"
+          >
+            Back to Listings
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout title="Availability & Calendar">
       <div className="mb-6 flex flex-col gap-4 rounded-[14px] border border-[#E5E7EB] bg-white px-5 py-4 lg:flex-row lg:items-center">
         <img
-          src={MOCK_LISTING.image}
-          alt={MOCK_LISTING.title}
+          src={
+            property.coverImage ||
+            property.images?.[0] ||
+            "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=200&q=80"
+          }
+          alt={property.title}
           className="h-14 w-14 rounded-[10px] object-cover"
         />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-[16px] font-bold text-[#0A1628]">{MOCK_LISTING.title}</h2>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-3 py-1 text-[12px] font-semibold text-[#16A34A]">
-              <span className="h-2 w-2 rounded-full bg-[#16A34A]" />
-              Live
+            <h2 className="text-[16px] font-bold text-[#0A1628]">{property.title}</h2>
+            <span
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-semibold ${
+                property.isActive
+                  ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
+                  : "border-[rgba(107,114,128,0.2)] bg-[rgba(107,114,128,0.1)] text-[#6B7280]"
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${property.isActive ? "bg-[#16A34A]" : "bg-[#6B7280]"}`}
+              />
+              {property.isActive ? "Live" : "Inactive"}
             </span>
           </div>
-          <p className="mt-1 text-[13px] text-[#6B7280]">{MOCK_LISTING.location}</p>
+          <p className="mt-1 text-[13px] text-[#6B7280]">
+            {[property.location?.address, property.location?.city, property.location?.country]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-[13px]">
@@ -732,9 +941,7 @@ export default function PropertyAvailability() {
           </button>
           <button
             type="button"
-            onClick={() =>
-              window.open(`/property/${listingId || MOCK_LISTING.id}`, "_blank", "noopener,noreferrer")
-            }
+            onClick={() => window.open(`/property/${listingId}`, "_blank", "noopener,noreferrer")}
             className="inline-flex items-center gap-1.5 text-[#305CDE] transition hover:underline"
           >
             View Public Listing
@@ -905,7 +1112,7 @@ export default function PropertyAvailability() {
                                   span === "single" || span === "end" ? "rounded-r-[4px]" : ""
                                 }`}
                               >
-                                {showLabel ? formatCompactBookingLabel(booking) : "\u00A0"}
+                                {showLabel ? formatCompactBookingLabel(booking) : " "}
                               </motion.button>
                             );
                           })}
@@ -930,7 +1137,7 @@ export default function PropertyAvailability() {
                                   span === "single" || span === "end" ? "rounded-r-[4px]" : ""
                                 }`}
                               >
-                                {showLabel ? `Blocked · ${blocked.reason}` : "\u00A0"}
+                                {showLabel ? `Blocked · ${blocked.reason}` : " "}
                               </motion.button>
                             );
                           })}
@@ -1130,13 +1337,8 @@ export default function PropertyAvailability() {
                           icon: PoundSterling,
                           label: "Revenue",
                           value: `${formatCurrency(selectedEvent.price)} (after 10% commission: ${formatCurrency(
-                            Math.round(selectedEvent.price * 0.9)
+                            selectedEvent.price * 0.9
                           )})`,
-                        },
-                        {
-                          icon: MessageSquare,
-                          label: "Messages",
-                          value: "2 unread from guest",
                         },
                       ].map((row) => {
                         const Icon = row.icon;
@@ -1153,6 +1355,7 @@ export default function PropertyAvailability() {
                     <div className="mt-4 space-y-2">
                       <button
                         type="button"
+                        onClick={() => navigate("/dashboard/messages")}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-[#E5E7EB] px-4 py-3 text-[14px] font-medium text-[#111827] transition hover:border-[#0A1628]"
                       >
                         <MessageSquare size={16} />
@@ -1160,6 +1363,7 @@ export default function PropertyAvailability() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => navigate(`/bookings/${selectedEvent.id}`)}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#0A1628] px-4 py-3 text-[14px] font-semibold text-white"
                       >
                         <ExternalLink size={16} />
@@ -1207,76 +1411,80 @@ export default function PropertyAvailability() {
                       {getDurationDays(selectedEvent.startDate, selectedEvent.endDate)} days
                     </p>
 
-                    <div className="mt-4">
-                      <label className="mb-2 block text-[13px] font-semibold text-[#111827]">
-                        Reason (optional)
-                      </label>
-                      <input
-                        value={selectedEvent.draftReason || ""}
-                        onChange={(event) =>
-                          setSelectedEvent((current) => ({
-                            ...current,
-                            draftReason: event.target.value,
-                          }))
-                        }
-                        className="h-11 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#0A1628]"
-                      />
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {QUICK_REASONS.map((reason) => (
-                          <button
-                            key={reason}
-                            type="button"
-                            onClick={() =>
-                              setSelectedEvent((current) => ({ ...current, draftReason: reason }))
-                            }
-                            className="rounded-full border border-[#E5E7EB] px-3 py-1.5 text-[12px] text-[#374151] transition hover:border-[#305CDE]"
-                          >
-                            {reason}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="mt-5 space-y-2">
-                      <button
-                        type="button"
-                        onClick={handleUpdateBlock}
-                        className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white"
-                      >
-                        Update
-                      </button>
-
-                      {showRemoveConfirm ? (
-                        <div className="rounded-xl bg-[#F8F6F0] px-4 py-3 text-center">
-                          <p className="text-[13px] text-[#111827]">Remove this blocked period?</p>
-                          <div className="mt-2 flex items-center justify-center gap-4">
-                            <button
-                              type="button"
-                              onClick={handleRemoveBlock}
-                              className="text-[13px] font-semibold text-[#DC2626] hover:underline"
-                            >
-                              Yes, remove
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setShowRemoveConfirm(false)}
-                              className="text-[13px] text-[#6B7280] hover:underline"
-                            >
-                              Cancel
-                            </button>
+                    {selectedEvent.isExternal ? (
+                      <p className="mt-4 rounded-xl bg-[#F8F6F0] px-4 py-3 text-[13px] text-[#6B7280]">
+                        Synced from your connected calendar. Disconnect the calendar to remove this block.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mt-4">
+                          <label className="mb-2 block text-[13px] font-semibold text-[#111827]">
+                            Reason
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {REASON_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() =>
+                                  setSelectedEvent((current) => ({ ...current, draftReason: option.value }))
+                                }
+                                className={`rounded-full border px-3 py-1.5 text-[12px] transition ${
+                                  selectedEvent.draftReason === option.value
+                                    ? "border-[#0A1628] bg-[rgba(10,22,40,0.05)] font-semibold text-[#0A1628]"
+                                    : "border-[#E5E7EB] text-[#374151] hover:border-[#305CDE]"
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setShowRemoveConfirm(true)}
-                          className="inline-flex w-full items-center justify-center gap-2 text-[14px] text-[#DC2626]"
-                        >
-                          <Trash2 size={16} />
-                          Remove Block
-                        </button>
-                      )}
-                    </div>
+
+                        <div className="mt-5 space-y-2">
+                          <button
+                            type="button"
+                            onClick={handleUpdateBlock}
+                            disabled={savingBlocks}
+                            className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-60"
+                          >
+                            {savingBlocks ? "Saving..." : "Update"}
+                          </button>
+
+                          {showRemoveConfirm ? (
+                            <div className="rounded-xl bg-[#F8F6F0] px-4 py-3 text-center">
+                              <p className="text-[13px] text-[#111827]">Remove this blocked period?</p>
+                              <div className="mt-2 flex items-center justify-center gap-4">
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveBlock}
+                                  disabled={savingBlocks}
+                                  className="text-[13px] font-semibold text-[#DC2626] hover:underline disabled:opacity-60"
+                                >
+                                  Yes, remove
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowRemoveConfirm(false)}
+                                  className="text-[13px] text-[#6B7280] hover:underline"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowRemoveConfirm(true)}
+                              className="inline-flex w-full items-center justify-center gap-2 text-[14px] text-[#DC2626]"
+                            >
+                              <Trash2 size={16} />
+                              Remove Block
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : null}
 
@@ -1317,22 +1525,21 @@ export default function PropertyAvailability() {
 
                     <div className="mt-4">
                       <label className="mb-2 block text-[13px] font-semibold text-[#111827]">
-                        Reason (optional)
+                        Reason
                       </label>
-                      <input
-                        value={blockReason}
-                        onChange={(event) => setBlockReason(event.target.value)}
-                        className="h-11 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#0A1628]"
-                      />
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {QUICK_REASONS.map((reason) => (
+                      <div className="flex flex-wrap gap-2">
+                        {REASON_OPTIONS.map((option) => (
                           <button
-                            key={reason}
+                            key={option.value}
                             type="button"
-                            onClick={() => setBlockReason(reason)}
-                            className="rounded-full border border-[#E5E7EB] px-3 py-1.5 text-[12px] text-[#374151] transition hover:border-[#305CDE]"
+                            onClick={() => setBlockReason(option.value)}
+                            className={`rounded-full border px-3 py-1.5 text-[12px] transition ${
+                              blockReason === option.value
+                                ? "border-[#0A1628] bg-[rgba(10,22,40,0.05)] font-semibold text-[#0A1628]"
+                                : "border-[#E5E7EB] text-[#374151] hover:border-[#305CDE]"
+                            }`}
                           >
-                            {reason}
+                            {option.label}
                           </button>
                         ))}
                       </div>
@@ -1374,9 +1581,10 @@ export default function PropertyAvailability() {
                       <button
                         type="button"
                         onClick={handleBlockDates}
-                        className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white"
+                        disabled={savingBlocks}
+                        className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-60"
                       >
-                        Block These Dates
+                        {savingBlocks ? "Blocking..." : "Block These Dates"}
                       </button>
                       <button
                         type="button"
@@ -1431,13 +1639,11 @@ export default function PropertyAvailability() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setBufferExpanded(false);
-                    showToast("Buffer settings saved");
-                  }}
-                  className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white"
+                  onClick={handleSaveBuffer}
+                  disabled={savingBuffer}
+                  className="w-full rounded-[10px] bg-[#305CDE] px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-60"
                 >
-                  Save Buffer Settings
+                  {savingBuffer ? "Saving..." : "Save Buffer Settings"}
                 </button>
               </div>
             </motion.div>
@@ -1445,180 +1651,63 @@ export default function PropertyAvailability() {
 
           <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-[14px] font-bold text-[#0A1628]">Connected Calendars</h3>
-              <button
-                type="button"
-                onClick={() => setShowAddCalendar((current) => !current)}
-                className="rounded-lg border border-[rgba(48,92,222,0.3)] px-3 py-1 text-[13px] text-[#305CDE] transition hover:bg-[rgba(48,92,222,0.08)]"
-              >
-                + Add
-              </button>
+              <h3 className="text-[14px] font-bold text-[#0A1628]">Connected Calendar</h3>
+              {calendarSavedUrl ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-2.5 py-1 text-[11px] font-semibold text-[#16A34A]">
+                  <CheckCircle size={12} />
+                  Connected
+                </span>
+              ) : null}
             </div>
 
-            {connectedCalendars.length === 0 ? (
-              <div className="py-8 text-center">
-                <LinkIcon size={24} className="mx-auto text-[#9CA3AF]" />
-                <p className="mt-3 text-[13px] text-[#6B7280]">No calendars connected</p>
-                <p className="mt-1 text-[12px] text-[#9CA3AF]">
-                  Connect a calendar to prevent double bookings
-                </p>
-              </div>
-            ) : (
-              <div className="mt-3">
-                {connectedCalendars.map((calendar, index) => (
-                  <div
-                    key={calendar.id}
-                    className={`flex items-start gap-3 py-3 ${
-                      index < connectedCalendars.length - 1 ? "border-b border-[#F3F4F6]" : ""
-                    }`}
-                  >
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white"
-                      style={{ backgroundColor: calendar.color }}
-                    >
-                      {getProviderInitial(calendar.provider)}
-                    </div>
+            <p className="mt-2 text-[12px] text-[#6B7280]">
+              Sync an external calendar (Google, Outlook, Apple, Calendly, Cal.com, or any .ics feed)
+              to automatically block these dates.
+            </p>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-[#0A1628]">{calendar.provider}</p>
-                      <p className="truncate text-[11px] text-[#6B7280]">{calendar.email}</p>
-                      <p className="text-[11px] text-[#6B7280]">
-                        Last synced: {calendar.lastSynced}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] px-2.5 py-1 text-[11px] font-semibold text-[#16A34A]">
-                        <CheckCircle size={12} />
-                        Syncing
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleSyncCalendar(calendar.id)}
-                        className="text-[#6B7280]"
-                      >
-                        <motion.div
-                          animate={
-                            syncing && syncingCalendarId === calendar.id
-                              ? { rotate: 360 }
-                              : { rotate: 0 }
-                          }
-                          transition={{
-                            duration: 1,
-                            ease: "linear",
-                            repeat: syncing && syncingCalendarId === calendar.id ? Infinity : 0,
-                          }}
-                        >
-                          <RefreshCw size={14} />
-                        </motion.div>
-                      </button>
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenCalendarMenu((current) =>
-                              current === calendar.id ? null : calendar.id
-                            )
-                          }
-                          className="text-[#6B7280]"
-                        >
-                          <MoreHorizontal size={16} />
-                        </button>
-                        <AnimatePresence>
-                          {openCalendarMenu === calendar.id ? (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -6 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -6 }}
-                              className="absolute right-0 top-6 z-20 min-w-[120px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-lg"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => handleDisconnectCalendar(calendar.id)}
-                                className="w-full rounded-lg px-3 py-2 text-left text-[13px] text-[#DC2626] transition hover:bg-[#F8F6F0]"
-                              >
-                                Disconnect
-                              </button>
-                            </motion.div>
-                          ) : null}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <AnimatePresence initial={false}>
-              {showAddCalendar ? (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
+            <div className="mt-4 space-y-3">
+              <input
+                value={calendarUrl}
+                onChange={(event) => setCalendarUrl(event.target.value)}
+                placeholder="Paste your .ics calendar URL"
+                className="h-11 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#0A1628]"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveCalendarUrl}
+                  disabled={savingCalendar}
+                  className="rounded-[10px] bg-[#305CDE] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
                 >
-                  <div className="mt-4 border-t border-[#F3F4F6] pt-4">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                      {ADD_CALENDAR_OPTIONS.map((provider) => (
-                        <button
-                          key={provider.id}
-                          type="button"
-                          onClick={() => handleConnectCalendar(provider)}
-                          disabled={connectingCalendar === provider.id}
-                          className="rounded-[10px] border border-[#E5E7EB] px-2 py-3 text-center transition hover:border-[#305CDE] disabled:opacity-70"
-                        >
-                          <div
-                            className="mx-auto flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                            style={{ backgroundColor: provider.color }}
-                          >
-                            {provider.label.slice(0, 1)}
-                          </div>
-                          <p className="mt-2 text-[12px] font-medium text-[#111827]">
-                            {connectingCalendar === provider.id ? "Connecting..." : provider.label}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowIcalInput((current) => !current)}
-                      className="mt-4 text-[13px] text-[#305CDE] hover:underline"
+                  {savingCalendar ? "Saving..." : "Save"}
+                </button>
+                {calendarSavedUrl ? (
+                  <button
+                    type="button"
+                    onClick={handleSyncNow}
+                    disabled={syncingCalendar}
+                    className="inline-flex items-center gap-2 rounded-[10px] border border-[#E5E7EB] px-4 py-2.5 text-[13px] font-medium text-[#111827] disabled:opacity-60"
+                  >
+                    <motion.span
+                      animate={syncingCalendar ? { rotate: 360 } : { rotate: 0 }}
+                      transition={{ duration: 1, ease: "linear", repeat: syncingCalendar ? Infinity : 0 }}
                     >
-                      Connect via iCal URL
-                    </button>
-
-                    <AnimatePresence initial={false}>
-                      {showIcalInput ? (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mt-3 space-y-3">
-                            <input
-                              value={icalUrl}
-                              onChange={(event) => setIcalUrl(event.target.value)}
-                              placeholder="Paste your .ics calendar URL"
-                              className="h-11 w-full rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[14px] outline-none focus:border-[#0A1628]"
-                            />
-                            <button
-                              type="button"
-                              disabled={!icalUrl || connectingCalendar === "ical"}
-                              onClick={handleConnectIcal}
-                              className="rounded-[10px] bg-[#305CDE] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
-                            >
-                              {connectingCalendar === "ical" ? "Connecting..." : "Connect iCal"}
-                            </button>
-                          </div>
-                        </motion.div>
-                      ) : null}
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
+                      <RefreshCw size={14} />
+                    </motion.span>
+                    {syncingCalendar ? "Syncing..." : "Sync Now"}
+                  </button>
+                ) : null}
+              </div>
+              {calendarMessage ? <p className="text-[12px] text-[#6B7280]">{calendarMessage}</p> : null}
+              {calendarSyncError ? (
+                <p className="text-[12px] text-[#DC2626]">Last sync error: {calendarSyncError}</p>
               ) : null}
-            </AnimatePresence>
+              {calendarLastSynced ? (
+                <p className="text-[11px] text-[#9CA3AF]">
+                  Last synced: {new Date(calendarLastSynced).toLocaleString("en-GB")}
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
@@ -1634,10 +1723,7 @@ export default function PropertyAvailability() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  console.log("seasonal pricing");
-                  setSeasonalTooltip("Coming soon in Phase 2");
-                }}
+                onClick={() => setSeasonalTooltip("Coming soon in Phase 2")}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-[#E5E7EB] px-4 py-3 text-[14px] font-medium text-[#111827]"
               >
                 <Tag size={16} />
@@ -1645,7 +1731,7 @@ export default function PropertyAvailability() {
               </button>
               <button
                 type="button"
-                onClick={() => console.log("export ics")}
+                onClick={handleExportIcs}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-[#E5E7EB] px-4 py-3 text-[14px] font-medium text-[#111827]"
               >
                 <Download size={16} />
@@ -1783,9 +1869,10 @@ export default function PropertyAvailability() {
           <button
             type="button"
             onClick={handleSaveAvailabilitySettings}
-            className="rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7]"
+            disabled={savingSettings}
+            className="rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-60"
           >
-            Save Availability Settings
+            {savingSettings ? "Saving..." : "Save Availability Settings"}
           </button>
         </div>
       </div>

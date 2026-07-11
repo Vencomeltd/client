@@ -4,9 +4,13 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements } from "@stripe/react-stripe-js";
 import { apiFetch } from "../utils/api";
 import { IoIosCheckmarkCircleOutline } from "react-icons/io";
+// Uses the same publishable key as the rest of the app's Stripe flows.
+// VITE_STRIPE_PUBLISHABLE_KEY must be set to your LIVE publishable key in
+// production — falls back to this test key only if the env var is missing.
 const stripePromise = loadStripe(
-  "pk_test_51ST9SoJwnD1dhW6Y6zRqMUFNpArDlWof5HESYLISi8ARb06omu1OnChvpfQ6OYDOi7OX6goFEOgnxnIK6xaUZ5KI00ZT6AsPUn"
-); // Your publishable key
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ||
+    "pk_test_51ST9SoJwnD1dhW6Y6zRqMUFNpArDlWof5HESYLISi8ARb06omu1OnChvpfQ6OYDOi7OX6goFEOgnxnIK6xaUZ5KI00ZT6AsPUn"
+);
 
 const VerificationButton = () => {
   const [loading, setLoading] = useState(false);

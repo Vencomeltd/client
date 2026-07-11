@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
+  ArrowRight,
   CalendarDays,
+  CheckCircle2,
+  Circle,
   ClipboardList,
   Clock,
   HelpCircle,
@@ -94,6 +97,90 @@ const getCustomerName = (booking) =>
   booking.guest?.name ||
   [booking.guest?.firstName, booking.guest?.lastName].filter(Boolean).join(" ") ||
   "Guest";
+
+function OnboardingChecklist({ token }) {
+  const [checklist, setChecklist] = useState(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/hosts/me/onboarding-checklist`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setChecklist(data);
+        }
+      } catch (err) {
+        console.error("Failed to load onboarding checklist:", err);
+      }
+    };
+    load();
+  }, [token]);
+
+  if (!checklist || checklist.allComplete || dismissed) return null;
+
+  const progress = Math.round((checklist.completedCount / checklist.totalSteps) * 100);
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-7 rounded-2xl border border-[#E5E7EB] bg-white p-5 sm:p-6"
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-[16px] font-bold text-[#0A1628]">Finish setting up your host account</h3>
+          <p className="mt-1 text-[13px] text-[#6B7280]">
+            {checklist.completedCount} of {checklist.totalSteps} steps done
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="text-[13px] font-medium text-[#6B7280] hover:text-[#0A1628]"
+        >
+          Hide for now
+        </button>
+      </div>
+
+      <div className="mb-5 h-2 w-full overflow-hidden rounded-full bg-[#F3F4F6]">
+        <div
+          className="h-full rounded-full bg-[#305CDE] transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {checklist.steps.map((step) => (
+          <Link
+            key={step.key}
+            to={step.href}
+            className={`flex items-start gap-3 rounded-xl border px-4 py-3 transition ${
+              step.completed
+                ? "border-[#DCFCE7] bg-[#F0FDF4]"
+                : "border-[#E5E7EB] bg-white hover:border-[#305CDE]"
+            }`}
+          >
+            {step.completed ? (
+              <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-[#16A34A]" />
+            ) : (
+              <Circle size={18} className="mt-0.5 shrink-0 text-[#9CA3AF]" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className={`text-[13px] font-semibold ${step.completed ? "text-[#166534]" : "text-[#0A1628]"}`}>
+                {step.label}
+              </p>
+              <p className="mt-0.5 text-[12px] text-[#6B7280]">{step.description}</p>
+            </div>
+            {!step.completed ? <ArrowRight size={15} className="mt-0.5 shrink-0 text-[#9CA3AF]" /> : null}
+          </Link>
+        ))}
+      </div>
+    </motion.section>
+  );
+}
 
 export default function Dashboard() {
   const token = localStorage.getItem("vencome_token");
@@ -217,6 +304,8 @@ export default function Dashboard() {
           </Link>
         </div>
       </motion.section>
+
+      <OnboardingChecklist token={token} />
 
       <section className="mb-7 grid grid-cols-2 gap-4 xl:grid-cols-4">
         {(loading ? Array.from({ length: 5 }, (_, index) => ({ id: index })) : liveStats).map((stat, index) => {

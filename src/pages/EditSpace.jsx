@@ -13,6 +13,14 @@ export default function EditSpace() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
+  const [calendarUrl, setCalendarUrl] = useState("");
+  const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
+  const [calendarLastSynced, setCalendarLastSynced] = useState(null);
+  const [calendarSyncError, setCalendarSyncError] = useState(null);
+  const [savingCalendar, setSavingCalendar] = useState(false);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
+  const [calendarMessage, setCalendarMessage] = useState("");
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -116,6 +124,11 @@ export default function EditSpace() {
             p.spaceRules ||
             "",
         });
+
+        setCalendarUrl(p.icalUrl || "");
+        setCalendarSavedUrl(p.icalUrl || "");
+        setCalendarLastSynced(p.icalLastSyncedAt || null);
+        setCalendarSyncError(p.icalLastSyncError || null);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -125,6 +138,57 @@ export default function EditSpace() {
 
     fetchProperty();
   }, [id]);
+
+  const handleSaveCalendarUrl = async () => {
+    setSavingCalendar(true);
+    setCalendarMessage("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}/calendar-sync`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ icalUrl: calendarUrl.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCalendarMessage(data.error || "Failed to save calendar URL");
+        return;
+      }
+      setCalendarSavedUrl(data.icalUrl || "");
+      setCalendarLastSynced(null);
+      setCalendarSyncError(null);
+      setCalendarMessage(data.icalUrl ? "Calendar connected" : "Calendar disconnected");
+    } catch {
+      setCalendarMessage("Failed to save calendar URL");
+    } finally {
+      setSavingCalendar(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setSyncingCalendar(true);
+    setCalendarMessage("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}/calendar-sync/run`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCalendarSyncError(data.error || "Sync failed");
+        setCalendarMessage(data.error || "Sync failed");
+        return;
+      }
+      setCalendarLastSynced(data.lastSyncedAt);
+      setCalendarSyncError(null);
+      setCalendarMessage(`Synced — ${data.synced} event(s) blocked`);
+    } catch {
+      setCalendarMessage("Sync failed");
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -599,6 +663,92 @@ export default function EditSpace() {
               Enable Instant Book
             </label>
           </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "8px" }}>
+            Calendar Sync
+          </h3>
+          <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+            Connect an external calendar (Google Calendar, Outlook, Apple iCal, Calendly, Cal.com) via its
+            shareable iCal (.ics) URL. Events on that calendar will block dates on this listing automatically
+            every few hours, or sync instantly with the button below.
+          </p>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <input
+              type="text"
+              placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+              value={calendarUrl}
+              onChange={(e) => setCalendarUrl(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: "220px",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleSaveCalendarUrl}
+              disabled={savingCalendar || calendarUrl === calendarSavedUrl}
+              style={{
+                padding: "10px 18px",
+                borderRadius: "8px",
+                border: "1.5px solid #0A1628",
+                background: "white",
+                color: "#0A1628",
+                fontWeight: 600,
+                fontSize: "14px",
+                cursor: savingCalendar || calendarUrl === calendarSavedUrl ? "not-allowed" : "pointer",
+                opacity: savingCalendar || calendarUrl === calendarSavedUrl ? 0.5 : 1,
+              }}
+            >
+              {savingCalendar ? "Saving..." : "Save"}
+            </button>
+            {calendarSavedUrl ? (
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                disabled={syncingCalendar}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#0A1628",
+                  color: "white",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: syncingCalendar ? "not-allowed" : "pointer",
+                  opacity: syncingCalendar ? 0.7 : 1,
+                }}
+              >
+                {syncingCalendar ? "Syncing..." : "Sync Now"}
+              </button>
+            ) : null}
+          </div>
+          {calendarMessage ? (
+            <p style={{ fontSize: 13, color: calendarSyncError ? "#DC2626" : "#16A34A", marginBottom: 4 }}>
+              {calendarMessage}
+            </p>
+          ) : null}
+          {calendarSavedUrl ? (
+            <p style={{ fontSize: 12, color: "#9CA3AF" }}>
+              {calendarLastSynced
+                ? `Last synced ${new Date(calendarLastSynced).toLocaleString("en-GB")}`
+                : "Not synced yet — click Sync Now"}
+            </p>
+          ) : null}
         </div>
 
         <div

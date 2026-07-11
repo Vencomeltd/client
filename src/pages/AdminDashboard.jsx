@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import Modal from "../components/Modal";
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,24 +14,30 @@ import {
   Download,
   ExternalLink,
   Eye,
+  FileText,
   Globe,
   Key,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   MapPin,
   Megaphone,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
+  Plus,
   PoundSterling,
   RefreshCw,
   Search,
   Settings,
+  Shield,
   ShieldOff,
   Tag,
   Trash2,
   TrendingUp,
   User,
   UserCheck,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -320,45 +327,6 @@ const MOCK_TRANSACTIONS = [
   },
 ];
 
-const MOCK_DISPUTES = [
-  {
-    id: "DSP-001",
-    bookingRef: "VC-2026-006",
-    customer: "Sarah Mitchell",
-    host: "Marcus Williams",
-    space: "Mayfair Boardroom",
-    amount: 780,
-    reason: "Space not as described — AV equipment was broken",
-    openedAt: "3 days ago",
-    status: "open",
-    priority: "high",
-  },
-  {
-    id: "DSP-002",
-    bookingRef: "VC-2026-007",
-    customer: "Tom Walker",
-    host: "Aisha Rahman",
-    space: "DIFC Creative Studio",
-    amount: 250,
-    reason: "Cancellation refund not received after 7 days",
-    openedAt: "5 days ago",
-    status: "under_review",
-    priority: "medium",
-  },
-  {
-    id: "DSP-003",
-    bookingRef: "VC-2026-008",
-    customer: "Priya Sharma",
-    host: "James Thornton",
-    space: "The Shard Executive Suite",
-    amount: 510,
-    reason: "Host cancelled booking 2 hours before check-in",
-    openedAt: "1 week ago",
-    status: "resolved",
-    priority: "low",
-  },
-];
-
 const MOCK_LISTINGS = [
   {
     id: 1,
@@ -476,6 +444,12 @@ const NAV_ITEMS = [
     icon: AlertTriangle,
   },
   {
+    label: "Invoices",
+    section: "invoices",
+    group: "MANAGEMENT",
+    icon: FileText,
+  },
+  {
     label: "Analytics",
     section: "analytics",
     group: "PLATFORM",
@@ -494,6 +468,12 @@ const NAV_ITEMS = [
     icon: Globe,
   },
   {
+    label: "Categories",
+    section: "categories",
+    group: "PLATFORM",
+    icon: LayoutGrid,
+  },
+  {
     label: "Broadcast",
     section: "broadcast",
     group: "PLATFORM",
@@ -504,6 +484,12 @@ const NAV_ITEMS = [
     section: "content",
     group: "PLATFORM",
     icon: MessageSquare,
+  },
+  {
+    label: "Team",
+    section: "team",
+    group: "PLATFORM",
+    icon: Shield,
   },
   {
     label: "Settings",
@@ -520,11 +506,14 @@ const SECTION_TITLES = {
   bookings: "Bookings",
   payments: "Payments",
   disputes: "Disputes",
+  invoices: "Invoices",
   analytics: "Analytics",
   commission: "Commission",
   markets: "Markets",
+  categories: "Categories",
   broadcast: "Broadcast",
   content: "Content & Blog",
+  team: "Team",
   settings: "Settings",
 };
 
@@ -2047,68 +2036,960 @@ function ListingsSection({
   );
 }
 
-function MarketsSection({ stats, bookings, livePayments }) {
-  const ukBookings = bookings.filter(b => b.property?.location?.country?.toLowerCase().includes("united kingdom") || b.property?.location?.country?.toLowerCase().includes("uk")).length;
-  const meBookings = bookings.filter(b => {
-    const country = b.property?.location?.country?.toLowerCase() || "";
-    return country.includes("saudi") || country.includes("uae") || country.includes("dubai") || country.includes("qatar");
-  }).length;
-  const otherBookings = bookings.length - ukBookings - meBookings;
+function InvoicesSection({ onToast }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
-  const markets = [
-    { name: "United Kingdom", flag: "🇬🇧", bookings: ukBookings, status: "Active", color: "#16A34A", cities: ["London", "Manchester", "Birmingham", "Edinburgh"] },
-    { name: "Saudi Arabia", flag: "🇸🇦", bookings: meBookings, status: "Active", color: "#16A34A", cities: ["Riyadh", "Jeddah", "Dammam"] },
-    { name: "UAE", flag: "🇦🇪", bookings: 0, status: "Coming Soon", color: "#D97706", cities: ["Dubai", "Abu Dhabi"] },
-    { name: "Qatar", flag: "🇶🇦", bookings: 0, status: "Planned", color: "#6B7280", cities: ["Doha"] },
-  ];
+  const loadInvoices = async (search = "") => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const params = new URLSearchParams({ limit: "50" });
+      if (search) params.set("q", search);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/invoices?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInvoices(data.invoices || []);
+      }
+    } catch (err) {
+      console.error("Failed to load invoices:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => loadInvoices(query), 300);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const handleDownload = async (invoice) => {
+    setBusyId(invoice.bookingId);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/invoices/${invoice.bookingId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `VenCome-Invoice-${invoice.invoiceNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      onToast("Failed to download invoice");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleResend = async (invoice) => {
+    setBusyId(invoice.bookingId);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/invoices/${invoice.bookingId}/resend`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      onToast(`Invoice resent to ${invoice.guestName}`);
+    } catch {
+      onToast("Failed to resend invoice");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Markets</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">Geographic market overview and expansion status</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Invoices</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">View, download, and resend booking invoices</p>
+        </div>
+        <div className="relative">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+          <input
+            type="text"
+            placeholder="Search invoice #, guest, host, space..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-10 w-[280px] rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
+          />
+        </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, marginBottom: 24 }}>
-        {markets.map((market) => (
-          <div key={market.name} style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 28 }}>{market.flag}</span>
-                <div>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{market.name}</p>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: market.color, background: `${market.color}18`, padding: "2px 8px", borderRadius: 999 }}>{market.status}</span>
+      {loading ? (
+        <div className="py-12 text-center text-[14px] text-[#6B7280]">Loading invoices...</div>
+      ) : invoices.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No invoices found
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
+          <div className="hidden grid-cols-[1fr_1.2fr_1.2fr_1.4fr_0.8fr_0.7fr_1.2fr] gap-3 bg-[#F8F6F0] px-5 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280] md:grid">
+            <span>Invoice #</span>
+            <span>Guest</span>
+            <span>Host</span>
+            <span>Space</span>
+            <span>Amount</span>
+            <span>Status</span>
+            <span>Actions</span>
+          </div>
+          {invoices.map((invoice) => (
+            <div
+              key={invoice.bookingId}
+              className="grid grid-cols-2 gap-3 border-t border-[#F3F4F6] px-5 py-4 text-[13px] md:grid-cols-[1fr_1.2fr_1.2fr_1.4fr_0.8fr_0.7fr_1.2fr] md:items-center"
+            >
+              <span className="font-semibold text-[#0A1628]">{invoice.invoiceNumber}</span>
+              <span className="truncate text-[#111827]">{invoice.guestName}</span>
+              <span className="truncate text-[#111827]">{invoice.hostName}</span>
+              <span className="truncate text-[#6B7280]">{invoice.propertyTitle}</span>
+              <span className="font-semibold text-[#0A1628]">{formatCurrency(invoice.amount)}</span>
+              <span
+                className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[12px] font-semibold ${
+                  invoice.status === "paid"
+                    ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
+                    : "border-[rgba(220,38,38,0.15)] bg-[rgba(220,38,38,0.08)] text-[#DC2626]"
+                }`}
+              >
+                {invoice.status === "paid" ? "Paid" : "Refunded"}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownload(invoice)}
+                  disabled={busyId === invoice.bookingId}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[12px] font-medium text-[#111827] disabled:opacity-50"
+                >
+                  <Download size={12} />
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleResend(invoice)}
+                  disabled={busyId === invoice.bookingId}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[12px] font-medium text-[#111827] disabled:opacity-50"
+                >
+                  <RefreshCw size={12} />
+                  Resend
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function TeamSection({ onToast }) {
+  const [team, setTeam] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteTitle, setInviteTitle] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState("");
+
+  const loadTeam = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/team`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeam(data.team || []);
+      }
+    } catch (err) {
+      console.error("Failed to load team:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTeam();
+  }, []);
+
+  const startEditTitle = (member) => {
+    setEditingId(member._id);
+    setTitleDraft(member.adminTitle || "");
+  };
+
+  const saveTitle = async (member) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/team/${member._id}/title`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ adminTitle: titleDraft }),
+      });
+      if (!res.ok) throw new Error();
+      setTeam((current) => current.map((m) => (m._id === member._id ? { ...m, adminTitle: titleDraft } : m)));
+      setEditingId(null);
+      onToast("Title updated");
+    } catch {
+      onToast("Failed to update title");
+    }
+  };
+
+  const revokeAccess = async (member) => {
+    if (!window.confirm(`Revoke admin access for ${member.displayName || member.email}?`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${member._id}/admin`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isAdmin: false }),
+      });
+      if (!res.ok) throw new Error();
+      setTeam((current) => current.filter((m) => m._id !== member._id));
+      onToast("Admin access revoked");
+    } catch {
+      onToast("Failed to revoke access");
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) {
+      setInviteError("Email is required");
+      return;
+    }
+    setInviting(true);
+    setInviteError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/team/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: inviteEmail.trim(), adminTitle: inviteTitle.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setInviteError(data.error || "Failed to add team member");
+        setInviting(false);
+        return;
+      }
+      onToast(`${inviteEmail} added to the team`);
+      setShowInvite(false);
+      setInviteEmail("");
+      setInviteTitle("");
+      await loadTeam();
+    } catch {
+      setInviteError("Failed to add team member");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Team</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">People with admin access to the VenCome platform</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setShowInvite(true); setInviteError(""); }}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0A1628] px-4 py-2.5 text-[13px] font-semibold text-white"
+        >
+          <UserPlus size={15} />
+          Add Team Member
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-[14px] text-[#6B7280]">Loading team...</div>
+      ) : team.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No admin users found
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          {team.map((member) => {
+            const name = member.displayName || `${member.firstName || ""} ${member.lastName || ""}`.trim() || member.email;
+            return (
+              <div key={member._id} style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <img
+                    src={member.profileImage || "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y&s=200"}
+                    alt={name}
+                    style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover" }}
+                  />
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{name}</p>
+                    <p style={{ fontSize: 12, color: "#6B7280", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{member.email}</p>
+                  </div>
+                </div>
+
+                {editingId === member._id ? (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                    <input
+                      type="text"
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      placeholder="e.g. Founder, Tech Lead"
+                      style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 8, padding: "6px 10px", fontSize: 13 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => saveTitle(member)}
+                      style={{ border: "none", background: "#0A1628", color: "white", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600 }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startEditTitle(member)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, border: "none", background: "rgba(48,92,222,0.08)", color: "#305CDE", borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    <Pencil size={11} />
+                    {member.adminTitle || "Set title"}
+                  </button>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
+                  <span style={{ fontSize: 12, color: "#9CA3AF" }}>
+                    Joined {formatDate(member.createdAt)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => revokeAccess(member)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-2.5 py-1.5 text-[12px] font-medium text-[#DC2626]"
+                  >
+                    <ShieldOff size={12} />
+                    Revoke
+                  </button>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: 24, fontWeight: 800, color: "#0A1628", margin: 0 }}>{market.bookings}</p>
-                <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>bookings</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {market.cities.map(city => (
-                <span key={city} style={{ fontSize: 12, color: "#6B7280", background: "#F3F4F6", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
-              ))}
-            </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Modal isOpen={showInvite} onClose={() => !inviting && setShowInvite(false)}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Add Team Member</h3>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+          They must already have a VenCome account. This grants them full admin access.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            type="email"
+            placeholder="Email address"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+          <input
+            type="text"
+            placeholder="Title (e.g. Founder, Tech Lead) — optional"
+            value={inviteTitle}
+            onChange={(e) => setInviteTitle(e.target.value)}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+        </div>
+        {inviteError ? (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
+            {inviteError}
           </div>
-        ))}
+        ) : null}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button
+            type="button"
+            onClick={() => setShowInvite(false)}
+            disabled={inviting}
+            style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: inviting ? "not-allowed" : "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleInvite}
+            disabled={inviting}
+            style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: inviting ? "not-allowed" : "pointer", opacity: inviting ? 0.7 : 1 }}
+          >
+            {inviting ? "Adding..." : "Add Team Member"}
+          </button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+const EMPTY_CATEGORY_FORM = { name: "", description: "", image: "", status: "published" };
+
+function CategoriesSection({ onToast }) {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(EMPTY_CATEGORY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const loadCategories = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data.categories || []);
+      }
+    } catch (err) {
+      console.error("Failed to load categories:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const openCreateForm = () => {
+    setEditingId(null);
+    setForm(EMPTY_CATEGORY_FORM);
+    setFormError("");
+    setShowForm(true);
+  };
+
+  const openEditForm = (category) => {
+    setEditingId(category._id);
+    setForm({
+      name: category.name,
+      description: category.description || "",
+      image: category.image || "",
+      status: category.status || "published",
+    });
+    setFormError("");
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.description.trim()) {
+      setFormError("Name and description are required");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        image: form.image.trim() || undefined,
+        status: form.status,
+      };
+      const url = editingId
+        ? `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}`
+        : `${import.meta.env.VITE_API_URL}/admin/categories`;
+      const res = await fetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(data.error || "Failed to save category");
+        setSaving(false);
+        return;
+      }
+      onToast(editingId ? "Category updated" : "Category created");
+      setShowForm(false);
+      await loadCategories();
+    } catch {
+      setFormError("Failed to save category");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleStatus = async (category) => {
+    const nextStatus = category.status === "published" ? "draft" : "published";
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/${category._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) throw new Error();
+      setCategories((current) => current.map((c) => (c._id === category._id ? { ...c, status: nextStatus } : c)));
+      onToast(nextStatus === "published" ? "Category published" : "Category moved to draft");
+    } catch {
+      onToast("Failed to update status");
+    }
+  };
+
+  const handleDelete = async (category) => {
+    if (!window.confirm(`Delete "${category.name}"? This cannot be undone.`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/${category._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onToast(data.error || "Failed to delete category");
+        return;
+      }
+      setCategories((current) => current.filter((c) => c._id !== category._id));
+      onToast("Category deleted");
+    } catch {
+      onToast("Failed to delete category");
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Categories</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">Manage property categories and their visibility</p>
+        </div>
+        <button
+          type="button"
+          onClick={openCreateForm}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0A1628] px-4 py-2.5 text-[13px] font-semibold text-white"
+        >
+          <Plus size={15} />
+          Create Category
+        </button>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Expansion Roadmap</h3>
-        {[
-          { phase: "Phase 1", markets: "UK — London, Manchester, Birmingham", status: "Live", color: "#16A34A" },
-          { phase: "Phase 2", markets: "Saudi Arabia — Riyadh, Jeddah", status: "Live", color: "#16A34A" },
-          { phase: "Phase 3", markets: "UAE — Dubai, Abu Dhabi", status: "In Progress", color: "#D97706" },
-          { phase: "Phase 4", markets: "Qatar, Bahrain, Kuwait", status: "Planned", color: "#6B7280" },
-        ].map((row) => (
-          <div key={row.phase} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", width: 70, flexShrink: 0 }}>{row.phase}</span>
-            <span style={{ fontSize: 14, color: "#374151", flex: 1 }}>{row.markets}</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: row.color, background: `${row.color}18`, padding: "3px 12px", borderRadius: 999 }}>{row.status}</span>
+      {loading ? (
+        <div className="py-12 text-center text-[14px] text-[#6B7280]">Loading categories...</div>
+      ) : categories.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No categories yet — click "Create Category" to add your first one.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          {categories.map((category) => (
+            <div key={category._id} style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
+              <div style={{ height: 100, background: `url(${category.image}) center/cover no-repeat, #F3F4F6` }} />
+              <div style={{ padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{category.name}</p>
+                  <button
+                    type="button"
+                    onClick={() => toggleStatus(category)}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      border: "none",
+                      cursor: "pointer",
+                      color: category.status === "published" ? "#16A34A" : "#D97706",
+                      background: category.status === "published" ? "rgba(22,163,74,0.1)" : "rgba(217,119,6,0.1)",
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      flexShrink: 0,
+                    }}
+                    title="Click to toggle"
+                  >
+                    {category.status === "published" ? "Published" : "Draft"}
+                  </button>
+                </div>
+                <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 12px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                  {category.description}
+                </p>
+                <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 16px" }}>{category.listingCount || 0} listing(s)</p>
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(category)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-[12px] font-medium text-[#111827]"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(category)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-3 py-1.5 text-[12px] font-medium text-[#DC2626]"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal isOpen={showForm} onClose={closeForm}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>
+          {editingId ? "Edit Category" : "Create Category"}
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <input
+            type="text"
+            placeholder="Category name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+          <textarea
+            placeholder="Description"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            rows={3}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14, resize: "vertical" }}
+          />
+          <input
+            type="text"
+            placeholder="Image URL (optional)"
+            value={form.image}
+            onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+          <select
+            value={form.status}
+            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          >
+            <option value="published">Published (visible to hosts)</option>
+            <option value="draft">Draft (hidden)</option>
+          </select>
+        </div>
+        {formError ? (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
+            {formError}
           </div>
-        ))}
+        ) : null}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button
+            type="button"
+            onClick={closeForm}
+            disabled={saving}
+            style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? "Saving..." : editingId ? "Save Changes" : "Create Category"}
+          </button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+const MARKET_STATUS_META = {
+  active: { label: "Active", color: "#16A34A" },
+  coming_soon: { label: "Coming Soon", color: "#D97706" },
+  planned: { label: "Planned", color: "#6B7280" },
+};
+
+const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", status: "planned", phase: "" };
+
+function MarketsSection({ bookings, onToast }) {
+  const [markets, setMarkets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(EMPTY_MARKET_FORM);
+  const [saving, setSaving] = useState(false);
+
+  const loadMarkets = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/markets`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMarkets(data.markets || []);
+      }
+    } catch (err) {
+      console.error("Failed to load markets:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMarkets();
+  }, []);
+
+  const bookingsForMarket = (market) => {
+    const needles = [market.name, ...(market.cities || [])].map((s) => s.toLowerCase());
+    return bookings.filter((b) => {
+      const country = b.property?.location?.country?.toLowerCase() || "";
+      const city = b.property?.location?.city?.toLowerCase() || "";
+      return needles.some((n) => country.includes(n) || city.includes(n));
+    }).length;
+  };
+
+  const openCreateForm = () => {
+    setEditingId(null);
+    setForm(EMPTY_MARKET_FORM);
+    setShowForm(true);
+  };
+
+  const openEditForm = (market) => {
+    setEditingId(market._id);
+    setForm({
+      name: market.name,
+      flag: market.flag || "🌍",
+      citiesText: (market.cities || []).join(", "),
+      status: market.status,
+      phase: market.phase || "",
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      onToast("Market name is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const payload = {
+        name: form.name.trim(),
+        flag: form.flag.trim() || "🌍",
+        cities: form.citiesText.split(",").map((c) => c.trim()).filter(Boolean),
+        status: form.status,
+        phase: form.phase.trim(),
+      };
+      const url = editingId
+        ? `${import.meta.env.VITE_API_URL}/admin/markets/${editingId}`
+        : `${import.meta.env.VITE_API_URL}/admin/markets`;
+      const res = await fetch(url, {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onToast(data.error || "Failed to save market");
+        setSaving(false);
+        return;
+      }
+      onToast(editingId ? "Market updated" : "Market created");
+      setShowForm(false);
+      await loadMarkets();
+    } catch {
+      onToast("Failed to save market");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (market) => {
+    if (!window.confirm(`Delete "${market.name}"? This cannot be undone.`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/markets/${market._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      onToast("Market deleted");
+      setMarkets((current) => current.filter((m) => m._id !== market._id));
+    } catch {
+      onToast("Failed to delete market");
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[20px] font-extrabold text-[#0A1628]">Markets</h2>
+          <p className="mt-1 text-[13px] text-[#6B7280]">Geographic market overview and expansion status</p>
+        </div>
+        <button
+          type="button"
+          onClick={openCreateForm}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0A1628] px-4 py-2.5 text-[13px] font-semibold text-white"
+        >
+          <Plus size={15} />
+          Create Market
+        </button>
       </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-[14px] text-[#6B7280]">Loading markets...</div>
+      ) : markets.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No markets yet — click "Create Market" to add your first one.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, marginBottom: 24 }}>
+          {markets.map((market) => {
+            const meta = MARKET_STATUS_META[market.status] || MARKET_STATUS_META.planned;
+            return (
+              <div key={market._id} style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 28 }}>{market.flag}</span>
+                    <div>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{market.name}</p>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: meta.color, background: `${meta.color}18`, padding: "2px 8px", borderRadius: 999 }}>{meta.label}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: 24, fontWeight: 800, color: "#0A1628", margin: 0 }}>{bookingsForMarket(market)}</p>
+                    <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>bookings</p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                  {(market.cities || []).map((city) => (
+                    <span key={city} style={{ fontSize: 12, color: "#6B7280", background: "#F3F4F6", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(market)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-[12px] font-medium text-[#111827]"
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(market)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FCA5A5] bg-white px-3 py-1.5 text-[12px] font-medium text-[#DC2626]"
+                  >
+                    <Trash2 size={12} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {markets.length > 0 ? (
+        <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Expansion Roadmap</h3>
+          {markets
+            .slice()
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((market) => {
+              const meta = MARKET_STATUS_META[market.status] || MARKET_STATUS_META.planned;
+              return (
+                <div key={market._id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", width: 90, flexShrink: 0 }}>{market.phase || "—"}</span>
+                  <span style={{ fontSize: 14, color: "#374151", flex: 1 }}>
+                    {market.name} — {(market.cities || []).join(", ") || "No cities listed"}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, background: `${meta.color}18`, padding: "3px 12px", borderRadius: 999 }}>{meta.label}</span>
+                </div>
+              );
+            })}
+        </div>
+      ) : null}
+
+      <Modal isOpen={showForm} onClose={closeForm}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>
+          {editingId ? "Edit Market" : "Create Market"}
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              type="text"
+              placeholder="Flag emoji"
+              value={form.flag}
+              onChange={(e) => setForm((f) => ({ ...f, flag: e.target.value }))}
+              style={{ width: 70, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 18, textAlign: "center" }}
+            />
+            <input
+              type="text"
+              placeholder="Market name (e.g. United Kingdom)"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            />
+          </div>
+          <input
+            type="text"
+            placeholder="Cities, comma separated (e.g. London, Manchester)"
+            value={form.citiesText}
+            onChange={(e) => setForm((f) => ({ ...f, citiesText: e.target.value }))}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+          <div style={{ display: "flex", gap: 10 }}>
+            <select
+              value={form.status}
+              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            >
+              <option value="active">Active</option>
+              <option value="coming_soon">Coming Soon</option>
+              <option value="planned">Planned</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Phase (e.g. Phase 1)"
+              value={form.phase}
+              onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button
+            type="button"
+            onClick={closeForm}
+            disabled={saving}
+            style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? "Saving..." : editingId ? "Save Changes" : "Create Market"}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }
@@ -2915,25 +3796,62 @@ function PaymentsSection({
   );
 }
 
-function DisputesSection({
-  disputes,
-  setDisputes,
-  disputesFilter,
-  setDisputesFilter,
-  confirmResolution,
-  setConfirmResolution,
-  resolvedFlashId,
-  onToast,
-}) {
+const DISPUTE_REASON_LABELS = {
+  spam: "Spam",
+  inappropriate: "Inappropriate content",
+  fraud: "Suspected fraud",
+  harassment: "Harassment",
+  fake_listing: "Fake listing",
+  other: "Other",
+};
+
+function disputePriority(reason) {
+  if (reason === "fraud" || reason === "harassment") return "high";
+  if (reason === "fake_listing" || reason === "inappropriate") return "medium";
+  return "low";
+}
+
+function timeAgo(dateString) {
+  if (!dateString) return "recently";
+  const diffMs = Date.now() - new Date(dateString).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return `${Math.max(mins, 1)}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
+function DisputesSection({ disputes, setDisputes, disputesFilter, setDisputesFilter, onToast }) {
+  const [resolvedFlashId, setResolvedFlashId] = useState(null);
+
+  useEffect(() => {
+    if (!resolvedFlashId) return undefined;
+    const timer = window.setTimeout(() => setResolvedFlashId(null), 800);
+    return () => window.clearTimeout(timer);
+  }, [resolvedFlashId]);
+
   const filteredDisputes = disputes.filter((dispute) => {
     if (disputesFilter === "all") return true;
     return dispute.status === disputesFilter;
   });
 
-  const resolveDispute = (id) => {
-    setDisputes((current) =>
-      current.map((item) => (item.id === id ? { ...item, status: "resolved" } : item))
-    );
+  const updateDisputeStatus = async (id, status) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/reports/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setDisputes((current) => current.map((item) => (item._id === id ? { ...item, status } : item)));
+      if (status === "resolved") setResolvedFlashId(id);
+      onToast(status === "resolved" ? "Dispute marked as resolved" : "Dispute dismissed");
+    } catch {
+      onToast("Failed to update dispute — try again");
+    }
   };
 
   const tabs = [
@@ -2947,13 +3865,19 @@ function DisputesSection({
       key: "resolved",
       label: `Resolved (${disputes.filter((item) => item.status === "resolved").length})`,
     },
+    {
+      key: "dismissed",
+      label: `Dismissed (${disputes.filter((item) => item.status === "dismissed").length})`,
+    },
   ];
 
   return (
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Dispute Resolution</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">7 active disputes requiring attention</p>
+        <p className="mt-1 text-[13px] text-[#6B7280]">
+          {disputes.filter((item) => item.status === "open").length} open disputes requiring attention
+        </p>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -2973,178 +3897,111 @@ function DisputesSection({
         ))}
       </div>
 
-      <div className="flex flex-col gap-4">
-        {filteredDisputes.map((dispute) => {
-          const actionable = dispute.status === "open" || dispute.status === "under_review";
-          return (
-            <motion.div
-              key={dispute.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                boxShadow:
-                  resolvedFlashId === dispute.id
-                    ? "0 0 0 2px rgba(22,163,74,0.45)"
-                    : "0 0 0 0 rgba(0,0,0,0)",
-              }}
-              transition={{ duration: 0.25 }}
-              className={`rounded-2xl border border-[#E5E7EB] bg-white p-5 ${
-                dispute.priority === "high"
-                  ? "border-l-4 border-l-[#EF4444]"
-                  : dispute.priority === "medium"
-                  ? "border-l-4 border-l-[#D97706]"
-                  : "border-l-4 border-l-[#16A34A]"
-              }`}
-            >
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-[12px] font-bold text-[#6B7280]">{dispute.id}</p>
-                    <h3 className="mt-1 text-[16px] font-bold text-[#0A1628]">{dispute.space}</h3>
-                    <p className="text-[13px] text-[#6B7280]">{dispute.bookingRef}</p>
-                  </div>
-                  <StatusPill status={dispute.status} type="dispute" />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-[rgba(10,22,40,0.06)] px-3 py-2 text-[13px] text-[#111827]">
-                    <User size={14} />
-                    {dispute.customer}
-                  </span>
-                  <ArrowRight size={14} className="text-[#6B7280]" />
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-[rgba(10,22,40,0.06)] px-3 py-2 text-[13px] text-[#111827]">
-                    <Building2 size={14} />
-                    {dispute.host}
-                  </span>
-                </div>
-
-                <div>
-                  <p className="text-[15px] font-bold text-[#0A1628]">
-                    {formatCurrency(dispute.amount)} in dispute
-                  </p>
-                  <p className="mt-1 text-[13px] italic leading-6 text-[#374151]">{dispute.reason}</p>
-                </div>
-
-                <p className="inline-flex items-center gap-2 text-[12px] text-[#6B7280]">
-                  <Clock size={13} />
-                  Opened {dispute.openedAt}
-                </p>
-
-                <AnimatePresence mode="wait">
-                  {confirmResolution.id === dispute.id ? (
-                    <motion.div
-                      key="confirm"
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="rounded-xl bg-[#F8F6F0] p-4"
-                    >
-                      <p className="text-[13px] text-[#111827]">
-                        Release {formatCurrency(dispute.amount)} to {confirmResolution.party}? This cannot be undone.
+      {filteredDisputes.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No disputes in this view
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {filteredDisputes.map((dispute) => {
+            const actionable = dispute.status === "open" || dispute.status === "under_review";
+            const priority = disputePriority(dispute.reason);
+            const reporterName =
+              dispute.reporter?.firstName || dispute.reporter?.lastName
+                ? `${dispute.reporter?.firstName || ""} ${dispute.reporter?.lastName || ""}`.trim()
+                : dispute.reporter?.email || "Unknown reporter";
+            return (
+              <motion.div
+                key={dispute._id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  boxShadow:
+                    resolvedFlashId === dispute._id
+                      ? "0 0 0 2px rgba(22,163,74,0.45)"
+                      : "0 0 0 0 rgba(0,0,0,0)",
+                }}
+                transition={{ duration: 0.25 }}
+                className={`rounded-2xl border border-[#E5E7EB] bg-white p-5 ${
+                  priority === "high"
+                    ? "border-l-4 border-l-[#EF4444]"
+                    : priority === "medium"
+                    ? "border-l-4 border-l-[#D97706]"
+                    : "border-l-4 border-l-[#16A34A]"
+                }`}
+              >
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-[12px] font-bold text-[#6B7280]">
+                        #{dispute._id?.toString().slice(-6).toUpperCase()}
                       </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            resolveDispute(dispute.id);
-                            setConfirmResolution({ id: null, party: null, tone: null });
-                            onToast(`Funds released to ${confirmResolution.party.toLowerCase()} and dispute resolved`);
-                          }}
-                          className={`rounded-lg px-4 py-2 text-[13px] font-semibold text-white ${
-                            confirmResolution.tone === "gold" ? "bg-[#305CDE]" : "bg-[#DC2626]"
-                          }`}
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmResolution({ id: null, party: null, tone: null })}
-                          className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-2 text-[13px] text-[#6B7280]"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="actions"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="flex flex-wrap gap-2"
-                    >
+                      <h3 className="mt-1 text-[16px] font-bold text-[#0A1628]">
+                        {dispute.target?.label || `${dispute.type} report`}
+                      </h3>
+                      <p className="text-[13px] text-[#6B7280] capitalize">{dispute.type}</p>
+                    </div>
+                    <StatusPill status={dispute.status} type="dispute" />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex items-center gap-2 rounded-lg bg-[rgba(10,22,40,0.06)] px-3 py-2 text-[13px] text-[#111827]">
+                      <User size={14} />
+                      {dispute.target?.customer || reporterName}
+                    </span>
+                    {dispute.target?.host ? (
+                      <>
+                        <ArrowRight size={14} className="text-[#6B7280]" />
+                        <span className="inline-flex items-center gap-2 rounded-lg bg-[rgba(10,22,40,0.06)] px-3 py-2 text-[13px] text-[#111827]">
+                          <Building2 size={14} />
+                          {dispute.target.host}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    {typeof dispute.target?.amount === "number" ? (
+                      <p className="text-[15px] font-bold text-[#0A1628]">
+                        {formatCurrency(dispute.target.amount)} in dispute
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-[13px] italic leading-6 text-[#374151]">
+                      {DISPUTE_REASON_LABELS[dispute.reason] || dispute.reason}
+                      {dispute.description ? ` — ${dispute.description}` : ""}
+                    </p>
+                  </div>
+
+                  <p className="inline-flex items-center gap-2 text-[12px] text-[#6B7280]">
+                    <Clock size={13} />
+                    Opened {timeAgo(dispute.createdAt)}
+                  </p>
+
+                  {actionable ? (
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827]"
+                        onClick={() => updateDisputeStatus(dispute._id, "resolved")}
+                        className="min-h-[44px] rounded-lg bg-[rgba(22,163,74,0.1)] px-3.5 py-2 text-[13px] font-semibold text-[#16A34A]"
                       >
-                        <ExternalLink size={14} />
-                        <span className="hidden sm:inline">View Full Dispute</span>
-                        <span className="sm:hidden">View</span>
+                        Mark Resolved
                       </button>
                       <button
                         type="button"
-                        className="hidden min-h-[44px] items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827] sm:inline-flex"
+                        onClick={() => updateDisputeStatus(dispute._id, "dismissed")}
+                        className="min-h-[44px] rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827]"
                       >
-                        <MessageSquare size={14} />
-                        Contact Customer
+                        Dismiss
                       </button>
-                      <button
-                        type="button"
-                        className="hidden min-h-[44px] items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827] sm:inline-flex"
-                      >
-                        <MessageSquare size={14} />
-                        Contact Host
-                      </button>
-                      {actionable ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setConfirmResolution({
-                                id: dispute.id,
-                                party: "Customer",
-                                tone: "red",
-                              })
-                            }
-                            className="min-h-[44px] rounded-lg bg-[#305CDE] px-3.5 py-2 text-[13px] font-semibold text-white"
-                          >
-                            <span className="hidden sm:inline">Release to Customer</span>
-                            <span className="sm:hidden">Release</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setConfirmResolution({
-                                id: dispute.id,
-                                party: "Host",
-                                tone: "gold",
-                              })
-                            }
-                            className="hidden min-h-[44px] rounded-lg bg-[#0A1628] px-3.5 py-2 text-[13px] font-semibold text-white sm:inline-flex sm:items-center"
-                          >
-                            Release to Host
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              resolveDispute(dispute.id);
-                              onToast("Dispute marked as resolved");
-                            }}
-                            className="hidden min-h-[44px] rounded-lg bg-[rgba(22,163,74,0.1)] px-3.5 py-2 text-[13px] font-semibold text-[#16A34A] sm:inline-flex sm:items-center"
-                          >
-                            Mark Resolved
-                          </button>
-                        </>
-                      ) : null}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -3543,14 +4400,8 @@ export default function AdminDashboard() {
   const [paymentsFilter, setPaymentsFilter] = useState("all");
   const [paymentsRange, setPaymentsRange] = useState("Last 30 days");
 
-  const [disputes, setDisputes] = useState(MOCK_DISPUTES);
+  const [disputes, setDisputes] = useState([]);
   const [disputesFilter, setDisputesFilter] = useState("all");
-  const [confirmResolution, setConfirmResolution] = useState({
-    id: null,
-    party: null,
-    tone: null,
-  });
-  const [resolvedFlashId, setResolvedFlashId] = useState(null);
 
   const [globalCommission, setGlobalCommission] = useState("10");
   const [marketOverrides, setMarketOverrides] = useState(
@@ -3578,12 +4429,6 @@ export default function AdminDashboard() {
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
-  useEffect(() => {
-    if (!resolvedFlashId) return undefined;
-    const timer = window.setTimeout(() => setResolvedFlashId(null), 800);
-    return () => window.clearTimeout(timer);
-  }, [resolvedFlashId]);
-
   const fetchBlogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("vencome_token");
@@ -3609,7 +4454,7 @@ export default function AdminDashboard() {
           fetch(`${import.meta.env.VITE_API_URL}/admin/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
-          fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=open&limit=10`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=all&limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/payments?range=30`, { headers }),
         ]);
 
@@ -3682,7 +4527,9 @@ export default function AdminDashboard() {
 
         if (reportsRes.ok) {
           const reportsData = await reportsRes.json();
-          setLiveDisputes(reportsData.reports || []);
+          const allReports = reportsData.reports || [];
+          setDisputes(allReports);
+          setLiveDisputes(allReports.filter((report) => report.status === "open"));
         }
         if (paymentsRes.ok) {
           const paymentsData = await paymentsRes.json();
@@ -3781,8 +4628,10 @@ export default function AdminDashboard() {
     sectionContent = <BookingsSection bookings={bookings} loading={loading} />;
   } else if (activeSection === "markets") {
     sectionContent = (
-      <MarketsSection stats={stats} bookings={bookings} livePayments={livePayments} />
+      <MarketsSection bookings={bookings} onToast={showToast} />
     );
+  } else if (activeSection === "categories") {
+    sectionContent = <CategoriesSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
       <BroadcastSection users={users} />
@@ -3832,22 +4681,14 @@ export default function AdminDashboard() {
     sectionContent = (
       <DisputesSection
         disputes={disputes}
-        setDisputes={(next) => {
-          setDisputes(next);
-          const resolved = typeof next === "function" ? null : null;
-          void resolved;
-        }}
+        setDisputes={setDisputes}
         disputesFilter={disputesFilter}
         setDisputesFilter={setDisputesFilter}
-        confirmResolution={confirmResolution}
-        setConfirmResolution={setConfirmResolution}
-        resolvedFlashId={resolvedFlashId}
-        onToast={(message) => {
-          if (confirmResolution.id) setResolvedFlashId(confirmResolution.id);
-          showToast(message);
-        }}
+        onToast={showToast}
       />
     );
+  } else if (activeSection === "invoices") {
+    sectionContent = <InvoicesSection onToast={showToast} />;
   } else if (activeSection === "commission") {
     sectionContent = (
       <CommissionSection
@@ -3858,6 +4699,8 @@ export default function AdminDashboard() {
         onToast={showToast}
       />
     );
+  } else if (activeSection === "team") {
+    sectionContent = <TeamSection onToast={showToast} />;
   } else if (activeSection === "settings") {
     sectionContent = (
       <SettingsSection

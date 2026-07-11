@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import PropertyCard from "../components/PropertyCard";
+import Modal from "../components/Modal";
 import { getUser } from "../utils/auth";
 
 const SECTION_TITLES = {
@@ -710,11 +711,52 @@ function Toggle({ enabled, onChange }) {
 }
 
 function SettingsSection() {
+  const navigate = useNavigate();
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [smsNotifs, setSmsNotifs] = useState(true);
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [twoFactor, setTwoFactor] = useState(false);
   const [profileVisible, setProfileVisible] = useState(true);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setShowDeleteModal(false);
+    setDeleteError("");
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/account`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setDeleteError(data.error || "Something went wrong. Please try again.");
+        setDeleting(false);
+        return;
+      }
+
+      localStorage.removeItem("vencome_token");
+      localStorage.removeItem("vencome_refresh");
+      localStorage.removeItem("vencome_user");
+      localStorage.removeItem("token");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+      navigate("/login");
+    } catch {
+      setDeleteError("Something went wrong. Please try again.");
+      setDeleting(false);
+    }
+  };
 
   const rows = [
     { title: "Email Notifications", desc: "Booking confirmations and updates", value: emailNotifs, onChange: setEmailNotifs },
@@ -740,10 +782,47 @@ function SettingsSection() {
         ))}
       </div>
       <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 24, marginTop: 8 }}>
-        <button type="button" style={{ border: "1px solid #DC2626", color: "#DC2626", background: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+        <button
+          type="button"
+          onClick={() => setShowDeleteModal(true)}
+          style={{ border: "1px solid #DC2626", color: "#DC2626", background: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+        >
           Delete Account
         </button>
       </div>
+
+      <Modal isOpen={showDeleteModal} onClose={closeDeleteModal}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>Delete your account?</h3>
+        <p style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.5, marginBottom: 16 }}>
+          This permanently deletes your VenCome account and cannot be undone. If you have active listings,
+          unresolved bookings, or a payout still in escrow, you'll need to resolve those first.
+        </p>
+
+        {deleteError ? (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginBottom: 16 }}>
+            {deleteError}
+          </div>
+        ) : null}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={closeDeleteModal}
+            disabled={deleting}
+            style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: deleting ? "not-allowed" : "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+            style={{ border: "none", color: "white", background: "#DC2626", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.7 : 1 }}
+          >
+            {deleting ? "Deleting..." : "Yes, Delete Account"}
+          </button>
+        </div>
+      </Modal>
     </motion.div>
   );
 }
