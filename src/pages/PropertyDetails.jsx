@@ -535,14 +535,14 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
     };
   }
 
-  // Non-hourly tiers bill per full day/week/month/year selected -- selecting
-  // 2 days on the calendar means 2 full days of use, so `selectedDays`
-  // (the inclusive count of calendar days picked) is used directly here,
-  // not reduced by one. This must stay in sync with how handleBooking()
-  // builds the checkOut date sent to the backend (see the +1 day offset
-  // there), so the price shown here always matches what gets charged.
   if (!selectedDays) return { units: 0, label: "", breakdown: "", subtotal: 0 };
 
+  // DAY tier: the customer clicks individual calendar days they want to use
+  // (e.g. Mon+Tue = 2 full days of use), so `selectedDays` -- the inclusive
+  // count of days picked -- is billed directly. This must stay in sync with
+  // how handleBooking() builds the checkOut date sent to the backend (the
+  // +1 day offset there, gated to the "day" tier only), so the price shown
+  // here always matches what gets charged.
   if (tier.unit === "day") {
     const subtotal = selectedDays * tier.price;
     return {
@@ -553,8 +553,17 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
     };
   }
 
+  // WEEK/MONTH/YEAR tiers: checkOut here is already an exclusive boundary
+  // (the date picker auto-advances checkOut by whole units from checkIn --
+  // e.g. checkIn 14 Jul + 1 week = checkOut 21 Jul), matching how the
+  // backend counts calendar-day gaps. Using `selectedDays` (inclusive count)
+  // directly here would double-count the boundary day and round a clean
+  // 1-week span up to 2 weeks, so the exclusive day gap (selectedDays - 1)
+  // is used instead, same as before the DAY-tier fix above.
+  const dayGap = selectedDays > 1 ? selectedDays - 1 : selectedDays;
+
   if (tier.unit === "week") {
-    const units = Math.max(1, Math.ceil(selectedDays / 7));
+    const units = Math.max(1, Math.ceil(dayGap / 7));
     const subtotal = units * tier.price;
     return {
       units,
@@ -565,7 +574,7 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   }
 
   if (tier.unit === "month") {
-    const units = Math.max(1, Math.ceil(selectedDays / 31));
+    const units = Math.max(1, Math.ceil(dayGap / 31));
     const subtotal = units * tier.price;
     return {
       units,
@@ -576,7 +585,7 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   }
 
   if (tier.unit === "year") {
-    const units = Math.max(1, Math.ceil(selectedDays / 366));
+    const units = Math.max(1, Math.ceil(dayGap / 366));
     const subtotal = units * tier.price;
     return {
       units,
@@ -1359,18 +1368,17 @@ export default function PropertyDetails() {
             ? new Date(bookingCheckIn + "T09:00:00").toISOString()
             : new Date(bookingCheckIn).toISOString();
 
-          // Date-only values (length 10, "YYYY-MM-DD") only ever come from
-          // non-hourly duration types (hourly always carries a time via
-          // formatBookingInputValue). For those, the picked end date is the
-          // LAST day the customer actually uses the space -- e.g. picking
-          // Mon+Tue means 2 full days of use. The backend bills/blocks on an
-          // exclusive checkout day (the day AFTER last use), so push the
-          // date forward one day here. This keeps the price the customer
-          // sees in getBookingMetrics() matching what they're actually
-          // charged, and keeps availability blocking correct (blocks Mon+Tue,
-          // leaves Wed free) without changing any backend logic.
+          // Only the DAY tier needs the +1 day adjustment: its picked end
+          // date is the LAST day the customer actually uses the space (e.g.
+          // Mon+Tue means 2 full days of use), so it gets pushed forward one
+          // day to match the backend's exclusive-checkout day counting. WEEK/
+          // MONTH/YEAR tiers already pick an exclusive checkOut (the date
+          // picker auto-advances it by whole units, e.g. +7 days for 1 week),
+          // so applying the same +1 day here would double-count a boundary
+          // day and overbill -- see getBookingMetrics() for the matching
+          // tier-specific logic on the price-preview side.
           let checkOutForBackend = bookingCheckOut;
-          if (bookingCheckOut.length === 10) {
+          if (bookingCheckOut.length === 10 && selectedTier?.unit === "day") {
             const nextDay = new Date(bookingCheckOut + "T00:00:00");
             nextDay.setDate(nextDay.getDate() + 1);
             checkOutForBackend = formatInputDateValue(nextDay);
