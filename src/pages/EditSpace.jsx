@@ -52,6 +52,7 @@ export default function EditSpace() {
     capacity: "",
     amenities: [],
     rules: "",
+    listingTerms: "",
   });
 
   useEffect(() => {
@@ -123,6 +124,7 @@ export default function EditSpace() {
             p.houseRules ||
             p.spaceRules ||
             "",
+          listingTerms: p.listingTerms || "",
         });
 
         setCalendarUrl(p.icalUrl || "");
@@ -206,6 +208,7 @@ export default function EditSpace() {
       payload.append("title", formData.title);
       payload.append("description", formData.description);
       payload.append("whatsIncluded", formData.whatsIncluded || "");
+      payload.append("listingTerms", formData.listingTerms || "");
       payload.append("pricing", JSON.stringify(flatPricing));
       payload.append(
         "location",
@@ -814,6 +817,41 @@ export default function EditSpace() {
               onChange={(e) => setFormData((prev) => ({ ...prev, rules: e.target.value }))}
               rows={3}
               placeholder="e.g. No smoking, No events after 10pm"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                resize: "vertical",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Listing Terms (optional)
+            </label>
+            <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "8px" }}>
+              Your own terms for this space -- shown to customers as a "Read More" on
+              the listing, and they'll need to agree before booking. Separate from
+              VenCome's platform Terms &amp; Conditions. Leave blank if not needed.
+            </p>
+            <textarea
+              value={formData.listingTerms}
+              onChange={(e) => setFormData((prev) => ({ ...prev, listingTerms: e.target.value }))}
+              rows={5}
+              placeholder="e.g. All bookings require a 20% refundable damage deposit, paid separately on arrival..."
               style={{
                 width: "100%",
                 padding: "10px 14px",

@@ -211,6 +211,7 @@ const defaultState = {
   endTime: "",
   instantBook: false,
   houseRules: "",
+  listingTerms: "",
   wifi: false,
   size: "",
   naturalLight: false,
@@ -1124,6 +1125,9 @@ export default function CreateSpace() {
       formData.append("title", form.title);
       formData.append("description", form.description);
       formData.append("whatsIncluded", buildWhatsIncluded());
+      if (form.listingTerms) {
+        formData.append("listingTerms", form.listingTerms);
+      }
       formData.append(
         "location",
         JSON.stringify({
@@ -2028,6 +2032,26 @@ export default function CreateSpace() {
                       value={form.houseRules}
                       onChange={(event) => updateField("houseRules", event.target.value)}
                       placeholder="e.g. No smoking, No events after 10pm, All equipment must be returned after use"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Listing Terms (optional)
+                    </label>
+                    <p className="mb-2 text-[12px] text-[#6B7280]">
+                      Your own terms for this specific space -- e.g. equipment handling,
+                      cancellation nuances, access rules. Shown to customers as a "Read More"
+                      on your listing, and they'll need to tick a box agreeing to it before
+                      booking. This is separate from VenCome's platform Terms &amp; Conditions
+                      and won't replace them. Leave blank if you don't need one.
+                    </p>
+                    <textarea
+                      rows={6}
+                      className={textareaClassName}
+                      value={form.listingTerms}
+                      onChange={(event) => updateField("listingTerms", event.target.value)}
+                      placeholder="e.g. All bookings require a 20% refundable damage deposit, paid separately on arrival..."
                     />
                   </div>
                 </div>

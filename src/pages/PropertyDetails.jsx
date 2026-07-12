@@ -507,66 +507,86 @@ const hasBlockedDates = (startDate, endDate, unavailableSet) => {
   return false;
 };
 
+// Builds the explicit "N unit(s) × £price/unit = £total" breakdown string
+// shown alongside every price total, so the figure can never be misread as
+// a flat price regardless of how many units are being booked.
+const formatBreakdown = (units, unitWord, price, subtotal) =>
+  `${units} ${unitWord}${units !== 1 ? "s" : ""} × £${price.toLocaleString()}/${unitWord} = £${subtotal.toLocaleString()}`;
+
 const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   if (!tier) {
-    return { units: 0, label: "", subtotal: 0 };
+    return { units: 0, label: "", breakdown: "", subtotal: 0 };
   }
 
-  const exclusiveDays = selectedDays > 1 ? selectedDays - 1 : selectedDays;
-
   if (tier.unit === "hour") {
-    if (!checkIn || !checkOut) return { units: 0, label: "", subtotal: 0 };
+    if (!checkIn || !checkOut) return { units: 0, label: "", breakdown: "", subtotal: 0 };
     const start = new Date(checkIn);
     const end = new Date(checkOut);
     const diffMs = end - start;
-    if (diffMs <= 0) return { units: 0, label: "", subtotal: 0 };
+    if (diffMs <= 0) return { units: 0, label: "", breakdown: "", subtotal: 0 };
     const hours = Math.max(1, diffMs / (1000 * 60 * 60));
     const roundedHours = Math.round(hours * 10) / 10;
+    const subtotal = Math.round(roundedHours * tier.price * 100) / 100;
     return {
       units: roundedHours,
       label: `${roundedHours} hour${roundedHours !== 1 ? "s" : ""}`,
-      subtotal: Math.round(roundedHours * tier.price * 100) / 100,
+      breakdown: formatBreakdown(roundedHours, "hour", tier.price, subtotal),
+      subtotal,
     };
   }
 
-  if (!selectedDays) return { units: 0, label: "", subtotal: 0 };
+  // Non-hourly tiers bill per full day/week/month/year selected -- selecting
+  // 2 days on the calendar means 2 full days of use, so `selectedDays`
+  // (the inclusive count of calendar days picked) is used directly here,
+  // not reduced by one. This must stay in sync with how handleBooking()
+  // builds the checkOut date sent to the backend (see the +1 day offset
+  // there), so the price shown here always matches what gets charged.
+  if (!selectedDays) return { units: 0, label: "", breakdown: "", subtotal: 0 };
 
   if (tier.unit === "day") {
+    const subtotal = selectedDays * tier.price;
     return {
-      units: exclusiveDays,
-      label: `${exclusiveDays} day${exclusiveDays !== 1 ? "s" : ""}`,
-      subtotal: exclusiveDays * tier.price,
+      units: selectedDays,
+      label: `${selectedDays} day${selectedDays !== 1 ? "s" : ""}`,
+      breakdown: formatBreakdown(selectedDays, "day", tier.price, subtotal),
+      subtotal,
     };
   }
 
   if (tier.unit === "week") {
-    const units = Math.max(1, Math.ceil(exclusiveDays / 7));
+    const units = Math.max(1, Math.ceil(selectedDays / 7));
+    const subtotal = units * tier.price;
     return {
       units,
       label: `${units} week${units !== 1 ? "s" : ""}`,
-      subtotal: units * tier.price,
+      breakdown: formatBreakdown(units, "week", tier.price, subtotal),
+      subtotal,
     };
   }
 
   if (tier.unit === "month") {
-    const units = Math.max(1, Math.ceil(exclusiveDays / 31));
+    const units = Math.max(1, Math.ceil(selectedDays / 31));
+    const subtotal = units * tier.price;
     return {
       units,
       label: `${units} month${units !== 1 ? "s" : ""}`,
-      subtotal: units * tier.price,
+      breakdown: formatBreakdown(units, "month", tier.price, subtotal),
+      subtotal,
     };
   }
 
   if (tier.unit === "year") {
-    const units = Math.max(1, Math.ceil(exclusiveDays / 366));
+    const units = Math.max(1, Math.ceil(selectedDays / 366));
+    const subtotal = units * tier.price;
     return {
       units,
       label: `${units} year${units !== 1 ? "s" : ""}`,
-      subtotal: units * tier.price,
+      breakdown: formatBreakdown(units, "year", tier.price, subtotal),
+      subtotal,
     };
   }
 
-  return { units: 0, label: "", subtotal: 0 };
+  return { units: 0, label: "", breakdown: "", subtotal: 0 };
 };
 
 const DURATION_BY_UNIT = {
@@ -574,6 +594,7 @@ const DURATION_BY_UNIT = {
   day: "daily",
   week: "weekly",
   month: "monthly",
+  year: "annual",
 };
 
 const formatInputDateValue = (date) => {
@@ -651,6 +672,8 @@ export default function PropertyDetails() {
   const [enquiryMessage, setEnquiryMessage] = useState("");
   const [enquiryLoading, setEnquiryLoading] = useState(false);
   const [enquiryError, setEnquiryError] = useState(null);
+  const [showTermsGate, setShowTermsGate] = useState(false);
+  const [termsGateChecked, setTermsGateChecked] = useState(false);
 
   const bookingSidebarRef = useRef(null);
   const calendarRef = useRef(null);
@@ -1254,7 +1277,12 @@ export default function PropertyDetails() {
     if (value) setSelectedEndDate(new Date(value));
   };
 
-  const handleBooking = async () => {
+  // The actual booking submission. Split out from the click handler so the
+  // listing-terms agreement gate (see handleBookClick below) can sit between
+  // the customer clicking "Request to Book"/"Book Now" and this actually
+  // running -- the button click itself is never intercepted, only the
+  // submission that follows it.
+  const submitBooking = async () => {
     setBookingError(null);
     setBookingLoading(true);
 
@@ -1330,15 +1358,39 @@ export default function PropertyDetails() {
           const checkInISO = bookingCheckIn.length === 10
             ? new Date(bookingCheckIn + "T09:00:00").toISOString()
             : new Date(bookingCheckIn).toISOString();
-          const checkOutISO = bookingCheckOut.length === 10
-            ? new Date(bookingCheckOut + "T18:00:00").toISOString()
-            : new Date(bookingCheckOut).toISOString();
+
+          // Date-only values (length 10, "YYYY-MM-DD") only ever come from
+          // non-hourly duration types (hourly always carries a time via
+          // formatBookingInputValue). For those, the picked end date is the
+          // LAST day the customer actually uses the space -- e.g. picking
+          // Mon+Tue means 2 full days of use. The backend bills/blocks on an
+          // exclusive checkout day (the day AFTER last use), so push the
+          // date forward one day here. This keeps the price the customer
+          // sees in getBookingMetrics() matching what they're actually
+          // charged, and keeps availability blocking correct (blocks Mon+Tue,
+          // leaves Wed free) without changing any backend logic.
+          let checkOutForBackend = bookingCheckOut;
+          if (bookingCheckOut.length === 10) {
+            const nextDay = new Date(bookingCheckOut + "T00:00:00");
+            nextDay.setDate(nextDay.getDate() + 1);
+            checkOutForBackend = formatInputDateValue(nextDay);
+          }
+
+          const checkOutISO = checkOutForBackend.length === 10
+            ? new Date(checkOutForBackend + "T18:00:00").toISOString()
+            : new Date(checkOutForBackend).toISOString();
           formData.append("checkIn", checkInISO);
           formData.append("checkOut", checkOutISO);
           formData.append("guests", guests);
           formData.append("extras", JSON.stringify([]));
           if (selectedTier?.unit) {
             formData.append("pricingUnit", selectedTier.unit);
+          }
+          // Only reachable once the customer has ticked the agreement
+          // checkbox in the terms gate (or the listing has no terms to
+          // agree to at all -- see handleBookClick).
+          if (property?.listingTerms?.trim()) {
+            formData.append("agreedToTerms", "true");
           }
           const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
             method: "POST",
@@ -1385,6 +1437,25 @@ export default function PropertyDetails() {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  // Fires on the "Request to Book"/"Book Now" click itself -- never
+  // intercepted or blocked. If the listing has terms set, this opens the
+  // agreement gate instead of submitting immediately; submitBooking() only
+  // runs once the customer has ticked the checkbox and confirmed. If the
+  // listing has no terms, this step is skipped entirely.
+  const handleBookClick = () => {
+    if (property?.listingTerms?.trim()) {
+      setTermsGateChecked(false);
+      setShowTermsGate(true);
+      return;
+    }
+    submitBooking();
+  };
+
+  const handleConfirmTermsGate = () => {
+    setShowTermsGate(false);
+    submitBooking();
   };
 
   const handleEnquiry = async () => {
@@ -1546,6 +1617,7 @@ export default function PropertyDetails() {
                   today={today}
                   selectedDays={selectedDays}
                   availabilityTotal={bookingMetrics.subtotal}
+                  availabilityBreakdown={bookingMetrics.breakdown}
                   openDaysLabel={propertyView.availabilityLabel}
                   openHours={propertyView.availabilityHours}
                 />
@@ -1553,6 +1625,7 @@ export default function PropertyDetails() {
 
               <motion.section {...sectionProps(0.3)}>
                 <HouseRulesSection property={property} />
+                <ListingTermsSection property={property} />
                 {/* Cancellation Policy */}
                 <div style={{ marginTop: "40px", paddingTop: "32px", borderTop: "1px solid #E5E7EB" }}>
                   <Link
@@ -1612,7 +1685,7 @@ export default function PropertyDetails() {
                 onGuestsChange={setGuests}
                 bookingLoading={bookingLoading}
                 bookingError={bookingError}
-                onBook={handleBooking}
+                onBook={handleBookClick}
                 onEnquiry={handleEnquiry}
                 bookingMetrics={bookingMetrics}
                 bookingTotal={bookingTotal}
@@ -1718,6 +1791,116 @@ export default function PropertyDetails() {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTermsGate && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "560px",
+              width: "100%",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628", marginBottom: "8px" }}>
+              Before you continue
+            </h2>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "16px", lineHeight: "1.6" }}>
+              This host has set specific terms for this space, separate from VenCome's
+              platform Terms &amp; Conditions. Please read them before proceeding.
+            </p>
+
+            <div
+              style={{
+                overflowY: "auto",
+                background: "#F8F6F0",
+                borderRadius: "12px",
+                padding: "16px",
+                marginBottom: "16px",
+                flex: "1 1 auto",
+              }}
+            >
+              <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", whiteSpace: "pre-line", margin: 0 }}>
+                {property?.listingTerms}
+              </p>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "10px",
+                fontSize: "14px",
+                color: "#111827",
+                marginBottom: "20px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={termsGateChecked}
+                onChange={(e) => setTermsGateChecked(e.target.checked)}
+                style={{ marginTop: "3px", width: "16px", height: "16px", flexShrink: 0 }}
+              />
+              I have read and agree to the host's terms for this space.
+            </label>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                type="button"
+                onClick={() => setShowTermsGate(false)}
+                style={{
+                  flex: 1,
+                  background: "#fff",
+                  color: "#0A1628",
+                  border: "1.5px solid #0A1628",
+                  borderRadius: "10px",
+                  padding: "14px",
+                  fontSize: "15px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmTermsGate}
+                disabled={!termsGateChecked}
+                style={{
+                  flex: 1,
+                  background: termsGateChecked ? "#0A1628" : "#9CA3AF",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "14px",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  cursor: termsGateChecked ? "pointer" : "not-allowed",
+                }}
+              >
+                Agree &amp; Continue
               </button>
             </div>
           </div>
@@ -2335,6 +2518,7 @@ function AvailabilitySection({
   today,
   selectedDays,
   availabilityTotal,
+  availabilityBreakdown,
   openDaysLabel,
   openHours,
 }) {
@@ -2430,7 +2614,7 @@ function AvailabilitySection({
 
         {selectedDays > 0 ? (
           <p className="mt-5 rounded-xl bg-[#F8F6F0] px-4 py-3 text-[14px] font-medium text-[#0A1628]">
-            {selectedDays} days selected — {formatCurrency(availabilityTotal)} total
+            {availabilityBreakdown || `${selectedDays} day${selectedDays !== 1 ? "s" : ""} selected — ${formatCurrency(availabilityTotal)} total`}
           </p>
         ) : null}
       </div>
@@ -2468,6 +2652,112 @@ function HouseRulesSection({ property }) {
           );
         })()}
       </div>
+    </div>
+  );
+}
+
+// Shows a compact preview of the host's listing-specific terms (separate
+// from VenCome's platform Terms & Conditions) with a "Read More" button that
+// opens the full text in a scrollable modal. Renders nothing if the host
+// hasn't set any terms for this listing -- this section, and the checkout
+// agreement gate in BookingSidebar, both key off the same field.
+function ListingTermsSection({ property }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const terms = property?.listingTerms?.trim();
+
+  if (!terms) return null;
+
+  const preview = terms.length > 220 ? `${terms.slice(0, 220).trim()}...` : terms;
+
+  return (
+    <div className="border-b border-[#E5E7EB] py-6">
+      <h2 className="text-[20px] font-bold text-[#0A1628]">Listing Terms</h2>
+      <p className="mt-1 text-[13px] text-[#6B7280]">
+        Set by the host for this specific space, in addition to VenCome's platform Terms &amp; Conditions.
+      </p>
+
+      <div className="mt-4">
+        <p style={{ fontSize: "15px", color: "#374151", lineHeight: "1.8", whiteSpace: "pre-line" }}>
+          {preview}
+        </p>
+        {terms.length > 220 && (
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            style={{
+              marginTop: "8px",
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#0A1628",
+              fontWeight: "700",
+              fontSize: "14px",
+              textDecoration: "underline",
+              cursor: "pointer",
+            }}
+          >
+            Read More
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+          onClick={() => setIsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "560px",
+              width: "100%",
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
+              Listing Terms
+            </h2>
+            <div style={{ overflowY: "auto" }}>
+              <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.8", whiteSpace: "pre-line" }}>
+                {terms}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              style={{
+                marginTop: "20px",
+                width: "100%",
+                background: "#0A1628",
+                color: "#fff",
+                border: "none",
+                borderRadius: "10px",
+                padding: "14px",
+                fontSize: "15px",
+                fontWeight: "700",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3113,10 +3403,7 @@ function BookingSidebar({
         <div style={{ background: "#F8F6F0", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "13px", color: "#6B7280" }}>
-              {bookingMetrics.label}
-            </span>
-            <span style={{ fontSize: "13px", color: "#374151", fontWeight: "600" }}>
-              £{bookingMetrics.subtotal.toLocaleString()}
+              {bookingMetrics.breakdown || bookingMetrics.label}
             </span>
           </div>
           <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

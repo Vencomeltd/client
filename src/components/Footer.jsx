@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Facebook, Instagram, Linkedin } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -14,14 +15,32 @@ export default function Footer() {
 
           {/* Social Links (keep <a> for external links) */}
           <div className="flex space-x-3 text-gray-500">
-            <a href="#">
-              <i className="fab fa-facebook-square"></i>
+            <a
+              href="https://www.instagram.com/Vencomeltd"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="VenCome on Instagram"
+              className="hover:text-[#0A1628] transition"
+            >
+              <Instagram size={20} />
             </a>
-            <a href="#">
-              <i className="fab fa-instagram"></i>
+            <a
+              href="https://www.facebook.com/Vencome"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="VenCome on Facebook"
+              className="hover:text-[#0A1628] transition"
+            >
+              <Facebook size={20} />
             </a>
-            <a href="#">
-              <i className="fab fa-twitter"></i>
+            <a
+              href="https://www.linkedin.com/company/vencome/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="VenCome on LinkedIn"
+              className="hover:text-[#0A1628] transition"
+            >
+              <Linkedin size={20} />
             </a>
           </div>
         </div>

@@ -989,6 +989,13 @@ export default function BookingDetails() {
   const nights =
     booking.totalNights ??
     Math.round((new Date(checkOut) - new Date(checkIn)) / 86400000);
+  // pricingUnit/totalUnits cover every duration type (day/week/month/year/
+  // hour), not just nightly stays -- falls back to the nights approximation
+  // above for older bookings made before these fields existed.
+  const UNIT_WORD = { hour: "hour", day: "night", week: "week", month: "month", year: "year" };
+  const durationUnits = booking.totalUnits ?? nights;
+  const durationWord = UNIT_WORD[booking.pricingUnit] || "night";
+  const durationLabel = `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}`;
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const canAccept = status === "pending" && isHost;
   const canCancel = status !== "cancelled" && isHost;
@@ -1128,7 +1135,7 @@ export default function BookingDetails() {
                     {property.pricePerNight && (
                       <InfoRow
                         label="Price / night"
-                        value={`€${property.pricePerNight}`}
+                        value={`£${property.pricePerNight}`}
                       />
                     )}
                   </div>
@@ -1205,7 +1212,7 @@ export default function BookingDetails() {
               <div className="border-t border-slate-100 pt-1">
                 <InfoRow
                   label="Duration"
-                  value={`${nights} night${nights !== 1 ? "s" : ""}`}
+                  value={durationLabel}
                 />
               </div>
             </div>
@@ -1219,14 +1226,14 @@ export default function BookingDetails() {
                 Payment
               </p>
               <p className="text-4xl font-bold text-slate-900 leading-none tracking-tight">
-                €{totalPrice?.toLocaleString()}
+                £{totalPrice?.toLocaleString()}
               </p>
               <p className="text-slate-400 text-xs font-medium mt-2">
                 Total charged
               </p>
-              {nights > 0 && (
+              {durationUnits > 0 && (
                 <p className="text-slate-300 text-xs mt-1">
-                  ≈ €{Math.round(totalPrice / nights)} / night
+                  {durationLabel} × £{Math.round(totalPrice / durationUnits)}/{durationWord} = £{totalPrice?.toLocaleString()}
                 </p>
               )}
             </div>
