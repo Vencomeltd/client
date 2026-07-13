@@ -202,7 +202,11 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
       // whatever dropdown was open. Only react to real page-level scroll.
       // (`e` is undefined on the initial manual call below -- that call
       // is meant to run unconditionally to set the starting scroll state.)
-      if (e && e.target !== document) return;
+      // Note: a real page/viewport scroll fires with e.target === window
+      // (per spec, document-level scroll events are redirected to the
+      // window), NOT document -- only nested scrollable elements (like
+      // the mobile menu panel) have e.target pointing at themselves.
+      if (e && e.target !== window && e.target !== document) return;
 
       const currentScrollTop = Math.max(
         typeof window !== "undefined" ? window.scrollY : 0,
@@ -994,8 +998,80 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
                 <div style={{ border: "1px solid " + COLORS.border, borderRadius: 20, padding: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, letterSpacing: 0.6 }}>LOCATION</div>
-                  <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Search location"
+                  <input value={location}
+                    onChange={e => { setLocation(e.target.value); setActiveField("mobile-location"); }}
+                    onFocus={() => setActiveField("mobile-location")}
+                    placeholder="Search location"
                     style={{ width: "100%", border: "none", outline: "none", background: "transparent", fontSize: 14, marginTop: 6 }} />
+                  <AnimatePresence>
+                    {activeField === "mobile-location" && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        style={{ overflow: "hidden", marginTop: 10 }}>
+                        {CITY_SUGGESTIONS.filter(c =>
+                          !location || c.name.toLowerCase().includes(location.toLowerCase())
+                        ).length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, marginBottom: 10, letterSpacing: 1 }}>
+                              Suggested Destinations
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: googleSuggestions.length > 0 ? 14 : 0 }}>
+                              {CITY_SUGGESTIONS.filter(c =>
+                                !location || c.name.toLowerCase().includes(location.toLowerCase())
+                              ).map(city => {
+                                const CityIcon = city.Icon;
+                                return (
+                                  <button key={city.name} type="button"
+                                    onClick={() => { setLocation(city.name); setGoogleSuggestions([]); setActiveField(null); }}
+                                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 8px", borderRadius: 12, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                      <CityIcon size={16} color="#2E58EC" />
+                                    </div>
+                                    <div>
+                                      <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>{city.name}</div>
+                                      <div style={{ fontSize: 12, color: "#6B7280" }}>{city.desc}</div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+
+                        {googleSuggestions.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, marginBottom: 10, letterSpacing: 1 }}>
+                              Search Results
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {googleSuggestions.map(suggestion => (
+                                <button key={suggestion.place_id} type="button"
+                                  onClick={() => {
+                                    setLocation(suggestion.structured_formatting?.main_text || suggestion.description);
+                                    setGoogleSuggestions([]);
+                                    setActiveField(null);
+                                  }}
+                                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 8px", borderRadius: 12, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}>
+                                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#2E58EC" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
+                                      {suggestion.structured_formatting?.main_text || suggestion.description.split(",")[0]}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "#6B7280" }}>
+                                      {suggestion.structured_formatting?.secondary_text || suggestion.description.split(",").slice(1).join(",").trim()}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <div style={{ border: "1px solid " + COLORS.border, borderRadius: 20, padding: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, letterSpacing: 0.6 }}>
