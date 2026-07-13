@@ -193,21 +193,18 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleNativeScroll = (e) => {
-      // Listening on `document` with capture=true also catches scroll
-      // events bubbling up from nested scrollable elements (the mobile
-      // menu panel, the Type of Space dropdown list, etc.) -- scrolling
-      // inside one of those was being misread as the page itself not
-      // being scrolled, which collapsed the search pill and closed
-      // whatever dropdown was open. Only react to real page-level scroll.
-      // (`e` is undefined on the initial manual call below -- that call
-      // is meant to run unconditionally to set the starting scroll state.)
-      // Note: a real page/viewport scroll fires with e.target === window
-      // (per spec, document-level scroll events are redirected to the
-      // window), NOT document -- only nested scrollable elements (like
-      // the mobile menu panel) have e.target pointing at themselves.
-      if (e && e.target !== window && e.target !== document) return;
-
+    // Was trying to filter this by event.target (document vs window vs
+    // nested elements), but that turned out to be unreliable across
+    // browsers and broke real page scroll on desktop entirely. Dropped
+    // that approach. Instead: always recompute the *real* page scroll
+    // position (window.scrollY etc., which nested scrolling -- inside
+    // the mobile menu panel, a dropdown list -- never changes), and only
+    // collapse the pill / close open dropdowns on an actual transition
+    // from scrolled -> not-scrolled. That's the only case where closing
+    // things is semantically correct anyway (scrolled back up to the
+    // top), so it fixes both bugs without guessing at event internals.
+    let wasScrolled = false;
+    const handleNativeScroll = () => {
       const currentScrollTop = Math.max(
         typeof window !== "undefined" ? window.scrollY : 0,
         document.documentElement?.scrollTop ?? 0,
@@ -216,10 +213,11 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
       const hasScrolled = currentScrollTop > 80;
 
       setScrolled(hasScrolled);
-      if (!hasScrolled) {
+      if (!hasScrolled && wasScrolled) {
         setPillExpanded(false);
         setActiveField(null);
       }
+      wasScrolled = hasScrolled;
     };
 
     handleNativeScroll();
