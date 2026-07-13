@@ -193,7 +193,15 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleNativeScroll = () => {
+    const handleNativeScroll = (e) => {
+      // Listening on `document` with capture=true also catches scroll
+      // events bubbling up from nested scrollable elements (the mobile
+      // menu panel, the Type of Space dropdown list, etc.) -- scrolling
+      // inside one of those was being misread as the page itself not
+      // being scrolled, which collapsed the search pill and closed
+      // whatever dropdown was open. Only react to real page-level scroll.
+      if (e.target !== document) return;
+
       const currentScrollTop = Math.max(
         typeof window !== "undefined" ? window.scrollY : 0,
         document.documentElement?.scrollTop ?? 0,
