@@ -200,7 +200,9 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
       // inside one of those was being misread as the page itself not
       // being scrolled, which collapsed the search pill and closed
       // whatever dropdown was open. Only react to real page-level scroll.
-      if (e.target !== document) return;
+      // (`e` is undefined on the initial manual call below -- that call
+      // is meant to run unconditionally to set the starting scroll state.)
+      if (e && e.target !== document) return;
 
       const currentScrollTop = Math.max(
         typeof window !== "undefined" ? window.scrollY : 0,
