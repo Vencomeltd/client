@@ -150,51 +150,66 @@ function DashboardSearch() {
   };
 
   return (
-    <div ref={wrapRef} style={{
-      display: "flex", alignItems: "center", gap: 12,
-      background: "white", borderRadius: 9999,
-      border: "1.5px solid #E5E7EB",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-      padding: "8px 8px 8px 20px",
-      marginTop: 20,
-      position: "relative",
-    }}>
-      <Search size={18} color="#6B7280" style={{ flexShrink: 0 }} />
-      <input
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        onKeyDown={e => e.key === "Enter" && handleSearch()}
-        placeholder="Search for offices, studios, event venues..."
-        style={{
-          flex: 1, border: "none", outline: "none",
-          fontSize: 14, color: "#111827", background: "transparent",
-          minWidth: 0,
-        }}
-      />
+    <div ref={wrapRef}
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2"
+      style={{
+        background: "white", borderRadius: 20,
+        border: "1.5px solid #E5E7EB",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+        padding: 14,
+        marginTop: 20,
+        position: "relative",
+      }}
+    >
+      {/* LOCATION */}
+      <div className="sm:flex-1" style={{ position: "relative", minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#6B7280", letterSpacing: 0.6 }}>
+          LOCATION
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+          <Search size={16} color="#6B7280" style={{ flexShrink: 0 }} />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSearch()}
+            placeholder="Search location"
+            style={{
+              flex: 1, border: "none", outline: "none",
+              fontSize: 14, color: "#111827", background: "transparent",
+              minWidth: 0,
+            }}
+          />
+        </div>
+      </div>
 
-      <div style={{ width: 1, height: 24, background: "#E5E7EB", flexShrink: 0 }} />
+      <div className="hidden sm:block" style={{ width: 1, height: 32, background: "#E5E7EB", flexShrink: 0 }} />
+      <div className="sm:hidden" style={{ height: 1, background: "#F3F4F6" }} />
 
       {/* TYPE OF SPACE */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
+      <div className="sm:flex-1" style={{ position: "relative", minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#6B7280", letterSpacing: 0.6 }}>
+          TYPE OF SPACE
+        </div>
         <button
           type="button"
           onClick={() => setActiveField(v => v === "type" ? null : "type")}
           style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            fontSize: 13, color: selectedType ? "#111827" : "#6B7280",
-            padding: "6px 8px", whiteSpace: "nowrap",
+            width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 14, color: selectedType ? "#111827" : "#9CA3AF",
+            padding: 0, marginTop: 3,
           }}
         >
-          {selectedType || "Type of space"}
+          {selectedType || "Select type"}
         </button>
         <AnimatePresence>
           {activeField === "type" && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="sm:absolute sm:w-auto"
               style={{
-                position: "absolute", top: "calc(100% + 10px)", left: 0,
+                position: "relative", top: 0, left: 0, width: "100%", marginTop: 10,
                 background: "white", borderRadius: 14, border: "1px solid #E5E7EB",
-                boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 16, minWidth: 320, zIndex: 30,
+                boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 16, zIndex: 30,
               }}
             >
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -216,27 +231,32 @@ function DashboardSearch() {
         </AnimatePresence>
       </div>
 
-      <div style={{ width: 1, height: 24, background: "#E5E7EB", flexShrink: 0 }} />
+      <div className="hidden sm:block" style={{ width: 1, height: 32, background: "#E5E7EB", flexShrink: 0 }} />
+      <div className="sm:hidden" style={{ height: 1, background: "#F3F4F6" }} />
 
       {/* CAPACITY */}
-      <div style={{ position: "relative", flexShrink: 0 }}>
+      <div className="sm:flex-1" style={{ position: "relative", minWidth: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#6B7280", letterSpacing: 0.6 }}>
+          CAPACITY
+        </div>
         <button
           type="button"
           onClick={() => setActiveField(v => v === "capacity" ? null : "capacity")}
           style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            fontSize: 13, color: guests > 0 ? "#111827" : "#6B7280",
-            padding: "6px 8px", whiteSpace: "nowrap",
+            width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 14, color: guests > 0 ? "#111827" : "#9CA3AF",
+            padding: 0, marginTop: 3,
           }}
         >
-          {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Capacity"}
+          {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Add people"}
         </button>
         <AnimatePresence>
           {activeField === "capacity" && (
             <motion.div
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              className="sm:absolute sm:w-auto"
               style={{
-                position: "absolute", top: "calc(100% + 10px)", right: 0,
+                position: "relative", top: 0, right: 0, width: "100%", marginTop: 10,
                 background: "white", borderRadius: 14, border: "1px solid #E5E7EB",
                 boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 16, minWidth: 240, zIndex: 30,
               }}
@@ -263,12 +283,13 @@ function DashboardSearch() {
       <button
         type="button"
         onClick={handleSearch}
+        className="w-full sm:w-auto"
         style={{
           background: "#2E58EC", color: "white",
           border: "none", borderRadius: 9999,
-          padding: "10px 20px", fontSize: 13, fontWeight: 600,
+          padding: "12px 20px", fontSize: 13, fontWeight: 600,
           cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-          display: "flex", alignItems: "center", gap: 6,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
         }}
       >
         Find a Space
@@ -324,7 +345,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
       </div>
 
       {/* 3 Stat Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}
+      <div style={{ display: "grid", gap: 16, marginBottom: 32 }}
         className="grid-cols-1 sm:grid-cols-3">
         {(loading ? Array.from({ length: 3 }, (_, index) => ({ id: index })) : statCards).map((item, i) => {
           const Icon = item.icon;
@@ -778,7 +799,7 @@ function ProfileSection() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="grid-cols-1 lg:grid-cols-2">
+      style={{ display: "grid", gap: 24 }} className="grid-cols-1 lg:grid-cols-2">
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", padding: 28, textAlign: "center" }}>
         <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
           <User size={36} color="#2E58EC" />

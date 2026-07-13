@@ -1145,30 +1145,72 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                 </button>
               </div>
               <div style={{ borderTop: "1px solid " + COLORS.border, paddingTop: 16 }}>
-                {[
-                  { icon: HelpCircle, label: "Help Center", to: "/help" },
-                  { icon: Building2, label: "Become a Host", to: "/host/create", sub: "It's easy to start earning" },
-                  { icon: Users, label: "Refer a Host", to: "/refer" },
-                  { icon: UserPlus, label: "Find a co-host", to: "/co-host" },
-                ].map(item => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy }}>
-                      <Icon size={18} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 600 }}>{item.label}</div>
-                        {item.sub && <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{item.sub}</div>}
-                      </div>
+                {isLoggedIn ? (
+                  <>
+                    {(isHost
+                      ? [
+                          { label: "Host Dashboard", to: "/dashboard" },
+                          { label: "My Listings", to: "/host/listings" },
+                          { label: "Add New Space", to: "/create-space" },
+                          { label: "My Bookings", to: "/dashboard/bookings" },
+                          { label: "Messages", to: "/chat" },
+                          { label: "Settings", to: "/settings" },
+                        ]
+                      : [
+                          { label: "My Dashboard", to: "/customer/dashboard" },
+                          { label: "My Bookings", to: "/customer/bookings" },
+                          { label: "Saved Spaces", to: "/customer/saved" },
+                          { label: "Messages", to: "/chat" },
+                          { label: "Settings", to: "/settings" },
+                        ]
+                    ).map(item => (
+                      <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
+                        style={{ display: "flex", alignItems: "center", padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy, fontSize: 16, fontWeight: 600 }}>
+                        {item.label}
+                      </Link>
+                    ))}
+                    <div style={{ height: 1, background: COLORS.border, margin: "12px 0" }} />
+                    <button type="button"
+                      onClick={() => {
+                        localStorage.removeItem("vencome_token");
+                        localStorage.removeItem("vencome_refresh");
+                        localStorage.removeItem("vencome_user");
+                        localStorage.removeItem("vencome_login_time");
+                        setMenuOpen(false);
+                        window.location.href = "/";
+                      }}
+                      style={{ display: "flex", alignItems: "center", padding: "12px 10px", borderRadius: 14, border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left", color: "#DC2626", fontSize: 16, fontWeight: 700 }}>
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {[
+                      { icon: HelpCircle, label: "Help Center", to: "/help" },
+                      { icon: Building2, label: "Become a Host", to: "/host/create", sub: "It's easy to start earning" },
+                      { icon: Users, label: "Refer a Host", to: "/refer" },
+                      { icon: UserPlus, label: "Find a co-host", to: "/co-host" },
+                    ].map(item => {
+                      const Icon = item.icon;
+                      return (
+                        <Link key={item.label} to={item.to} onClick={() => setMenuOpen(false)}
+                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy }}>
+                          <Icon size={18} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 16, fontWeight: 600 }}>{item.label}</div>
+                            {item.sub && <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{item.sub}</div>}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                    <div style={{ height: 1, background: COLORS.border, margin: "12px 0" }} />
+                    <Link to="/login" onClick={() => setMenuOpen(false)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy, fontWeight: 700 }}>
+                      <LogIn size={18} />
+                      <span style={{ fontSize: 16 }}>Log in or sign up</span>
                     </Link>
-                  );
-                })}
-                <div style={{ height: 1, background: COLORS.border, margin: "12px 0" }} />
-                <Link to="/login" onClick={() => setMenuOpen(false)}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy, fontWeight: 700 }}>
-                  <LogIn size={18} />
-                  <span style={{ fontSize: 16 }}>Log in or sign up</span>
-                </Link>
+                  </>
+                )}
               </div>
             </motion.div>
           </>
