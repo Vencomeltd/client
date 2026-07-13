@@ -186,6 +186,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const navRef = useRef(null);
   const searchBarRef = useRef(null);
   const menuRef = useRef(null);
+  const mobileMenuRef = useRef(null);
   const globeRef = useRef(null);
 
   // ── SCROLL STATE ──────────────────────────────────────────────────────────
@@ -333,6 +334,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
     const handler = (e) => {
       if (globeRef.current?.contains(e.target)) return;
       if (menuRef.current?.contains(e.target)) return;
+      if (mobileMenuRef.current?.contains(e.target)) return;
       if (searchBarRef.current?.contains(e.target)) return;
       if (navRef.current?.contains(e.target)) {
         setActiveField(null);
@@ -968,7 +970,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
             </div>
 
             {/* Mobile full screen */}
-            <motion.div className="md:hidden"
+            <motion.div className="md:hidden" ref={mobileMenuRef}
               initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 260, damping: 28 }}
               style={{ position: "fixed", inset: 0, background: COLORS.white, zIndex: 1001, padding: 24, overflowY: "auto" }}>

@@ -914,12 +914,20 @@ export default function SearchPage() {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed bottom-0 left-0 right-0 z-[200] max-h-[85vh] overflow-y-auto rounded-t-[20px] bg-white px-4 pb-8 pt-5 md:hidden"
             >
-              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-[#E5E7EB]" />
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(false)}
+                aria-label="Close filters"
+                className="mx-auto mb-5 flex h-6 w-full items-center justify-center"
+              >
+                <span className="h-1 w-10 rounded-full bg-[#E5E7EB]" />
+              </button>
               <FilterSidebar
                 filters={filters}
                 onChange={handleFilterChange}
                 onClear={clearFilters}
                 onApply={handleApplyFilters}
+                onClose={() => setIsDrawerOpen(false)}
               />
             </motion.div>
           </>
@@ -929,7 +937,7 @@ export default function SearchPage() {
   );
 }
 
-function FilterSidebar({ filters, onChange, onClear, onApply }) {
+function FilterSidebar({ filters, onChange, onClear, onApply, onClose }) {
   const {
     selectedCategory,
     selectedSubcategory,
@@ -948,13 +956,25 @@ function FilterSidebar({ filters, onChange, onClear, onApply }) {
     <div className="flex flex-col gap-7 rounded-2xl border border-[#E5E7EB] bg-white p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[16px] font-bold text-[#0A1628]">Filters</h2>
-        <button
-          type="button"
-          onClick={onClear}
-          className="border-none bg-transparent text-[13px] font-medium text-[#305CDE]"
-        >
-          Clear all
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClear}
+            className="border-none bg-transparent text-[13px] font-medium text-[#305CDE]"
+          >
+            Clear all
+          </button>
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close filters"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E5E7EB] bg-white text-[#111827]"
+            >
+              <X size={16} />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="border-t border-[#E5E7EB] pt-7">
