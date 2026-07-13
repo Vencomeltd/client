@@ -62,12 +62,6 @@ const CITY_SUGGESTIONS = [
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-const SPACE_TYPES = [
-  "Office Space", "Co-working", "Meeting Rooms", "Event Venues",
-  "Retail", "Warehouse", "Studio Space", "Hospitality",
-  "Medical", "Educational", "Other",
-];
-
 const LEASE_OPTIONS = ["Monthly", "Quarterly", "6 Months", "Annual", "Custom"];
 
 function formatDate(date) {
@@ -76,6 +70,14 @@ function formatDate(date) {
 
 function formatShortDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Local YYYY-MM-DD -- deliberately not toISOString(), which converts to UTC
+// first and can shift the date by a day for users west of UTC.
+function formatInputDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 }
 
 function startOfDay(date) {
@@ -237,6 +239,9 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const [when, setWhen] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedType, setSelectedType] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [guests, setGuests] = useState(0);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [translateEnabled, setTranslateEnabled] = useState(true);
@@ -246,6 +251,23 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   useEffect(() => {
     if (activeTabProp) setActiveTab(activeTabProp);
   }, [activeTabProp]);
+
+  // Real categories from the DB -- the "Type of Space" pill selector used to
+  // be a hardcoded label list disconnected from actual Category documents,
+  // so picking a type here never matched anything on the search results
+  // page (which filters by real Category _id). Fetched once on mount.
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/categories`);
+        const data = await res.json();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     if (window.google?.maps?.places) return;
@@ -334,8 +356,24 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const handleSearch = () => {
     const query = new URLSearchParams();
     if (location) query.set("location", location);
-    if (when) query.set("when", when);
-    if (selectedType) query.set("type", selectedType);
+    // Real category _id, not the display label -- the search results page
+    // filters by Category _id, and "type" (the old label-based param) was
+    // never even read there, so picking a type silently did nothing before.
+    // Doesn't apply on the long-term tab, where this same field picks a
+    // lease length instead of a space category.
+    if (selectedCategoryId && activeTab !== "long-term") {
+      query.set("category", selectedCategoryId);
+    }
+    // Single anchor date -> a 1-day availability window, so the results
+    // page can filter out spaces that are already booked/blocked that day.
+    if (selectedDate) {
+      const checkIn = formatInputDate(selectedDate);
+      const checkOutDate = new Date(selectedDate);
+      checkOutDate.setDate(checkOutDate.getDate() + 1);
+      query.set("checkIn", checkIn);
+      query.set("checkOut", formatInputDate(checkOutDate));
+    }
+    if (guests > 0) query.set("capacity", String(guests));
     if (activeTab) query.set("mode", activeTab);
     navigate(`/search?${query.toString()}`);
     setActiveField(null);
@@ -559,13 +597,57 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
               style={{ ...dropdownBaseStyle, minWidth: 340 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {(activeTab === "long-term" ? LEASE_OPTIONS : SPACE_TYPES).map(opt => (
-                  <button key={opt} type="button"
-                    onClick={() => { setSelectedType(opt); setActiveField(null); }}
-                    style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedType === opt ? COLORS.navy : "white", color: selectedType === opt ? "white" : "#111827" }}>
-                    {opt}
+                {activeTab === "long-term"
+                  ? LEASE_OPTIONS.map(opt => (
+                    <button key={opt} type="button"
+                      onClick={() => { setSelectedType(opt); setActiveField(null); }}
+                      style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedType === opt ? COLORS.navy : "white", color: selectedType === opt ? "white" : "#111827" }}>
+                      {opt}
+                    </button>
+                  ))
+                  : categories.map(cat => (
+                    <button key={cat._id} type="button"
+                      onClick={() => { setSelectedType(cat.name); setSelectedCategoryId(cat._id); setActiveField(null); }}
+                      style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedCategoryId === cat._id ? COLORS.navy : "white", color: selectedCategoryId === cat._id ? "white" : "#111827" }}>
+                      {cat.name}
+                    </button>
+                  ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div style={{ width: 1, height: 28, background: COLORS.border, flexShrink: 0 }} />
+
+      {/* CAPACITY / GUESTS */}
+      <div style={{ flex: 1, padding: "14px 20px", position: "relative" }}>
+        <button type="button" onClick={() => setActiveField(v => v === "capacity" ? null : "capacity")}
+          style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, letterSpacing: 0.6 }}>
+            CAPACITY
+          </span>
+          <div style={{ fontSize: 13, color: guests > 0 ? "#111827" : "#9CA3AF", marginTop: 3 }}>
+            {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Add people"}
+          </div>
+        </button>
+        <AnimatePresence>
+          {activeField === "capacity" && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              style={{ ...dropdownBaseStyle, minWidth: 240 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>People / Workstations</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                    style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
+                    −
                   </button>
-                ))}
+                  <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
+                  <button type="button" onClick={() => setGuests(g => g + 1)}
+                    style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
+                    +
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -932,16 +1014,44 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                     {activeField === "mobile-type" && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", marginTop: 10 }}>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                          {(activeTab === "long-term" ? LEASE_OPTIONS : SPACE_TYPES).map(opt => (
-                            <button key={opt} type="button" onClick={() => { setSelectedType(opt); setActiveField(null); }}
-                              style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedType === opt ? COLORS.navy : "white", color: selectedType === opt ? "white" : "#111827" }}>
-                              {opt}
-                            </button>
-                          ))}
+                          {activeTab === "long-term"
+                            ? LEASE_OPTIONS.map(opt => (
+                              <button key={opt} type="button" onClick={() => { setSelectedType(opt); setActiveField(null); }}
+                                style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedType === opt ? COLORS.navy : "white", color: selectedType === opt ? "white" : "#111827" }}>
+                                {opt}
+                              </button>
+                            ))
+                            : categories.map(cat => (
+                              <button key={cat._id} type="button" onClick={() => { setSelectedType(cat.name); setSelectedCategoryId(cat._id); setActiveField(null); }}
+                                style={{ padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500, cursor: "pointer", border: "1px solid " + COLORS.border, background: selectedCategoryId === cat._id ? COLORS.navy : "white", color: selectedCategoryId === cat._id ? "white" : "#111827" }}>
+                                {cat.name}
+                              </button>
+                            ))}
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
+                </div>
+                <div style={{ border: "1px solid " + COLORS.border, borderRadius: 20, padding: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: COLORS.grey, letterSpacing: 0.6 }}>
+                    CAPACITY
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+                    <span style={{ fontSize: 14, color: guests > 0 ? "#111827" : "#9CA3AF" }}>
+                      {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Add people"}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                        style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
+                        −
+                      </button>
+                      <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
+                      <button type="button" onClick={() => setGuests(g => g + 1)}
+                        style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <button type="button" onClick={handleSearch}
                   style={{ width: "100%", height: 52, borderRadius: 12, background: COLORS.blue, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 15, fontWeight: 700, boxShadow: "0 8px 24px rgba(46,88,236,0.25)" }}>

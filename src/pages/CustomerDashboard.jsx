@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -109,24 +109,55 @@ function StatusBadge({ status }) {
 
 function DashboardSearch() {
   const [query, setQuery] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [guests, setGuests] = useState(0);
+  const [activeField, setActiveField] = useState(null);
   const navigate = useNavigate();
+  const wrapRef = useRef(null);
+
+  // Real categories from the DB, matching the navbar's "Type of Space"
+  // picker so a category picked here filters the same way on /search.
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/categories`);
+        const data = await res.json();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setActiveField(null);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   const handleSearch = () => {
-    if (query.trim()) {
-      navigate(`/search?query=${encodeURIComponent(query)}`);
-    } else {
-      navigate("/search");
-    }
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("query", query.trim());
+    if (selectedCategoryId) params.set("category", selectedCategoryId);
+    if (guests > 0) params.set("capacity", String(guests));
+    navigate(`/search${params.toString() ? `?${params.toString()}` : ""}`);
+    setActiveField(null);
   };
 
   return (
-    <div style={{
+    <div ref={wrapRef} style={{
       display: "flex", alignItems: "center", gap: 12,
       background: "white", borderRadius: 9999,
       border: "1.5px solid #E5E7EB",
       boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
       padding: "8px 8px 8px 20px",
       marginTop: 20,
+      position: "relative",
     }}>
       <Search size={18} color="#6B7280" style={{ flexShrink: 0 }} />
       <input
@@ -137,8 +168,98 @@ function DashboardSearch() {
         style={{
           flex: 1, border: "none", outline: "none",
           fontSize: 14, color: "#111827", background: "transparent",
+          minWidth: 0,
         }}
       />
+
+      <div style={{ width: 1, height: 24, background: "#E5E7EB", flexShrink: 0 }} />
+
+      {/* TYPE OF SPACE */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setActiveField(v => v === "type" ? null : "type")}
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 13, color: selectedType ? "#111827" : "#6B7280",
+            padding: "6px 8px", whiteSpace: "nowrap",
+          }}
+        >
+          {selectedType || "Type of space"}
+        </button>
+        <AnimatePresence>
+          {activeField === "type" && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              style={{
+                position: "absolute", top: "calc(100% + 10px)", left: 0,
+                background: "white", borderRadius: 14, border: "1px solid #E5E7EB",
+                boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 16, minWidth: 320, zIndex: 30,
+              }}
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {categories.map(cat => (
+                  <button key={cat._id} type="button"
+                    onClick={() => { setSelectedType(cat.name); setSelectedCategoryId(cat._id); setActiveField(null); }}
+                    style={{
+                      padding: "8px 14px", borderRadius: 9999, fontSize: 13, fontWeight: 500,
+                      cursor: "pointer", border: "1px solid #E5E7EB",
+                      background: selectedCategoryId === cat._id ? "#0A1628" : "white",
+                      color: selectedCategoryId === cat._id ? "white" : "#111827",
+                    }}>
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div style={{ width: 1, height: 24, background: "#E5E7EB", flexShrink: 0 }} />
+
+      {/* CAPACITY */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setActiveField(v => v === "capacity" ? null : "capacity")}
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 13, color: guests > 0 ? "#111827" : "#6B7280",
+            padding: "6px 8px", whiteSpace: "nowrap",
+          }}
+        >
+          {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Capacity"}
+        </button>
+        <AnimatePresence>
+          {activeField === "capacity" && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+              style={{
+                position: "absolute", top: "calc(100% + 10px)", right: 0,
+                background: "white", borderRadius: 14, border: "1px solid #E5E7EB",
+                boxShadow: "0 12px 32px rgba(0,0,0,0.12)", padding: 16, minWidth: 240, zIndex: 30,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>People / Workstations</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                    style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid #E5E7EB", background: "white", fontSize: 16, cursor: "pointer" }}>
+                    −
+                  </button>
+                  <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
+                  <button type="button" onClick={() => setGuests(g => g + 1)}
+                    style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid #E5E7EB", background: "white", fontSize: 16, cursor: "pointer" }}>
+                    +
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       <button
         type="button"
         onClick={handleSearch}
@@ -146,7 +267,7 @@ function DashboardSearch() {
           background: "#2E58EC", color: "white",
           border: "none", borderRadius: 9999,
           padding: "10px 20px", fontSize: 13, fontWeight: 600,
-          cursor: "pointer", whiteSpace: "nowrap",
+          cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
           display: "flex", alignItems: "center", gap: 6,
         }}
       >

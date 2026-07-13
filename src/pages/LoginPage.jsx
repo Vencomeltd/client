@@ -46,6 +46,7 @@ export default function LoginPage({ mode = "login" }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -102,6 +103,7 @@ export default function LoginPage({ mode = "login" }) {
             email,
             password: `Vc_${Math.random().toString(36).slice(2)}!A1`,
             isHost: role === "host",
+            newsletterOptIn,
           }),
         });
         const signupData = await signupRes.json();
@@ -414,6 +416,34 @@ export default function LoginPage({ mode = "login" }) {
                     ) : null}
                   </div>
 
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      marginBottom: 20,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={newsletterOptIn}
+                      onChange={(e) => setNewsletterOptIn(e.target.checked)}
+                      style={{
+                        width: 16,
+                        height: 16,
+                        marginTop: 2,
+                        flexShrink: 0,
+                        accentColor: COLORS.blue,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{ fontSize: 13, color: COLORS.grey, lineHeight: 1.5 }}>
+                      Send me occasional updates about new spaces and offers. You
+                      can unsubscribe anytime.
+                    </span>
+                  </label>
+
                   <button
                     type="button"
                     onClick={handleContinue}
@@ -491,6 +521,7 @@ export default function LoginPage({ mode = "login" }) {
                                 googleId: payload.sub,
                                 role,
                                 isHost: role === "host",
+                                newsletterOptIn,
                               }),
                             });
                             const data = await res.json();

@@ -21,6 +21,7 @@ import {
 } from "./components/ProtectedRoute";
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";
+import CookieConsentBanner from "./components/CookieConsentBanner";
 
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -125,6 +126,7 @@ function AppContent() {
       {!hideNavbar && <Navbar />}
       <ToastContainer position="top-right" autoClose={4000} />
       <ScrollToTop />
+      <CookieConsentBanner />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
         {/* Public */}

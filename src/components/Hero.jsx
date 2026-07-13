@@ -285,21 +285,10 @@ function HeroCalendarDropdown({ startDate, endDate, onSelectDate }) {
   );
 }
 
-function TypeOfSpaceDropdown({ selected, onSelect }) {
-  const TYPES = [
-    "Office Space",
-    "Co-working",
-    "Meeting Rooms",
-    "Event Venues",
-    "Retail",
-    "Warehouse",
-    "Studio Space",
-    "Hospitality",
-    "Medical",
-    "Educational",
-    "Other",
-  ];
-
+// Real categories from the DB, passed in from Hero -- this used to be a
+// hardcoded label list disconnected from actual Category documents, so
+// picking a type here never matched anything on the search results page.
+function TypeOfSpaceDropdown({ categories, selectedId, onSelect }) {
   return (
     <div>
       <p
@@ -315,11 +304,11 @@ function TypeOfSpaceDropdown({ selected, onSelect }) {
         Type of Space
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {TYPES.map((type) => (
+        {(categories || []).map((cat) => (
           <button
-            key={type}
+            key={cat._id}
             type="button"
-            onClick={() => onSelect(type)}
+            onClick={() => onSelect(cat)}
             style={{
               padding: "8px 14px",
               borderRadius: 9999,
@@ -327,13 +316,13 @@ function TypeOfSpaceDropdown({ selected, onSelect }) {
               fontWeight: 500,
               cursor: "pointer",
               border: "1.5px solid",
-              borderColor: selected === type ? "#0A1628" : "#E5E7EB",
-              background: selected === type ? "#0A1628" : "white",
-              color: selected === type ? "white" : "#111827",
+              borderColor: selectedId === cat._id ? "#0A1628" : "#E5E7EB",
+              background: selectedId === cat._id ? "#0A1628" : "white",
+              color: selectedId === cat._id ? "white" : "#111827",
               transition: "all 0.15s",
             }}
           >
-            {type}
+            {cat.name}
           </button>
         ))}
       </div>
@@ -348,6 +337,7 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
   const searchScale = useTransform(scrollY, [0, 100], [1, 0.97]);
   const [heroTab, setHeroTab] = useState(activeTab ?? "spaces");
   const [selectedType, setSelectedType] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [leaseLength, setLeaseLength] = useState("");
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
@@ -438,34 +428,26 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
     if (onTabChange) onTabChange(nextTab);
   };
 
-  const handleSearchSubmit = async (e) => {
+  const handleSearchSubmit = (e) => {
     e.preventDefault();
     setError("");
 
-    try {
-      const queryParams = new URLSearchParams();
+    // Navigate with the filters in the URL instead of fetching here and
+    // passing results through router state -- SearchPage does its own fetch
+    // driven entirely by URL params (also needed so its filter sidebar,
+    // pagination, and back/forward navigation all stay in sync), so results
+    // fetched here were previously just discarded on arrival.
+    const queryParams = new URLSearchParams();
 
-      if (formData.location) queryParams.append("location", formData.location);
-      if (formData.category) queryParams.append("category", formData.category);
-      if (formData.minPrice) queryParams.append("minPrice", formData.minPrice);
-      if (formData.maxPrice) queryParams.append("maxPrice", formData.maxPrice);
+    if (formData.location) queryParams.append("location", formData.location);
+    if (formData.category) queryParams.append("category", formData.category);
+    if (formData.minPrice) queryParams.append("minPrice", formData.minPrice);
+    if (formData.maxPrice) queryParams.append("maxPrice", formData.maxPrice);
+    if (formData.checkIn) queryParams.append("checkIn", formData.checkIn);
+    if (formData.checkOut) queryParams.append("checkOut", formData.checkOut);
+    if (formData.duration) queryParams.append("duration", formData.duration);
 
-      // Backend accepts checkIn & checkOut as optional logs
-      if (formData.checkIn) queryParams.append("checkIn", formData.checkIn);
-      if (formData.checkOut) queryParams.append("checkOut", formData.checkOut);
-      if (formData.duration) queryParams.append("duration", formData.duration);
-
-      const data = await apiFetch({
-        endpoint: `/properties/search?${queryParams.toString()}`,
-        method: "GET",
-        cacheable: false,
-      });
-
-      // Backend returns: { success, count, properties }
-      navigate("/search", { state: { properties: data.properties } });
-    } catch (err) {
-      setError(err.message || "Search failed. Please try again.");
-    }
+    navigate(`/search?${queryParams.toString()}`);
   };
 
   const handleChange = (e) => {
@@ -500,10 +482,13 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
   useEffect(() => {
     setFormData((prev) => ({
       ...prev,
-      category: selectedType,
+      // Real Category _id, not the display label (selectedType) -- the
+      // backend's /properties/search validates `category` as an ObjectId,
+      // so sending the label here always failed silently before.
+      category: selectedCategoryId,
       duration: leaseLength,
     }));
-  }, [leaseLength, selectedType]);
+  }, [leaseLength, selectedCategoryId]);
 
   return (
     <div
@@ -723,9 +708,11 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
                     </div>
                   ) : (
                     <TypeOfSpaceDropdown
-                      selected={selectedType}
-                      onSelect={(type) => {
-                        setSelectedType(type);
+                      categories={categories}
+                      selectedId={selectedCategoryId}
+                      onSelect={(cat) => {
+                        setSelectedType(cat.name);
+                        setSelectedCategoryId(cat._id);
                         setShowTypePicker(false);
                       }}
                     />
@@ -736,7 +723,7 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
             <Button children="Search" className="py-1" />
           </form>
           {error && <p className="text-red-500 mt-2 text-center">{error}</p>}
-        </div>
+        </motion.div>
         <div className="container mx-auto mt-10 flex items-center justify-between text-white">
           <h2 className="text-4xl">
             Book the <span className="block text-primary">Perfect Venue</span>{" "}
@@ -746,7 +733,7 @@ const Hero = ({ onExplore, activeTab, onTabChange }) => {
             From weddings to business conferences, discover event spaces
             tailored to your needs.
           </p>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

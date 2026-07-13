@@ -255,6 +255,9 @@ export default function SearchPage() {
 
   const initialCity = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
   const initialCategory = searchParams.get("category") || "";
+  const initialCapacity = Number(searchParams.get("capacity")) || 1;
+  const initialCheckIn = searchParams.get("checkIn") || "";
+  const initialCheckOut = searchParams.get("checkOut") || "";
 
   const [selectedCity, setSelectedCity] = useState(initialCity);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -263,7 +266,12 @@ export default function SearchPage() {
   const [selectedDuration, setSelectedDuration] = useState("");
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(10000);
-  const [minCapacity, setMinCapacity] = useState(1);
+  const [minCapacity, setMinCapacity] = useState(initialCapacity);
+  // Availability window carried over from the navbar/hero search bar's date
+  // picker -- sent straight through to the backend, which already excludes
+  // properties with an overlapping blockedDates entry for these dates.
+  const [checkIn, setCheckIn] = useState(initialCheckIn);
+  const [checkOut, setCheckOut] = useState(initialCheckOut);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
   const [sortBy, setSortBy] = useState("Relevance");
   const [showMap, setShowMap] = useState(false);
@@ -296,6 +304,10 @@ export default function SearchPage() {
       if (selectedSubcategory) queryParams.set("subcategory", selectedSubcategory);
       if (minPrice > 0) queryParams.set("minPrice", minPrice);
       if (maxPrice < 10000) queryParams.set("maxPrice", maxPrice);
+      if (checkIn && checkOut) {
+        queryParams.set("checkIn", checkIn);
+        queryParams.set("checkOut", checkOut);
+      }
 
       const url = queryParams.toString()
         ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
@@ -361,15 +373,20 @@ export default function SearchPage() {
   };
 
   useEffect(() => {
-    const nextCity = searchParams.get("city") || searchParams.get("location") || "";
+    const nextCity = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
     const nextCategory = searchParams.get("category") || "";
+    const nextCapacity = Number(searchParams.get("capacity")) || 1;
+    const nextCheckIn = searchParams.get("checkIn") || "";
+    const nextCheckOut = searchParams.get("checkOut") || "";
     setSelectedCity(nextCity);
     setSelectedCategory(nextCategory);
     setSelectedSubcategory("");
     setSelectedDuration("");
     setMinPrice(0);
     setMaxPrice(10000);
-    setMinCapacity(1);
+    setMinCapacity(nextCapacity);
+    setCheckIn(nextCheckIn);
+    setCheckOut(nextCheckOut);
     setSelectedAmenities([]);
     setCurrentPage(1);
   }, [searchParams]);
@@ -386,6 +403,8 @@ export default function SearchPage() {
     maxPrice,
     minCapacity,
     selectedAmenities,
+    checkIn,
+    checkOut,
   ]);
 
   const filteredResults = useMemo(() => {
