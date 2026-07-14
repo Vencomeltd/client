@@ -22,13 +22,15 @@ export default function CookieConsentBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[9999] bg-[#0A1628] text-white px-4 sm:px-6 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
-      <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-sm text-gray-200 max-w-2xl">
+    <div className="fixed bottom-4 left-4 right-4 z-[9999] sm:left-6 sm:right-6 lg:left-auto lg:max-w-xl">
+      <div
+        className="flex flex-col sm:flex-row items-center gap-4 rounded-2xl border border-[#2E58EC]/20 bg-white/80 px-5 py-4 text-[#0A1628] shadow-[0_8px_32px_rgba(10,22,40,0.15)] backdrop-blur-xl backdrop-saturate-150"
+      >
+        <p className="text-sm text-gray-600">
           We use cookies to run VenCome and to understand how the site is used.
           Some are essential and always on; others help us improve search and
           booking. Read our{" "}
-          <Link to="/privacy" className="underline text-[#C9A84C] hover:text-white">
+          <Link to="/privacy" className="underline text-[#2E58EC] hover:text-[#0A1628]">
             Privacy Policy
           </Link>{" "}
           for details.
@@ -37,14 +39,14 @@ export default function CookieConsentBanner() {
           <button
             type="button"
             onClick={() => respond("necessary_only")}
-            className="text-sm font-medium px-4 py-2 rounded-lg border border-white/30 text-white hover:bg-white/10 transition"
+            className="text-sm font-medium px-4 py-2 rounded-lg border border-[#0A1628]/15 bg-black/[0.02] text-[#0A1628] hover:bg-black/[0.06] transition backdrop-blur-sm"
           >
             Necessary Only
           </button>
           <button
             type="button"
             onClick={() => respond("accepted")}
-            className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#C9A84C] text-[#0A1628] hover:opacity-90 transition"
+            className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#2E58EC] text-white hover:opacity-90 transition shadow-[0_0_16px_rgba(46,88,236,0.35)]"
           >
             Accept All
           </button>

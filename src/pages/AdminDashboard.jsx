@@ -3851,12 +3851,16 @@ const DISPUTE_REASON_LABELS = {
   fraud: "Suspected fraud",
   harassment: "Harassment",
   fake_listing: "Fake listing",
+  not_as_described: "Space wasn't as described",
+  no_show: "Host/guest didn't show up",
+  property_damage: "Property damage",
+  payment_issue: "Payment or charge issue",
   other: "Other",
 };
 
 function disputePriority(reason) {
-  if (reason === "fraud" || reason === "harassment") return "high";
-  if (reason === "fake_listing" || reason === "inappropriate") return "medium";
+  if (["fraud", "harassment", "property_damage", "payment_issue"].includes(reason)) return "high";
+  if (["fake_listing", "inappropriate", "no_show", "not_as_described"].includes(reason)) return "medium";
   return "low";
 }
 

@@ -26,7 +26,7 @@ const FAQ_CATEGORIES = [
       { q: "How does payment work?", a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings." },
       { q: "What currencies does VenCome support?", a: "VenCome supports GBP, USD, EUR, AED, and SAR. The currency shown depends on the listing's market." },
       { q: "Is my payment information secure?", a: "Yes. All payments are processed through Stripe, which is PCI DSS compliant. VenCome never stores your card details." },
-      { q: "What happens if a host declines my booking?", a: "If a host declines your request, you will receive a full refund automatically. No charges are applied for declined bookings." },
+      { q: "What happens if a host declines my booking?", a: "If a host declines your request (or doesn't respond within 24 hours), your card is never charged — your payment authorization is simply released. No charges are applied for declined or expired booking requests." },
     ]
   },
   {

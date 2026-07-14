@@ -514,6 +514,78 @@ function ConfirmModal({
   );
 }
 
+const DISPUTE_REASONS = [
+  { value: "not_as_described", label: "Space wasn't as described" },
+  { value: "no_show", label: "Host/guest didn't show up" },
+  { value: "property_damage", label: "Property damage" },
+  { value: "payment_issue", label: "Payment or charge issue" },
+  { value: "other", label: "Other" },
+];
+
+function DisputeModal({ onSubmit, onCancel, loading }) {
+  const [reason, setReason] = useState(DISPUTE_REASONS[0].value);
+  const [description, setDescription] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <div className="mb-4 flex justify-center">
+          <AlertTriangle size={36} className="text-amber-500" />
+        </div>
+        <h3 className="text-xl font-semibold text-slate-900 text-center mb-2">
+          Raise a dispute
+        </h3>
+        <p className="text-sm text-slate-500 text-center leading-relaxed mb-6">
+          Tell us what went wrong. Our team will review this booking and get back to you —
+          any pending payout on it is paused until then.
+        </p>
+
+        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+          Reason
+        </label>
+        <select
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="w-full mb-4 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400"
+        >
+          {DISPUTE_REASONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
+        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+          Details
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={4}
+          maxLength={1000}
+          placeholder="Explain what happened..."
+          className="w-full mb-6 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 outline-none resize-none focus:border-slate-400"
+        />
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit({ reason, description })}
+            disabled={loading || !description.trim()}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition disabled:opacity-50 cursor-pointer bg-red-600 hover:bg-red-700"
+          >
+            {loading ? "Submitting…" : "Submit Dispute"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeaseSignModal({
   onClose,
   loading,
@@ -976,6 +1048,30 @@ export default function BookingDetails() {
     }
   }, [id]);
 
+  const handleReportDispute = useCallback(async ({ reason, description }) => {
+    setActionLoading(true);
+    try {
+      await apiFetch({
+        endpoint: "/reports",
+        method: "POST",
+        body: { type: "booking", targetId: id, reason, description },
+        showErrorToast: false,
+      });
+      setModal(null);
+      showToast("Dispute submitted. Our team will review it shortly.");
+    } catch (err) {
+      const alreadyReported = err.message?.includes("already reported");
+      showToast(
+        alreadyReported
+          ? "You've already raised a dispute on this booking."
+          : "Failed to submit dispute. Please try again.",
+        "error"
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  }, [id]);
+
   const handleLeaseUpload = useCallback((uploadedLeaseUrl) => {
     setLeaseUrl(uploadedLeaseUrl);
     showToast("Lease agreement uploaded successfully.");
@@ -1054,6 +1150,13 @@ export default function BookingDetails() {
           leaseSignedAt={leaseSignedAt}
           onLeaseSign={handleLeaseSign}
           onLeaseUpload={handleLeaseUpload}
+        />
+      )}
+      {modal === "dispute" && (
+        <DisputeModal
+          onSubmit={handleReportDispute}
+          onCancel={() => setModal(null)}
+          loading={actionLoading}
         />
       )}
 
@@ -1317,6 +1420,15 @@ export default function BookingDetails() {
                     )}
                   </>
                 )}
+
+                {/* Available to both host and guest */}
+                <button
+                  onClick={() => setModal("dispute")}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-200 hover:bg-amber-50 active:scale-95 text-amber-700 text-sm font-semibold transition cursor-pointer"
+                >
+                  <AlertTriangle size={16} />
+                  Report an Issue
+                </button>
               </div>
             </div>
           </div>

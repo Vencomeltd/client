@@ -22,7 +22,6 @@ import {
   ShoppingBag,
   Sparkles,
   Stethoscope,
-  TrendingUp,
   UtensilsCrossed,
   Warehouse,
 } from "lucide-react";
@@ -603,15 +602,6 @@ function BecomeAHost() {
             alt="Commercial building exterior"
             className="aspect-[4/3] w-full rounded-[20px] object-cover"
           />
-
-          <div className="absolute bottom-4 left-4 flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp size={16} />
-            </span>
-            <span className="text-sm font-semibold text-[#111827]">
-              £1,240 earned this month
-            </span>
-          </div>
         </div>
       </div>
     </motion.section>
