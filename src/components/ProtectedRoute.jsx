@@ -17,9 +17,10 @@ export function HostRoute({ children }) {
 
 export function CustomerRoute({ children }) {
   const token = getToken();
-  const user = getUser();
   if (!token) return <Navigate to="/login" replace />;
-  if (user?.isHost) return <Navigate to="/dashboard" replace />;
+  // Hosts can also browse and book spaces as a customer (they already reach
+  // /property/:id and checkout unblocked) — so they need access to their own
+  // customer dashboard/booking history too, not just the host dashboard.
   return children;
 }
 

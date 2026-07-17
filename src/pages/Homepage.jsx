@@ -47,20 +47,9 @@ const SECTION_REVEAL = {
   transition: { duration: 0.6, ease: "easeOut" },
 };
 
-const CITY_GROUPS = [
-  {
-    icon: Landmark,
-    label: "United Kingdom",
-    cities: [
-      { name: "London", count: 240 },
-      { name: "Manchester", count: 89 },
-      { name: "Birmingham", count: 72 },
-      { name: "Edinburgh", count: 44 },
-      { name: "Leeds", count: 39 },
-      { name: "Bristol", count: 36 },
-    ],
-  },
-];
+const COUNTRY_ICON_MAP = {
+  "United Kingdom": Landmark,
+};
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -480,6 +469,35 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
 }
 
 function BrowseByCity() {
+  const [countries, setCountries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/cities`);
+        const data = await res.json();
+        setCountries(Array.isArray(data.countries) ? data.countries : []);
+      } catch (err) {
+        console.error("Failed to fetch city counts:", err);
+      } finally {
+        setLoaded(true);
+      }
+    };
+
+    fetchCities();
+
+    const handlePageShow = (event) => {
+      if (event.persisted) fetchCities();
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  // No live listings anywhere yet — nothing to browse by, so hide the section
+  // entirely rather than show empty countries/cities.
+  if (loaded && countries.length === 0) return null;
+
   return (
     <motion.section
       {...SECTION_REVEAL}
@@ -488,18 +506,29 @@ function BrowseByCity() {
       <div className="mx-auto max-w-[1440px] px-4 md:px-6">
         <h2 className="text-[clamp(20px,4vw,32px)] font-bold text-[#0A1628]">Browse by City</h2>
 
-        <div className="mt-10 space-y-10">
-          {CITY_GROUPS.map((group) => {
-            const Icon = group.icon;
+        <div className="mt-10 space-y-8">
+          {countries.map((group) => {
+            const Icon = COUNTRY_ICON_MAP[group.country] || Globe2;
             return (
-            <div key={group.label}>
-              <div className="flex items-center gap-2 text-[#305CDE]">
-                <Icon size={15} />
-                <p className="text-[12px] font-semibold uppercase tracking-[0.18em]">
-                  {group.label}
-                </p>
+              <div key={group.country}>
+                <div className="flex items-center gap-2 text-[#305CDE]">
+                  <Icon size={15} />
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.18em]">
+                    {group.country}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  {group.cities.map((city) => (
+                    <Link
+                      key={city.name}
+                      to={buildSearchHref({ location: city.name })}
+                      className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-[13px] font-medium text-[#111827] transition hover:border-[#305CDE] hover:text-[#305CDE]"
+                    >
+                      {city.name} <span className="text-[#6B7280]">{city.count}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
             );
           })}
         </div>

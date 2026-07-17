@@ -107,12 +107,12 @@ function MiniCalendar({ calMonth, calYear, setCalMonth, setCalYear, selectedDate
   return (
     <div style={{ minWidth: 280 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }}
+        <button type="button" aria-label="Previous month" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); }}
           style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: COLORS.background, color: COLORS.navy, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <ChevronLeft size={16} />
         </button>
         <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy }}>{monthLabel}</span>
-        <button type="button" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); }}
+        <button type="button" aria-label="Next month" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); }}
           style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: COLORS.background, color: COLORS.navy, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <ChevronRight size={16} />
         </button>
@@ -652,12 +652,12 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>People / Workstations</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                  <button type="button" aria-label="Decrease guest count" onClick={() => setGuests(g => Math.max(0, g - 1))}
                     style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
                     −
                   </button>
                   <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
-                  <button type="button" onClick={() => setGuests(g => g + 1)}
+                  <button type="button" aria-label="Increase guest count" onClick={() => setGuests(g => g + 1)}
                     style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
                     +
                   </button>
@@ -669,7 +669,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
       </div>
 
       {/* SEARCH BUTTON */}
-      <button type="button" onClick={handleSearch}
+      <button type="button" aria-label="Search" onClick={handleSearch}
         style={{ width: 48, height: 48, borderRadius: "50%", background: COLORS.blue, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", margin: 6, flexShrink: 0, boxShadow: "0 4px 16px rgba(46,88,236,0.4)" }}>
         <Search size={18} color="white" />
       </button>
@@ -700,7 +700,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
           <span style={{ color: COLORS.grey, margin: "0 4px" }}>·</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.navy, whiteSpace: "nowrap" }}>{selectedType || "Type of Space"}</span>
         </div>
-        <button type="button" onClick={e => { e.stopPropagation(); handleSearch(); }}
+        <button type="button" aria-label="Search" onClick={e => { e.stopPropagation(); handleSearch(); }}
           style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.blue, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", margin: 6, flexShrink: 0 }}>
           <Search size={15} color="white" />
         </button>
@@ -817,7 +817,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               </motion.div>
 
               {/* Globe button */}
-              <button type="button" onClick={() => setGlobeOpen(true)}
+              <button type="button" aria-label="Open language and region settings" onClick={() => setGlobeOpen(true)}
                 style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: (scrolled || !isHomePage) ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: (scrolled || !isHomePage) ? "white" : COLORS.glassBg, color: (scrolled || !isHomePage) ? COLORS.navy : "white", backdropFilter: (scrolled || !isHomePage) ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Globe size={17} />
               </button>
@@ -848,7 +848,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setMenuOpen(true)}
+                <button type="button" aria-label="Open menu" onClick={() => setMenuOpen(true)}
                   style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", border: (scrolled || !isHomePage) ? "1.5px solid " + COLORS.border : "1.5px solid rgba(255,255,255,0.4)", background: (scrolled || !isHomePage) ? "white" : COLORS.glassBg, color: (scrolled || !isHomePage) ? COLORS.navy : "white", backdropFilter: (scrolled || !isHomePage) ? "none" : "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Menu size={17} />
                 </button>
@@ -886,6 +886,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       { label: "My Listings", to: "/host/listings" },
                       { label: "Add New Space", to: "/create-space" },
                       { label: "My Bookings", to: "/dashboard/bookings" },
+                      { label: "My Bookings (as Guest)", to: "/customer/bookings" },
                       { label: "Messages", to: "/chat" },
                       { label: "Settings", to: "/settings" },
                     ].map(item => (
@@ -988,7 +989,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               style={{ position: "fixed", inset: 0, background: COLORS.white, zIndex: 1001, padding: 24, overflowY: "auto" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
                 <img src="/logo-blue.png" alt="VenCome" style={{ height: 38, width: "auto", objectFit: "contain" }} />
-                <button type="button" onClick={() => setMenuOpen(false)}
+                <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}
                   style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <X size={18} color={COLORS.navy} />
                 </button>
@@ -1127,12 +1128,12 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       {guests > 0 ? `${guests} ${guests === 1 ? "person" : "people"}` : "Add people"}
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                      <button type="button" aria-label="Decrease guest count" onClick={() => setGuests(g => Math.max(0, g - 1))}
                         style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
                         −
                       </button>
                       <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
-                      <button type="button" onClick={() => setGuests(g => g + 1)}
+                      <button type="button" aria-label="Increase guest count" onClick={() => setGuests(g => g + 1)}
                         style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", fontSize: 16, cursor: "pointer" }}>
                         +
                       </button>
@@ -1153,6 +1154,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                           { label: "My Listings", to: "/host/listings" },
                           { label: "Add New Space", to: "/create-space" },
                           { label: "My Bookings", to: "/dashboard/bookings" },
+                          { label: "My Bookings (as Guest)", to: "/customer/bookings" },
                           { label: "Messages", to: "/chat" },
                           { label: "Settings", to: "/settings" },
                         ]
@@ -1226,7 +1228,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
               style={{ background: "white", borderRadius: 20, width: "90vw", maxWidth: 800, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottom: "1px solid " + COLORS.border }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.navy }}>Language and region</div>
-                <button type="button" onClick={() => setGlobeOpen(false)}
+                <button type="button" aria-label="Close" onClick={() => setGlobeOpen(false)}
                   style={{ width: 40, height: 40, borderRadius: "50%", border: "1.5px solid " + COLORS.border, background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <X size={18} color={COLORS.navy} />
                 </button>

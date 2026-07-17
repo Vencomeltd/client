@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import getGreeting from "../utils/greeting";
 import {
   ArrowRight,
   CalendarDays,
@@ -289,7 +290,7 @@ export default function Dashboard() {
         <div className="pointer-events-none absolute right-[-40px] top-[-40px] h-[200px] w-[200px] rounded-full bg-[rgba(48,92,222,0.1)]" />
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-[18px] font-bold text-white md:text-[22px]">Good morning, {displayName}</h2>
+            <h2 className="text-[18px] font-bold text-white md:text-[22px]">{getGreeting()}, {displayName}</h2>
             <p className="mt-1.5 text-[14px] text-white/70">
               {loading
                 ? "Loading your host dashboard..."

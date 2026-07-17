@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import getGreeting from "../utils/greeting";
 import {
   ArrowRight,
   CalendarDays,
@@ -264,12 +265,12 @@ function DashboardSearch() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>People / Workstations</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <button type="button" onClick={() => setGuests(g => Math.max(0, g - 1))}
+                  <button type="button" aria-label="Decrease guest count" onClick={() => setGuests(g => Math.max(0, g - 1))}
                     style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid #E5E7EB", background: "white", fontSize: 16, cursor: "pointer" }}>
                     −
                   </button>
                   <span style={{ fontSize: 15, fontWeight: 700, minWidth: 20, textAlign: "center" }}>{guests}</span>
-                  <button type="button" onClick={() => setGuests(g => g + 1)}
+                  <button type="button" aria-label="Increase guest count" onClick={() => setGuests(g => g + 1)}
                     style={{ width: 32, height: 32, borderRadius: "50%", border: "1.5px solid #E5E7EB", background: "white", fontSize: 16, cursor: "pointer" }}>
                     +
                   </button>
@@ -336,7 +337,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
       }}>
         <div style={{ position: "absolute", right: -40, top: -40, width: 200, height: 200, borderRadius: "50%", background: "rgba(46,88,236,0.15)", pointerEvents: "none" }} />
         <p style={{ fontSize: 22, fontWeight: 700, color: "white" }}>
-          Good morning, {displayName}
+          {getGreeting()}, {displayName}
         </p>
         <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
           Find your next commercial space across the UK and Middle East.
