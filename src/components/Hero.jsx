@@ -131,6 +131,7 @@ function MiniCalendar({ month, year, startDate, endDate, onSelectDate, onPrev, o
         <button
           type="button"
           onClick={onPrev}
+          aria-label="Previous month"
           style={{
             width: 32,
             height: 32,
@@ -150,6 +151,7 @@ function MiniCalendar({ month, year, startDate, endDate, onSelectDate, onPrev, o
         <button
           type="button"
           onClick={onNext}
+          aria-label="Next month"
           style={{
             width: 32,
             height: 32,

@@ -19,6 +19,7 @@ import {
   Key,
   LayoutDashboard,
   LayoutGrid,
+  LogIn,
   LogOut,
   MapPin,
   Megaphone,
@@ -928,6 +929,7 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
 
             <button
               type="button"
+              aria-label="Notifications"
               className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280]"
             >
               <Bell size={18} />
@@ -1101,7 +1103,10 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate }) {
+  const hasActiveSupportAccess =
+    user.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date();
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95, y: -8 }}
@@ -1114,6 +1119,13 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
           icon={Eye}
           label="View Profile"
           onClick={() => { window.open(`/host/${user._id}`, "_blank"); onClose(); }}
+        />
+      ) : null}
+      {hasActiveSupportAccess ? (
+        <UserMenuItem
+          icon={LogIn}
+          label="Log in as user"
+          onClick={() => { onImpersonate(user); onClose(); }}
         />
       ) : null}
       <UserMenuItem
@@ -1408,6 +1420,7 @@ function UsersSection({
   onSuspendUser,
   onResetPasswordUser,
   onDeleteUser,
+  onImpersonateUser,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1534,6 +1547,11 @@ function UsersSection({
                               Banned
                             </span>
                           ) : null}
+                          {user.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date() ? (
+                            <span className="rounded-full bg-[rgba(48,92,222,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#254FC7]">
+                              Support Access
+                            </span>
+                          ) : null}
                         </div>
                         <p className="truncate text-[12px] text-[#6B7280]">{user.email}</p>
                       </div>
@@ -1561,6 +1579,7 @@ function UsersSection({
                   <td className="relative px-4 py-3.5">
                     <button
                       type="button"
+                      aria-label="More actions"
                       onClick={() => setOpenUserMenuId((current) => (current === user._id ? null : user._id))}
                       className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#0A1628] hover:text-white"
                     >
@@ -1575,6 +1594,7 @@ function UsersSection({
                           onSuspend={onSuspendUser}
                           onResetPassword={onResetPasswordUser}
                           onDelete={onDeleteUser}
+                          onImpersonate={onImpersonateUser}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -1618,6 +1638,7 @@ function UsersSection({
                 </div>
                 <button
                   type="button"
+                  aria-label="More actions"
                   className="min-h-[44px] min-w-[44px] rounded-full border border-[#E5E7EB] text-[#6B7280]"
                 >
                   <MoreHorizontal size={16} className="mx-auto" />
@@ -2019,7 +2040,7 @@ function ListingsSection({
           <div style={{ background: "#fff", borderRadius: 20, padding: 32, maxWidth: 640, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", margin: 0 }}>Listing Details</h2>
-              <button onClick={() => setSelectedListing(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280" }}>×</button>
+              <button aria-label="Close" onClick={() => setSelectedListing(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280" }}>×</button>
             </div>
             {selectedListing.coverImage && (
               <img src={selectedListing.coverImage} alt={selectedListing.title} style={{ width: "100%", height: 200, objectFit: "cover", borderRadius: 12, marginBottom: 20 }} />
@@ -4484,6 +4505,31 @@ export default function AdminDashboard() {
     }
   };
 
+  // Opens the user's dashboard in a new tab, logged in as them, using the
+  // consent-based support access grant the user set up in Settings. Opens in
+  // a new tab on purpose: the token/user this writes to localStorage is
+  // shared with any other tab on this origin (including this admin tab), so
+  // opening it in-place would clobber the admin's own session too.
+  const handleImpersonateUser = async (user) => {
+    if (!window.confirm(`Log in as ${getUserDisplayName(user)}? This uses the support access they granted and will be logged.`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/impersonate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || "Couldn't log in as this user", "error");
+        return;
+      }
+      window.open(`/impersonate?token=${encodeURIComponent(data.token)}`, "_blank");
+    } catch (err) {
+      console.error("Impersonate error:", err);
+      showToast("Couldn't log in as this user", "error");
+    }
+  };
+
   const handleDeleteUser = async (user) => {
     if (!window.confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`)) return;
     try {
@@ -4717,6 +4763,7 @@ export default function AdminDashboard() {
         onSuspendUser={handleSuspendUser}
         onResetPasswordUser={handleResetPasswordUser}
         onDeleteUser={handleDeleteUser}
+        onImpersonateUser={handleImpersonateUser}
       />
     );
   } else if (activeSection === "listings") {

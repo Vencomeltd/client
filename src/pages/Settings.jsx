@@ -44,6 +44,7 @@ export default function Settings() {
   const [appleUsernameInput, setAppleUsernameInput] = useState("");
   const [applePasswordInput, setApplePasswordInput] = useState("");
   const [connectingApple, setConnectingApple] = useState(false);
+  const [supportAccessSaving, setSupportAccessSaving] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -52,6 +53,15 @@ export default function Settings() {
         const data = await res.json();
         setUser(data);
         if (data.notifications) setNotifications(data.notifications);
+        // Host-only tabs (payout, calendar) and the customer-only payments
+        // tab shouldn't be reachable via a stale ?tab= link for the wrong role.
+        const hostOnlyTabs = ["payout", "calendar"];
+        const customerOnlyTabs = ["payments"];
+        setActiveTab((current) => {
+          if (hostOnlyTabs.includes(current) && !data.isHost) return "account";
+          if (customerOnlyTabs.includes(current) && data.isHost) return "account";
+          return current;
+        });
       } catch (err) {
         console.error("Failed to load user", err);
       } finally {
@@ -313,6 +323,23 @@ export default function Settings() {
     }
   };
 
+  const handleToggleSupportAccess = async (turnOn) => {
+    setSupportAccessSaving(true);
+    try {
+      const res = await apiFetch(`/profile/support-access/${turnOn ? "grant" : "revoke"}`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      const data = await res.json();
+      setUser((p) => ({ ...p, supportAccess: data.supportAccess }));
+      toast.success(turnOn ? "Support access granted for 24 hours" : "Support access revoked");
+    } catch (err) {
+      toast.error("Couldn't update support access");
+    } finally {
+      setSupportAccessSaving(false);
+    }
+  };
+
   const handlePasswordSave = async () => {
     if (!passwords.current || !passwords.newPass || !passwords.confirm) {
       toast.error("Please fill in all password fields");
@@ -366,15 +393,24 @@ export default function Settings() {
     }
   };
 
-  const TABS = [
+  const isHost = !!user?.isHost;
+
+  // Payout method and calendar sync are host-only; the guest payment
+  // methods tab only applies to customers. Everything else is shared.
+  const ALL_TABS = [
     { key: "account", label: "Account", icon: Shield },
     { key: "password", label: "Password", icon: Lock },
     { key: "notifications", label: "Notifications", icon: Bell },
-    { key: "payments", label: "Payments", icon: CreditCard },
-    { key: "payout", label: "Payouts", icon: Building2 },
-    { key: "calendar", label: "Calendar Sync", icon: CalendarDays },
+    { key: "payments", label: "Payments", icon: CreditCard, hostOnly: false, customerOnly: true },
+    { key: "payout", label: "Payouts", icon: Building2, hostOnly: true },
+    { key: "calendar", label: "Calendar Sync", icon: CalendarDays, hostOnly: true },
     { key: "verification", label: "Verification", icon: BadgeCheck },
   ];
+  const TABS = ALL_TABS.filter((tab) => {
+    if (tab.hostOnly) return isHost;
+    if (tab.customerOnly) return !isHost;
+    return true;
+  });
 
   const inputStyle = {
     width: "100%", padding: "12px 14px", borderRadius: "10px",
@@ -411,9 +447,10 @@ export default function Settings() {
     </button>
   );
 
-  const Toggle = ({ value, onChange }) => (
+  const Toggle = ({ value, onChange, ariaLabel }) => (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={() => onChange(!value)}
       style={{
         width: "48px", height: "26px", borderRadius: "9999px",
@@ -506,6 +543,27 @@ export default function Settings() {
                 </div>
                 {saveBtn(handleAccountSave)}
               </div>
+
+              <div style={{ borderTop: "1px solid #F3F4F6", marginTop: "28px", paddingTop: "24px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+                  <div style={{ maxWidth: "440px" }}>
+                    <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 4px" }}>Support Access</p>
+                    <p style={{ fontSize: "13px", color: "#6B7280", margin: 0, lineHeight: 1.6 }}>
+                      {user?.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date()
+                        ? `VenCome support can log in as you until ${new Date(user.supportAccess.expiresAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Turn this off to revoke immediately.`
+                        : "Let VenCome support log in as you for 24 hours to help troubleshoot an issue. Off by default, and always expires automatically."}
+                    </p>
+                  </div>
+                  <Toggle
+                    value={!!(user?.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date())}
+                    onChange={handleToggleSupportAccess}
+                    ariaLabel="Toggle support access"
+                  />
+                </div>
+                {supportAccessSaving ? (
+                  <p style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "8px" }}>Updating…</p>
+                ) : null}
+              </div>
             </div>
           )}
 
@@ -552,6 +610,7 @@ export default function Settings() {
                     <Toggle
                       value={notifications[key]}
                       onChange={(val) => setNotifications(p => ({ ...p, [key]: val }))}
+                      ariaLabel={`Toggle ${label}`}
                     />
                   </div>
                 ))}
