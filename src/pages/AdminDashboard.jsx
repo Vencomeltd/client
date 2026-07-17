@@ -33,6 +33,7 @@ import {
   Settings,
   Shield,
   ShieldOff,
+  ShieldQuestion,
   Tag,
   Trash2,
   TrendingUp,
@@ -1103,9 +1104,28 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate }) {
-  const hasActiveSupportAccess =
-    user.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date();
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess }) {
+  // Support-access status now lives in its own request/response lifecycle
+  // (see routes/admin.js support-access/status), not a flag on the user —
+  // fetched lazily here, only when the admin actually opens this menu.
+  const [accessStatus, setAccessStatus] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/support-access/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!cancelled) setAccessStatus(data.status);
+      } catch (err) {
+        if (!cancelled) setAccessStatus("none");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user._id]);
 
   return (
     <motion.div
@@ -1121,11 +1141,19 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
           onClick={() => { window.open(`/host/${user._id}`, "_blank"); onClose(); }}
         />
       ) : null}
-      {hasActiveSupportAccess ? (
+      {accessStatus === "active" ? (
         <UserMenuItem
           icon={LogIn}
           label="Log in as user"
           onClick={() => { onImpersonate(user); onClose(); }}
+        />
+      ) : accessStatus === "pending" ? (
+        <UserMenuItem icon={Clock} label="Request pending…" disabled />
+      ) : accessStatus ? (
+        <UserMenuItem
+          icon={ShieldQuestion}
+          label="Request Access"
+          onClick={() => { onRequestAccess(user); onClose(); }}
         />
       ) : null}
       <UserMenuItem
@@ -1156,13 +1184,14 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
   );
 }
 
-function UserMenuItem({ icon: Icon, label, danger = false, onClick }) {
+function UserMenuItem({ icon: Icon, label, danger = false, disabled = false, onClick }) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-[13px] transition hover:bg-[#F8F6F0] ${
-        danger ? "text-[#DC2626]" : "text-[#111827]"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left text-[13px] transition ${
+        disabled ? "cursor-default text-[#9CA3AF]" : "hover:bg-[#F8F6F0] " + (danger ? "text-[#DC2626]" : "text-[#111827]")
       }`}
     >
       <Icon size={15} />
@@ -1421,6 +1450,7 @@ function UsersSection({
   onResetPasswordUser,
   onDeleteUser,
   onImpersonateUser,
+  onRequestAccessUser,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1547,11 +1577,6 @@ function UsersSection({
                               Banned
                             </span>
                           ) : null}
-                          {user.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date() ? (
-                            <span className="rounded-full bg-[rgba(48,92,222,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#254FC7]">
-                              Support Access
-                            </span>
-                          ) : null}
                         </div>
                         <p className="truncate text-[12px] text-[#6B7280]">{user.email}</p>
                       </div>
@@ -1595,6 +1620,7 @@ function UsersSection({
                           onResetPassword={onResetPasswordUser}
                           onDelete={onDeleteUser}
                           onImpersonate={onImpersonateUser}
+                          onRequestAccess={onRequestAccessUser}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -4505,13 +4531,40 @@ export default function AdminDashboard() {
     }
   };
 
-  // Opens the user's dashboard in a new tab, logged in as them, using the
-  // consent-based support access grant the user set up in Settings. Opens in
-  // a new tab on purpose: the token/user this writes to localStorage is
-  // shared with any other tab on this origin (including this admin tab), so
-  // opening it in-place would clobber the admin's own session too.
+  // Requests consent-based access to a user's account — the user gets
+  // emailed a secure grant/deny link (see routes/admin.js
+  // support-access/request and SupportAccessGrantScreen.jsx).
+  const handleRequestAccess = async (user) => {
+    const reason = window.prompt(
+      `What's this access request for? ${getUserDisplayName(user)} will see this reason.`,
+      ""
+    );
+    if (reason === null) return; // cancelled
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/support-access/request`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || "Couldn't send the request", "error");
+        return;
+      }
+      showToast(`Access request sent to ${getUserDisplayName(user)}`, "success");
+    } catch (err) {
+      console.error("Support access request error:", err);
+      showToast("Couldn't send the request", "error");
+    }
+  };
+
+  // Logs in as a user with an active, granted session — same tab, with a
+  // persistent "Viewing as X — Return to Admin" banner (see
+  // SupportAccessBanner.jsx / Impersonate.jsx, which stash this admin's own
+  // session first so it can be restored).
   const handleImpersonateUser = async (user) => {
-    if (!window.confirm(`Log in as ${getUserDisplayName(user)}? This uses the support access they granted and will be logged.`)) return;
+    if (!window.confirm(`Log in as ${getUserDisplayName(user)}? This will be logged.`)) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/impersonate`, {
@@ -4523,7 +4576,13 @@ export default function AdminDashboard() {
         showToast(data.error || "Couldn't log in as this user", "error");
         return;
       }
-      window.open(`/impersonate?token=${encodeURIComponent(data.token)}`, "_blank");
+      const params = new URLSearchParams({
+        token: data.token,
+        userId: user._id,
+        userName: data.userName || getUserDisplayName(user),
+        expiresAt: data.sessionExpiresAt,
+      });
+      window.location.href = `/impersonate?${params.toString()}`;
     } catch (err) {
       console.error("Impersonate error:", err);
       showToast("Couldn't log in as this user", "error");
@@ -4764,6 +4823,7 @@ export default function AdminDashboard() {
         onResetPasswordUser={handleResetPasswordUser}
         onDeleteUser={handleDeleteUser}
         onImpersonateUser={handleImpersonateUser}
+        onRequestAccessUser={handleRequestAccess}
       />
     );
   } else if (activeSection === "listings") {

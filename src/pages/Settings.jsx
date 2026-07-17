@@ -44,7 +44,6 @@ export default function Settings() {
   const [appleUsernameInput, setAppleUsernameInput] = useState("");
   const [applePasswordInput, setApplePasswordInput] = useState("");
   const [connectingApple, setConnectingApple] = useState(false);
-  const [supportAccessSaving, setSupportAccessSaving] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -323,23 +322,6 @@ export default function Settings() {
     }
   };
 
-  const handleToggleSupportAccess = async (turnOn) => {
-    setSupportAccessSaving(true);
-    try {
-      const res = await apiFetch(`/profile/support-access/${turnOn ? "grant" : "revoke"}`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error("Failed to update");
-      const data = await res.json();
-      setUser((p) => ({ ...p, supportAccess: data.supportAccess }));
-      toast.success(turnOn ? "Support access granted for 24 hours" : "Support access revoked");
-    } catch (err) {
-      toast.error("Couldn't update support access");
-    } finally {
-      setSupportAccessSaving(false);
-    }
-  };
-
   const handlePasswordSave = async () => {
     if (!passwords.current || !passwords.newPass || !passwords.confirm) {
       toast.error("Please fill in all password fields");
@@ -542,27 +524,6 @@ export default function Settings() {
                   <input style={inputStyle} value={user?.address?.city || ""} onChange={e => setUser(p => ({ ...p, address: { ...p.address, city: e.target.value } }))} placeholder="London" />
                 </div>
                 {saveBtn(handleAccountSave)}
-              </div>
-
-              <div style={{ borderTop: "1px solid #F3F4F6", marginTop: "28px", paddingTop: "24px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
-                  <div style={{ maxWidth: "440px" }}>
-                    <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 4px" }}>Support Access</p>
-                    <p style={{ fontSize: "13px", color: "#6B7280", margin: 0, lineHeight: 1.6 }}>
-                      {user?.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date()
-                        ? `VenCome support can log in as you until ${new Date(user.supportAccess.expiresAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}. Turn this off to revoke immediately.`
-                        : "Let VenCome support log in as you for 24 hours to help troubleshoot an issue. Off by default, and always expires automatically."}
-                    </p>
-                  </div>
-                  <Toggle
-                    value={!!(user?.supportAccess?.granted && new Date(user.supportAccess.expiresAt) > new Date())}
-                    onChange={handleToggleSupportAccess}
-                    ariaLabel="Toggle support access"
-                  />
-                </div>
-                {supportAccessSaving ? (
-                  <p style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "8px" }}>Updating…</p>
-                ) : null}
               </div>
             </div>
           )}

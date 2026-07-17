@@ -3,11 +3,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-// Landing page for admin "Log in as user" links (see AdminDashboard.jsx ->
-// UserMenu -> "Log in as user"). Reads the short-lived impersonation token
-// from the URL, stores it, fetches the user it belongs to, and drops the
-// admin into that user's dashboard. Opened in a new tab on purpose — see the
-// note in AdminDashboard.jsx's handleImpersonateUser for why.
+// Landing page for admin "Log in as user" (see AdminDashboard.jsx's
+// handleImpersonateUser). Same-tab: the admin's own token/user is saved
+// under vencome_admin_return first, so SupportAccessBanner can restore it
+// when the admin clicks "Return to Admin" or the session expires.
 export default function Impersonate() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -15,13 +14,26 @@ export default function Impersonate() {
 
   useEffect(() => {
     const token = searchParams.get("token");
-    if (!token) {
-      setError("Missing impersonation token.");
+    const userId = searchParams.get("userId");
+    const userName = searchParams.get("userName") || "";
+    const expiresAt = searchParams.get("expiresAt");
+
+    if (!token || !userId || !expiresAt) {
+      setError("Missing impersonation details.");
       return;
     }
 
     (async () => {
       try {
+        const adminToken = localStorage.getItem("vencome_token");
+        const adminUser = localStorage.getItem("vencome_user");
+        if (adminToken && adminUser) {
+          localStorage.setItem(
+            "vencome_admin_return",
+            JSON.stringify({ token: adminToken, user: adminUser, userId, userName, expiresAt })
+          );
+        }
+
         localStorage.setItem("vencome_token", token);
         localStorage.setItem("vencome_login_time", Date.now().toString());
         localStorage.removeItem("vencome_refresh"); // session ends when the 1h token expires, no silent refresh
@@ -33,7 +45,7 @@ export default function Impersonate() {
         const user = await res.json();
 
         localStorage.setItem("vencome_user", JSON.stringify(user));
-        navigate(user.isHost ? "/dashboard" : "/customer/dashboard", { replace: true });
+        window.location.href = user.isHost ? "/dashboard" : "/customer/dashboard";
       } catch (err) {
         setError("This support access link has expired or is no longer valid.");
       }
@@ -47,7 +59,7 @@ export default function Impersonate() {
           <>
             <p className="text-[15px] font-semibold text-[#DC2626]">{error}</p>
             <p className="mt-2 text-[13px] text-[#6B7280]">
-              Ask the user to grant support access again from their Settings page.
+              Request access to this account again from the admin Users panel.
             </p>
           </>
         ) : (

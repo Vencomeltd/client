@@ -22,10 +22,13 @@ import {
 import ScrollToTop from "./components/ScrollToTop";
 import Navbar from "./components/Navbar";
 import CookieConsentBanner from "./components/CookieConsentBanner";
+import SupportAccessBanner from "./components/SupportAccessBanner";
 
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPassword from "./pages/ForgotPassword";
+import Impersonate from "./pages/Impersonate";
+import SupportAccessGrantScreen from "./pages/SupportAccessGrantScreen";
 import Dashboard from "./pages/Dashboard";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import Homepage from "./pages/Homepage";
@@ -126,6 +129,7 @@ function AppContent() {
       {!hideNavbar && <Navbar />}
       <ToastContainer position="top-right" autoClose={4000} />
       <ScrollToTop />
+      <SupportAccessBanner />
       <CookieConsentBanner />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
@@ -134,6 +138,8 @@ function AppContent() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/impersonate" element={<Impersonate />} />
+        <Route path="/support-access/:token" element={<SupportAccessGrantScreen />} />
         <Route path="/property/:id" element={<PropertyDetails />} />
         <Route path="/category/:id" element={<CategoryPage />} />
         <Route path="/host/:id" element={<HostProfile />} />
