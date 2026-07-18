@@ -51,6 +51,12 @@ export default function LoginPage({ mode = "login" }) {
   const [otpError, setOtpError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
+  // Tracks whether this OTP verification is completing a brand-new signup
+  // (vs. an existing user logging back in) — a new host needs to land
+  // straight in Create a Space, not the dashboard; an existing host logging
+  // in normally still goes to their dashboard as before.
+  const [isNewAccount, setIsNewAccount] = useState(false);
+  const [justSignedUpAsHost, setJustSignedUpAsHost] = useState(false);
   const otpRefs = useRef([]);
 
   useEffect(() => {
@@ -93,6 +99,7 @@ export default function LoginPage({ mode = "login" }) {
       });
 
       if (checkRes.ok) {
+        setIsNewAccount(false);
         setStep("otp");
         setResendTimer(30);
       } else {
@@ -120,6 +127,7 @@ export default function LoginPage({ mode = "login" }) {
           body: JSON.stringify({ email }),
         });
 
+        setIsNewAccount(true);
         setStep("otp");
         setResendTimer(30);
       }
@@ -182,9 +190,13 @@ export default function LoginPage({ mode = "login" }) {
       setFirstName(resolvedUser.firstName || email.split("@")[0]);
       setStep("success");
       const userIsHost = resolvedUser?.isHost === true || role === "host";
+      const goStraightToCreateSpace = isNewAccount && userIsHost;
+      setJustSignedUpAsHost(goStraightToCreateSpace);
 
       window.setTimeout(() => {
-        if (userIsHost) {
+        if (goStraightToCreateSpace) {
+          navigate("/create-space");
+        } else if (userIsHost) {
           navigate("/dashboard");
         } else {
           navigate("/customer/dashboard");
@@ -563,9 +575,13 @@ export default function LoginPage({ mode = "login" }) {
                             setFirstName(resolvedUser.firstName || "");
                             setStep("success");
                             const userIsHost = resolvedUser?.isHost === true || role === "host";
+                            const goStraightToCreateSpace = data.isNewUser === true && userIsHost;
+                            setJustSignedUpAsHost(goStraightToCreateSpace);
 
                             window.setTimeout(() => {
-                              if (userIsHost) {
+                              if (goStraightToCreateSpace) {
+                                navigate("/create-space");
+                              } else if (userIsHost) {
                                 navigate("/dashboard");
                               } else {
                                 navigate("/customer/dashboard");
@@ -810,7 +826,11 @@ export default function LoginPage({ mode = "login" }) {
 
                   <button
                     type="button"
-                    onClick={() => navigate(role === "host" ? "/dashboard" : "/search")}
+                    onClick={() =>
+                      navigate(
+                        justSignedUpAsHost ? "/create-space" : role === "host" ? "/dashboard" : "/search"
+                      )
+                    }
                     style={{
                       width: "100%",
                       height: 52,
@@ -830,7 +850,11 @@ export default function LoginPage({ mode = "login" }) {
                     }}
                   >
                     <Search size={18} />
-                    {role === "host" ? "Go to Host Dashboard" : "Start Finding Spaces"}
+                    {justSignedUpAsHost
+                      ? "Create Your First Listing"
+                      : role === "host"
+                      ? "Go to Host Dashboard"
+                      : "Start Finding Spaces"}
                   </button>
 
                   <button

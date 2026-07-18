@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import getGreeting from "../utils/greeting";
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarDays,
   CheckCircle2,
@@ -98,6 +99,51 @@ const getCustomerName = (booking) =>
   booking.guest?.name ||
   [booking.guest?.firstName, booking.guest?.lastName].filter(Boolean).join(" ") ||
   "Guest";
+
+function IncompleteDraftBanner({ token }) {
+  const [drafts, setDrafts] = useState([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/drafts`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDrafts(data.drafts || []);
+        }
+      } catch (err) {
+        console.error("Failed to load drafts:", err);
+      }
+    };
+    load();
+  }, [token]);
+
+  if (drafts.length === 0) return null;
+
+  const draftTitle = drafts[0].title || "Untitled space";
+
+  return (
+    <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#FCD34D] bg-[#FFFBEB] px-5 py-4 sm:px-6">
+      <div className="flex items-center gap-3">
+        <AlertTriangle size={20} className="shrink-0 text-[#B45309]" />
+        <div>
+          <p className="text-[14px] font-bold text-[#92400E]">Finish your listing</p>
+          <p className="text-[13px] text-[#B45309]">
+            "{draftTitle}" is saved as a draft{drafts.length > 1 ? ` (and ${drafts.length - 1} more)` : ""} — complete it to make it live.
+          </p>
+        </div>
+      </div>
+      <Link
+        to="/create-space"
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-90"
+      >
+        Finish listing <ArrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
 
 function OnboardingChecklist({ token }) {
   const [checklist, setChecklist] = useState(null);
@@ -282,6 +328,8 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Overview">
+      <IncompleteDraftBanner token={token} />
+
       <motion.section
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

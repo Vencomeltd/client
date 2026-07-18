@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { getUser } from "../utils/auth";
+import { isNavGuardActive, requestNavConfirm, getNavGuardHandler } from "../utils/navGuard";
 
 const getDisplayName = (user) =>
   user?.displayName ||
@@ -93,7 +94,14 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
       <Link
         key={item.path}
         to={item.path}
-        onClick={onNavigate}
+        onClick={(e) => {
+          if (isNavGuardActive()) {
+            e.preventDefault();
+            requestNavConfirm();
+            return;
+          }
+          onNavigate?.();
+        }}
         className={`mx-2 flex items-center gap-3 rounded-[10px] px-[17px] py-[11px] transition ${
           active
             ? "border-l-[3px] border-[#305CDE] bg-white/10 pl-[14px] text-white"
@@ -117,7 +125,18 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
   return (
     <>
       <div className="px-5 pb-0 pt-6">
-        <Link to="/" onClick={onNavigate} className="flex items-center gap-3 text-white">
+        <Link
+          to="/"
+          onClick={(e) => {
+            if (isNavGuardActive()) {
+              e.preventDefault();
+              requestNavConfirm();
+              return;
+            }
+            onNavigate?.();
+          }}
+          className="flex items-center gap-3 text-white"
+        >
           <img
             src="/logo-blue.png"
             alt="VenCome"
@@ -165,7 +184,14 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
         <div className="border-t border-white/10 pt-4">
           <Link
             to="/help-support"
-            onClick={onNavigate}
+            onClick={(e) => {
+              if (isNavGuardActive()) {
+                e.preventDefault();
+                requestNavConfirm();
+                return;
+              }
+              onNavigate?.();
+            }}
             className="mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[11px] text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
           >
             <HelpCircle size={18} />
@@ -174,6 +200,10 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
           <button
             type="button"
             onClick={() => {
+              if (isNavGuardActive()) {
+                requestNavConfirm();
+                return;
+              }
               onNavigate?.();
               handleLogout();
             }}
@@ -193,8 +223,31 @@ export default function DashboardLayout({ children, title }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [savingAndLeaving, setSavingAndLeaving] = useState(false);
   const currentUser = getUser();
   const displayName = getDisplayName(currentUser);
+
+  useEffect(() => {
+    const handler = () => setShowLeaveModal(true);
+    window.addEventListener("vencome:nav-guard-prompt", handler);
+    return () => window.removeEventListener("vencome:nav-guard-prompt", handler);
+  }, []);
+
+  const handleSaveAndLeave = async () => {
+    const onConfirmLeave = getNavGuardHandler();
+    if (!onConfirmLeave) {
+      setShowLeaveModal(false);
+      return;
+    }
+    setSavingAndLeaving(true);
+    try {
+      await onConfirmLeave();
+    } finally {
+      setSavingAndLeaving(false);
+      setShowLeaveModal(false);
+    }
+  };
 
   useEffect(() => {
     const bookingPaths = ["/customer/bookings", "/dashboard/bookings"];
@@ -353,6 +406,76 @@ export default function DashboardLayout({ children, title }) {
         </motion.main>
       </div>
     </div>
+
+    {showLeaveModal ? (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+        }}
+      >
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            padding: "32px",
+            maxWidth: "420px",
+            width: "90%",
+            textAlign: "center",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+          }}
+        >
+          <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#0A1628", marginBottom: "10px" }}>
+            Save your progress and finish later?
+          </h2>
+          <p style={{ fontSize: "14px", color: "#6B7280", lineHeight: 1.6, marginBottom: "24px" }}>
+            You have an unfinished listing. You can save it as a draft and pick up where you left off, or stay here and keep filling it in.
+          </p>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={() => setShowLeaveModal(false)}
+              disabled={savingAndLeaving}
+              style={{
+                background: "transparent",
+                color: "#0A1628",
+                border: "1.5px solid #0A1628",
+                borderRadius: "8px",
+                padding: "12px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Cancel &amp; Stay
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAndLeave}
+              disabled={savingAndLeaving}
+              style={{
+                background: "#0A1628",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                padding: "12px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: "pointer",
+                opacity: savingAndLeaving ? 0.7 : 1,
+              }}
+            >
+              {savingAndLeaving ? "Saving..." : "Save as Draft & Leave"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     </DashboardBadgeContext.Provider>
   );
 }

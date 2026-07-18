@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
+import { setNavGuard, clearNavGuard, requestNavConfirm } from "../utils/navGuard";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -1330,6 +1331,54 @@ export default function CreateSpace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, entryPhase]);
 
+  // Exit guard — while actively filling in the wizard, no silent exits.
+  // Sidebar/nav links are intercepted in DashboardLayout via navGuard; here
+  // we register what "leave" actually does (save draft, then dashboard),
+  // and separately guard the two exits DashboardLayout can't see: the
+  // browser back button and closing/refreshing the tab.
+  const saveDraftRef = useRef(saveDraft);
+  saveDraftRef.current = saveDraft;
+
+  useEffect(() => {
+    if (entryPhase !== "wizard" || publishSuccess) {
+      clearNavGuard();
+      return;
+    }
+    setNavGuard(async () => {
+      try {
+        await saveDraftRef.current(true);
+      } catch (err) {
+        console.error("Failed to save draft before leaving:", err);
+      }
+      clearNavGuard();
+      navigate("/dashboard");
+    });
+    return () => clearNavGuard();
+  }, [entryPhase, publishSuccess, navigate]);
+
+  useEffect(() => {
+    if (entryPhase !== "wizard" || publishSuccess) return;
+
+    window.history.pushState(null, "", window.location.pathname);
+    const onPopState = () => {
+      window.history.pushState(null, "", window.location.pathname);
+      requestNavConfirm();
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [entryPhase, publishSuccess]);
+
+  useEffect(() => {
+    if (entryPhase !== "wizard" || publishSuccess) return;
+
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [entryPhase, publishSuccess]);
+
   if (entryPhase === "loading") {
     return (
       <DashboardLayout title="Create Space">
@@ -1663,6 +1712,7 @@ export default function CreateSpace() {
                         {locationInputValue ? (
                           <button
                             type="button"
+                            aria-label="Clear location search"
                             onClick={() => {
                               setLocationInputValue("");
                               setLocationSuggestions([]);
@@ -2183,6 +2233,7 @@ export default function CreateSpace() {
                               />
                               <button
                                 type="button"
+                                aria-label={`Remove photo ${index + 1}`}
                                 onClick={() => {
                                   const updated = form.images.filter((_, i) => i !== index);
                                   updateField("images", updated);
@@ -2345,6 +2396,7 @@ export default function CreateSpace() {
                     </div>
                     <button
                       type="button"
+                      aria-label="Toggle WiFi Access"
                       onClick={() => updateField("wifi", !form.wifi)}
                       style={{
                         width: "52px",
@@ -2384,6 +2436,7 @@ export default function CreateSpace() {
                       <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                         <button
                           type="button"
+                          aria-label="Decrease restroom count"
                           onClick={() =>
                             updateField("restrooms", Math.max(0, (form.restrooms || 0) - 1))
                           }
@@ -2417,6 +2470,7 @@ export default function CreateSpace() {
                         </span>
                         <button
                           type="button"
+                          aria-label="Increase restroom count"
                           onClick={() =>
                             updateField("restrooms", (form.restrooms || 0) + 1)
                           }
@@ -2572,6 +2626,7 @@ export default function CreateSpace() {
                             </div>
                             <button
                               type="button"
+                              aria-label="Remove extra"
                               onClick={() => {
                                 const updated = form.extras.filter((_, i) => i !== index);
                                 updateField("extras", updated);
@@ -3519,6 +3574,7 @@ export default function CreateSpace() {
                   >
                     <button
                       type="button"
+                      aria-label="Previous month"
                       onClick={() =>
                         setBlockViewDate(
                           new Date(
@@ -3555,6 +3611,7 @@ export default function CreateSpace() {
                     </span>
                     <button
                       type="button"
+                      aria-label="Next month"
                       onClick={() =>
                         setBlockViewDate(
                           new Date(
@@ -4284,6 +4341,7 @@ export default function CreateSpace() {
             {validationError}
             <button
               type="button"
+              aria-label="Dismiss error"
               onClick={() => setValidationError("")}
               style={{
                 marginLeft: "auto",
