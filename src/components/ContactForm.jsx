@@ -25,8 +25,7 @@ const ContactForm = () => {
     setSuccess(false);
 
     try {
-      // Replace with your real backend endpoint or EmailJS / Formspree / etc.
-      const response = await fetch("https://api.evecen.com/support/contact", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
