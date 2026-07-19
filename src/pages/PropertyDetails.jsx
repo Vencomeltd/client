@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Clock,
   Coffee,
+  Flag,
   Grid,
   Heart,
   Map,
@@ -24,6 +25,7 @@ import {
   Wind,
   X,
 } from "lucide-react";
+import { toast } from "react-toastify";
 import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
@@ -646,6 +648,7 @@ export default function PropertyDetails() {
   const [error, setError] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [hideNavbarForLightbox, setHideNavbarForLightbox] = useState(false);
@@ -1581,6 +1584,7 @@ export default function PropertyDetails() {
                   isSaved={isSaved}
                   saveLoading={saveLoading}
                   onToggleSave={handleToggleSave}
+                  onReport={() => setReportOpen(true)}
                 />
               </motion.section>
 
@@ -2050,6 +2054,13 @@ export default function PropertyDetails() {
         }}
         onChangeImage={changeImage}
       />
+
+      {reportOpen && (
+        <ReportListingModal
+          propertyId={property._id}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
     </>
   );
 }
@@ -2118,7 +2129,7 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
   );
 }
 
-function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
+function TitleBlock({ property, isSaved, saveLoading, onToggleSave, onReport }) {
   const scrollToReviews = () => {
     document.getElementById("reviews")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -2152,29 +2163,51 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
           ) : null}
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleSave}
-          disabled={saveLoading}
-          style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "50%",
-            border: "1.5px solid #E5E7EB",
-            background: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: saveLoading ? "not-allowed" : "pointer",
-            flexShrink: 0,
-          }}
-        >
-          <Heart
-            size={18}
-            fill={isSaved ? "#2E58EC" : "none"}
-            color={isSaved ? "#2E58EC" : "#6B7280"}
-          />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onReport}
+            aria-label="Report this listing"
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              border: "1.5px solid #E5E7EB",
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <Flag size={16} color="#6B7280" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleSave}
+            disabled={saveLoading}
+            aria-label={isSaved ? "Remove from saved spaces" : "Save this listing"}
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              border: "1.5px solid #E5E7EB",
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: saveLoading ? "not-allowed" : "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <Heart
+              size={18}
+              fill={isSaved ? "#2E58EC" : "none"}
+              color={isSaved ? "#2E58EC" : "#6B7280"}
+            />
+          </button>
+        </div>
       </div>
 
       <h1 className="mt-4 text-[clamp(22px,5vw,32px)] font-extrabold leading-tight text-[#0A1628]">
@@ -2220,6 +2253,117 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave }) {
           <span>Up to {property.capacity} {property.capacity === 1 ? "person" : "people"}</span>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const REPORT_REASONS = [
+  { value: "spam", label: "Spam" },
+  { value: "inappropriate", label: "Inappropriate content" },
+  { value: "fraud", label: "Suspected fraud" },
+  { value: "fake_listing", label: "Fake or misleading listing" },
+  { value: "other", label: "Other" },
+];
+
+function ReportListingModal({ propertyId, onClose }) {
+  const [reason, setReason] = useState("spam");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch("/reports", {
+        method: "POST",
+        body: JSON.stringify({ type: "property", targetId: propertyId, reason, description }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          data.error === "You have already reported this"
+            ? "You've already reported this listing."
+            : data.error || "Failed to submit report. Please try again."
+        );
+        return;
+      }
+      toast.success("Report submitted. Our team will review it shortly.");
+      onClose();
+    } catch (err) {
+      toast.error("Failed to submit report. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-[#0A1628]">Report this listing</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-[#6B7280] hover:text-[#0A1628]"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <p className="mt-1 text-sm text-[#6B7280]">
+          Let us know what's wrong with this listing. Our team will review it.
+        </p>
+
+        <label htmlFor="report-reason" className="mt-4 block text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+          Reason
+        </label>
+        <select
+          id="report-reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827]"
+        >
+          {REPORT_REASONS.map((r) => (
+            <option key={r.value} value={r.value}>{r.label}</option>
+          ))}
+        </select>
+
+        <label htmlFor="report-description" className="mt-4 block text-xs font-semibold uppercase tracking-wide text-[#6B7280]">
+          Details (optional)
+        </label>
+        <textarea
+          id="report-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={1000}
+          rows={4}
+          placeholder="Tell us more about the issue..."
+          className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#111827]"
+        />
+
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-sm font-semibold text-[#111827]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={loading}
+            className="rounded-lg bg-[#0A1628] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {loading ? "Submitting..." : "Submit Report"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3157,6 +3301,7 @@ function BookingSidebar({
                 }}
               />
               <button
+                aria-label="Remove date range"
                 onClick={() =>
                   onSelectedDatesChange(selectedDates.filter((_, i) => i !== index))
                 }
@@ -3278,6 +3423,7 @@ function BookingSidebar({
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <button
+                aria-label="Decrease number of occurrences"
                 onClick={() =>
                   onRecurringConfigChange({
                     ...recurringConfig,
@@ -3311,6 +3457,7 @@ function BookingSidebar({
                 {recurringConfig.occurrences}
               </span>
               <button
+                aria-label="Increase number of occurrences"
                 onClick={() =>
                   onRecurringConfigChange({
                     ...recurringConfig,
@@ -3359,6 +3506,7 @@ function BookingSidebar({
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button
+            aria-label="Decrease guest count"
             onClick={() => onGuestsChange(Math.max(1, guests - 1))}
             style={{
               width: "36px",
@@ -3384,6 +3532,7 @@ function BookingSidebar({
             {guests}
           </span>
           <button
+            aria-label="Increase guest count"
             onClick={() => onGuestsChange(Math.min(maxCapacity, guests + 1))}
             disabled={guests >= maxCapacity}
             style={{
@@ -3685,6 +3834,7 @@ function Lightbox({
           className="fixed inset-0 z-[500] bg-black/90"
         >
           <button
+            aria-label="Close"
             onClick={onClose}
             style={{
               position: "fixed",
@@ -3710,6 +3860,7 @@ function Lightbox({
 
           <button
             type="button"
+            aria-label="Previous image"
             onClick={() => onChangeImage(-1)}
             className="absolute left-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm md:left-4 md:h-12 md:w-12"
           >
@@ -3718,6 +3869,7 @@ function Lightbox({
 
           <button
             type="button"
+            aria-label="Next image"
             onClick={() => onChangeImage(1)}
             className="absolute right-3 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm md:right-4 md:h-12 md:w-12"
           >
@@ -3786,6 +3938,7 @@ function Lightbox({
             }}
           >
             <button
+              aria-label="Zoom out"
               onClick={() => setZoomLevel((prev) => Math.max(1, prev - 1))}
               style={{
                 width: "40px",
@@ -3819,6 +3972,7 @@ function Lightbox({
               {Math.round(zoomLevel * 100)}%
             </button>
             <button
+              aria-label="Zoom in"
               onClick={() => setZoomLevel((prev) => Math.min(3, prev + 1))}
               style={{
                 width: "40px",
