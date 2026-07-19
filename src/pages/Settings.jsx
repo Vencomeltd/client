@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays } from "lucide-react";
+import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { toast } from "react-toastify";
@@ -18,6 +18,7 @@ export default function Settings() {
     return validTabs.includes(requestedTab) ? requestedTab : "account";
   });
   const [saving, setSaving] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
   const [notifications, setNotifications] = useState({
     emailBookings: true,
@@ -358,6 +359,28 @@ export default function Settings() {
     }
   };
 
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      const res = await apiFetch("/profile/export-data");
+      if (!res.ok) throw new Error("Failed to export data");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "vencome-data-export.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Your data export has started downloading");
+    } catch (err) {
+      toast.error(err.message || "Failed to export data");
+    } finally {
+      setExportingData(false);
+    }
+  };
+
   const handleNotificationSave = async () => {
     setSaving(true);
     try {
@@ -524,6 +547,28 @@ export default function Settings() {
                   <input style={inputStyle} value={user?.address?.city || ""} onChange={e => setUser(p => ({ ...p, address: { ...p.address, city: e.target.value } }))} placeholder="London" />
                 </div>
                 {saveBtn(handleAccountSave)}
+              </div>
+
+              <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #E5E7EB" }}>
+                <p style={sectionTitle}>Your Data</p>
+                <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "12px" }}>
+                  Download a copy of your profile, bookings, listings, and reviews.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleExportData}
+                  disabled={exportingData}
+                  style={{
+                    padding: "12px 28px", borderRadius: "10px",
+                    border: "1.5px solid #E5E7EB", background: "#fff",
+                    color: "#111827", fontSize: "14px", fontWeight: "600",
+                    cursor: exportingData ? "not-allowed" : "pointer",
+                    display: "inline-flex", alignItems: "center", gap: "8px",
+                  }}
+                >
+                  {exportingData ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {exportingData ? "Preparing export..." : "Download my data"}
+                </button>
               </div>
             </div>
           )}
