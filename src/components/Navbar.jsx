@@ -886,7 +886,6 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       { label: "My Listings", to: "/host/listings" },
                       { label: "Add New Space", to: "/create-space" },
                       { label: "My Bookings", to: "/dashboard/bookings" },
-                      { label: "My Bookings (as Guest)", to: "/customer/bookings" },
                       { label: "Messages", to: "/chat" },
                       { label: "Settings", to: "/settings" },
                     ].map(item => (
@@ -1154,7 +1153,6 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                           { label: "My Listings", to: "/host/listings" },
                           { label: "Add New Space", to: "/create-space" },
                           { label: "My Bookings", to: "/dashboard/bookings" },
-                          { label: "My Bookings (as Guest)", to: "/customer/bookings" },
                           { label: "Messages", to: "/chat" },
                           { label: "Settings", to: "/settings" },
                         ]

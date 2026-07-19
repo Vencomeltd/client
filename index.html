@@ -30,11 +30,20 @@
       name="keywords"
       content="commercial space rental, office space London, meeting rooms, event venues, co-working spaces, studio hire, UK commercial property, Dubai office space, Saudi Arabia commercial spaces"
     />
-    <link rel="canonical" href="https://www.vencome.com/" />
+    <!-- No static canonical/og:url/twitter:url here on purpose: this is a
+         client-rendered SPA, so every route (blog posts, property pages,
+         etc.) serves this exact same index.html before React mounts and
+         overrides these tags per-page (see BlogDetails.jsx, PropertyDetails.jsx).
+         A hardcoded canonical pointing at "/" was telling crawlers every
+         single page on the site is a duplicate of the homepage during the
+         window before JS runs — a likely contributor to blog/property pages
+         sitting in "Discovered - currently not indexed" in Search Console.
+         Omitting it lets each page's own JS-set canonical be the only one,
+         and absent a canonical tag, crawlers default to self-referencing
+         (safe), instead of actively pointing elsewhere (harmful). -->
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.vencome.com/" />
     <meta property="og:title" content="VenCome – Book & List Commercial Spaces" />
     <meta
       property="og:description"
@@ -46,7 +55,6 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://www.vencome.com/" />
     <meta name="twitter:title" content="VenCome – Book & List Commercial Spaces" />
     <meta
       name="twitter:description"

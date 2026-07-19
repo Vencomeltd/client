@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   Check,
+  ChevronDown,
   Heart,
   HelpCircle,
   LayoutDashboard,
@@ -58,7 +59,17 @@ export const useDashboardBadge = () => useContext(DashboardBadgeContext);
 
 const getMainItems = (pendingCount, unreadCount, isHost) => [
   { label: "Overview", path: isHost ? "/dashboard" : "/customer/dashboard", icon: LayoutDashboard },
-  { label: "My Bookings", path: isHost ? "/dashboard/bookings" : "/customer/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
+  isHost
+    ? {
+        label: "My Bookings",
+        icon: CalendarDays,
+        badge: pendingCount > 0 ? pendingCount : null,
+        children: [
+          { label: "As Host", path: "/dashboard/bookings" },
+          { label: "As Guest", path: "/customer/bookings" },
+        ],
+      }
+    : { label: "My Bookings", path: "/customer/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
   { label: "Saved Spaces", path: isHost ? "/dashboard/saved" : "/customer/saved", icon: Heart },
   { label: "Messages", path: isHost ? "/dashboard/messages" : "/customer/messages", icon: MessageSquare, badge: unreadCount > 0 ? unreadCount : null },
   { label: "My Reviews", path: isHost ? "/dashboard/reviews" : "/customer/reviews", icon: Star },
@@ -85,23 +96,89 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
     window.location.href = "/";
   };
 
+  const guardedNavigate = (e) => {
+    if (isNavGuardActive()) {
+      e.preventDefault();
+      requestNavConfirm();
+      return false;
+    }
+    onNavigate?.();
+    return true;
+  };
+
+  // "My Bookings" for hosts expands into As Host / As Guest instead of a
+  // single link — starts open if the host is already on either sub-page.
+  const [expandedLabel, setExpandedLabel] = useState(() => {
+    const bookingsItem = mainItems.find((item) => item.children);
+    if (bookingsItem?.children?.some((child) => isActive(child.path))) {
+      return bookingsItem.label;
+    }
+    return null;
+  });
+
   const renderItem = (item) => {
     const Icon = item.icon;
+
+    if (item.children) {
+      const expanded = expandedLabel === item.label;
+      const anyChildActive = item.children.some((child) => isActive(child.path));
+
+      return (
+        <div key={item.label}>
+          <motion.div whileHover={{ x: 3 }}>
+            <button
+              type="button"
+              onClick={() => setExpandedLabel(expanded ? null : item.label)}
+              className={`mx-2 flex w-[calc(100%-16px)] items-center gap-3 rounded-[10px] px-[17px] py-[11px] text-left transition ${
+                anyChildActive
+                  ? "border-l-[3px] border-[#305CDE] bg-white/10 pl-[14px] text-white"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <Icon size={18} />
+                {item.badge ? (
+                  <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#305CDE] px-1 text-[10px] font-bold text-white">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </span>
+              <span className="flex-1 text-[14px] font-medium">{item.label}</span>
+              <ChevronDown
+                size={15}
+                className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
+              />
+            </button>
+          </motion.div>
+          {expanded ? (
+            <div className="ml-[38px] mt-1 space-y-1 border-l border-white/10 pl-3">
+              {item.children.map((child) => (
+                <Link
+                  key={child.path}
+                  to={child.path}
+                  onClick={(e) => guardedNavigate(e)}
+                  className={`block rounded-[8px] px-3 py-2 text-[13px] font-medium transition ${
+                    isActive(child.path)
+                      ? "bg-white/10 text-white"
+                      : "text-white/50 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  {child.label}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
     const active = isActive(item.path);
 
     return (
-      <motion.div whileHover={{ x: 3 }}>
+      <motion.div key={item.path} whileHover={{ x: 3 }}>
       <Link
-        key={item.path}
         to={item.path}
-        onClick={(e) => {
-          if (isNavGuardActive()) {
-            e.preventDefault();
-            requestNavConfirm();
-            return;
-          }
-          onNavigate?.();
-        }}
+        onClick={(e) => guardedNavigate(e)}
         className={`mx-2 flex items-center gap-3 rounded-[10px] px-[17px] py-[11px] transition ${
           active
             ? "border-l-[3px] border-[#305CDE] bg-white/10 pl-[14px] text-white"
