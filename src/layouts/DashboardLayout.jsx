@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart2,
@@ -8,6 +8,8 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Heart,
   HelpCircle,
   LayoutDashboard,
@@ -22,6 +24,7 @@ import {
 } from "lucide-react";
 import { getUser } from "../utils/auth";
 import { isNavGuardActive, requestNavConfirm, getNavGuardHandler } from "../utils/navGuard";
+import { useNotifications } from "../context/NotificationContext";
 
 const getDisplayName = (user) =>
   user?.displayName ||
@@ -84,7 +87,7 @@ const HOSTING_ITEMS = [
   { label: "Analytics", path: "/host/analytics", icon: BarChart2 },
 ];
 
-function SidebarContent({ pathname, onNavigate, mainItems }) {
+function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, onToggleCollapse }) {
   const currentUser = getUser();
   const displayName = getDisplayName(currentUser);
   const roleLabel = currentUser?.isHost ? "Host" : "Member";
@@ -122,6 +125,34 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
     if (item.children) {
       const expanded = expandedLabel === item.label;
       const anyChildActive = item.children.some((child) => isActive(child.path));
+
+      // Collapsed rail: no room for an expandable submenu, so this item
+      // just links straight to its first child instead.
+      if (collapsed) {
+        return (
+          <motion.div key={item.label} whileHover={{ x: 3 }}>
+            <Link
+              to={item.children[0].path}
+              onClick={(e) => guardedNavigate(e)}
+              title={item.label}
+              className={`mx-2 flex items-center justify-center rounded-[10px] px-[17px] py-[11px] transition ${
+                anyChildActive
+                  ? "border-l-[3px] border-[#305CDE] bg-white/10 text-white"
+                  : "text-white/60 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <span className="relative flex h-5 w-5 items-center justify-center">
+                <Icon size={18} />
+                {item.badge ? (
+                  <span className="absolute -right-2 -top-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#305CDE] px-1 text-[10px] font-bold text-white">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </span>
+            </Link>
+          </motion.div>
+        );
+      }
 
       return (
         <div key={item.label}>
@@ -179,7 +210,10 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
       <Link
         to={item.path}
         onClick={(e) => guardedNavigate(e)}
+        title={collapsed ? item.label : undefined}
         className={`mx-2 flex items-center gap-3 rounded-[10px] px-[17px] py-[11px] transition ${
+          collapsed ? "justify-center" : ""
+        } ${
           active
             ? "border-l-[3px] border-[#305CDE] bg-white/10 pl-[14px] text-white"
             : "text-white/60 hover:bg-white/5 hover:text-white"
@@ -193,7 +227,7 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
             </span>
           ) : null}
         </span>
-        <span className="text-[14px] font-medium">{item.label}</span>
+        {collapsed ? null : <span className="text-[14px] font-medium">{item.label}</span>}
       </Link>
       </motion.div>
     );
@@ -201,7 +235,7 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
 
   return (
     <>
-      <div className="px-5 pb-0 pt-6">
+      <div className={`flex items-center pb-0 pt-6 ${collapsed ? "flex-col gap-3 px-3" : "justify-between px-5"}`}>
         <Link
           to="/"
           onClick={(e) => {
@@ -214,45 +248,70 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
           }}
           className="flex items-center gap-3 text-white"
         >
-          <img
-            src="/logo-blue.png"
-            alt="VenCome"
-            style={{
-              height: 36,
-              width: "auto",
-              objectFit: "contain",
-              filter: "brightness(0) invert(1)",
-            }}
-          />
+          {collapsed ? (
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(201,168,76,0.2)] text-[15px] font-extrabold text-[#C9A84C]">
+              V
+            </span>
+          ) : (
+            <img
+              src="/logo-blue.png"
+              alt="VenCome"
+              style={{
+                height: 36,
+                width: "auto",
+                objectFit: "contain",
+                filter: "brightness(0) invert(1)",
+              }}
+            />
+          )}
         </Link>
+        {onToggleCollapse ? (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-white/50 transition hover:bg-white/5 hover:text-white"
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        ) : null}
       </div>
 
       <div className="mx-5 mt-5 border-t border-white/10" />
 
-      <div className="px-5 py-4">
-        <div className="flex items-center gap-3">
+      <div className={collapsed ? "flex justify-center px-3 py-4" : "px-5 py-4"}>
+        <div className={`flex items-center gap-3 ${collapsed ? "flex-col" : ""}`}>
           <UserInitialsAvatar name={displayName} />
-          <div className="min-w-0">
-            <p className="truncate text-[14px] font-semibold text-white">{displayName}</p>
-            <p className="text-[12px] text-white/50">{roleLabel}</p>
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-[rgba(48,92,222,0.3)] bg-[rgba(48,92,222,0.15)] px-2 py-0.5 text-[10px] font-bold text-[#305CDE]">
-              <Check size={12} />
-              Verified
-            </span>
-          </div>
+          {collapsed ? null : (
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-semibold text-white">{displayName}</p>
+              <p className="text-[12px] text-white/50">{roleLabel}</p>
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-[rgba(48,92,222,0.3)] bg-[rgba(48,92,222,0.15)] px-2 py-0.5 text-[10px] font-bold text-[#305CDE]">
+                <Check size={12} />
+                Verified
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="px-5 pb-2 pt-1 text-[10px] font-bold tracking-[0.15em] text-white/35">
-        MAIN MENU
-      </div>
+      {collapsed ? null : (
+        <div className="px-5 pb-2 pt-1 text-[10px] font-bold tracking-[0.15em] text-white/35">
+          MAIN MENU
+        </div>
+      )}
       <div className="space-y-1">{mainItems.map(renderItem)}</div>
 
       {currentUser?.isHost ? (
         <>
-          <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
-            HOSTING
-          </div>
+          {collapsed ? (
+            <div className="mx-5 mt-6 border-t border-white/10" />
+          ) : (
+            <div className="px-5 pb-2 pt-6 text-[10px] font-bold tracking-[0.15em] text-white/35">
+              HOSTING
+            </div>
+          )}
           <div className="space-y-1">{HOSTING_ITEMS.map(renderItem)}</div>
         </>
       ) : null}
@@ -269,10 +328,11 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
               }
               onNavigate?.();
             }}
-            className="mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[11px] text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
+            title={collapsed ? "Help & Support" : undefined}
+            className={`mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[11px] text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white ${collapsed ? "justify-center" : ""}`}
           >
             <HelpCircle size={18} />
-            <span>Help & Support</span>
+            {collapsed ? null : <span>Help & Support</span>}
           </Link>
           <button
             type="button"
@@ -284,10 +344,11 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
               onNavigate?.();
               handleLogout();
             }}
-            className="mx-[-12px] mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-[11px] text-left text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white"
+            title={collapsed ? "Log Out" : undefined}
+            className={`mx-[-12px] mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-[11px] text-left text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white ${collapsed ? "justify-center" : ""}`}
           >
             <LogOut size={18} />
-            <span>Log Out</span>
+            {collapsed ? null : <span>Log Out</span>}
           </button>
         </div>
       </div>
@@ -297,7 +358,19 @@ function SidebarContent({ pathname, onNavigate, mainItems }) {
 
 export default function DashboardLayout({ children, title }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { unreadCount: notifUnreadCount } = useNotifications() || {};
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("vencome_sidebar_collapsed") === "1"
+  );
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("vencome_sidebar_collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -403,8 +476,17 @@ export default function DashboardLayout({ children, title }) {
   return (
     <DashboardBadgeContext.Provider value={badgeContextValue}>
     <div className="flex min-h-screen bg-[#F8F6F0]">
-      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col overflow-y-auto bg-[#0A1628] pb-6 md:flex">
-        <SidebarContent pathname={pathname} mainItems={mainItems} />
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col overflow-y-auto bg-[#0A1628] pb-6 transition-[width] duration-200 md:flex ${
+          collapsed ? "w-[76px]" : "w-[260px]"
+        }`}
+      >
+        <SidebarContent
+          pathname={pathname}
+          mainItems={mainItems}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapsed}
+        />
       </aside>
 
       <AnimatePresence>
@@ -463,11 +545,16 @@ export default function DashboardLayout({ children, title }) {
           <div className="flex items-center gap-4">
             <button
               type="button"
+              onClick={() => navigate("/notifications")}
               className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F8F6F0]"
-              aria-label="Notifications"
+              aria-label={notifUnreadCount > 0 ? `Notifications, ${notifUnreadCount} unread` : "Notifications"}
             >
               <Bell size={20} />
-              <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[#DC2626]" />
+              {notifUnreadCount > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#DC2626] px-1 text-[10px] font-bold text-white">
+                  {notifUnreadCount > 9 ? "9+" : notifUnreadCount}
+                </span>
+              ) : null}
             </button>
             <UserInitialsAvatar name={displayName} size="h-8 w-8" textSize="text-[12px]" />
           </div>
