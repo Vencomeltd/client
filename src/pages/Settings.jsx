@@ -53,6 +53,7 @@ export default function Settings() {
         const data = await res.json();
         setUser(data);
         if (data.notifications) setNotifications(data.notifications);
+        setNotifications((p) => ({ ...p, emailMarketing: !!data.newsletterOptIn }));
         // Host-only tabs (payout, calendar) and the customer-only payments
         // tab shouldn't be reachable via a stale ?tab= link for the wrong role.
         const hostOnlyTabs = ["payout", "calendar"];
