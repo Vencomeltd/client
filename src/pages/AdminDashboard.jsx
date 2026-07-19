@@ -256,78 +256,12 @@ const MOCK_LISTINGS_QUEUE = [
   },
 ];
 
-const MOCK_TRANSACTIONS = [
-  {
-    id: "TXN-001",
-    bookingRef: "VC-2026-001",
-    customer: "Sarah Mitchell",
-    host: "James Thornton",
-    space: "The Shard Executive Suite",
-    amount: 480,
-    commission: 48,
-    hostPayout: 432,
-    status: "completed",
-    escrowStatus: "released",
-    date: "19 May 2026",
-    currency: "GBP",
-  },
-  {
-    id: "TXN-002",
-    bookingRef: "VC-2026-002",
-    customer: "Ahmed Khalid",
-    host: "Aisha Rahman",
-    space: "DIFC Creative Studio",
-    amount: 250,
-    commission: 25,
-    hostPayout: 225,
-    status: "completed",
-    escrowStatus: "released",
-    date: "15 May 2026",
-    currency: "GBP",
-  },
-  {
-    id: "TXN-003",
-    bookingRef: "VC-2026-003",
-    customer: "Priya Sharma",
-    host: "James Thornton",
-    space: "Canary Wharf Boardroom",
-    amount: 960,
-    commission: 96,
-    hostPayout: 864,
-    status: "escrow_held",
-    escrowStatus: "held",
-    date: "23 May 2026",
-    currency: "GBP",
-  },
-  {
-    id: "TXN-004",
-    bookingRef: "VC-2026-004",
-    customer: "Tom Walker",
-    host: "Marcus Williams",
-    space: "Mayfair Boardroom",
-    amount: 480,
-    commission: 48,
-    hostPayout: 432,
-    status: "refunded",
-    escrowStatus: "returned",
-    date: "10 May 2026",
-    currency: "GBP",
-  },
-  {
-    id: "TXN-005",
-    bookingRef: "VC-2026-005",
-    customer: "Ahmed Khalid",
-    host: "James Thornton",
-    space: "The Shard Executive Suite",
-    amount: 1740,
-    commission: 174,
-    hostPayout: 1566,
-    status: "completed",
-    escrowStatus: "released",
-    date: "4 Jun 2026",
-    currency: "GBP",
-  },
-];
+const PAYMENTS_RANGE_DAYS = {
+  "Last 7 days": 7,
+  "Last 30 days": 30,
+  "Last 3 months": 90,
+  "All time": 3650,
+};
 
 const MOCK_LISTINGS = [
   {
@@ -3703,8 +3637,7 @@ function PaymentsSection({
   livePayments = [],
   paymentStats = {},
 }) {
-  const transactions = livePayments.length > 0 ? livePayments : MOCK_TRANSACTIONS;
-  const filteredTransactions = transactions.filter((transaction) => {
+  const filteredTransactions = livePayments.filter((transaction) => {
     if (paymentsFilter === "all") return true;
     if (paymentsFilter === "completed") return transaction.status === "completed";
     if (paymentsFilter === "escrow_held") return transaction.status === "escrow_held";
@@ -3833,6 +3766,13 @@ function PaymentsSection({
               </tr>
             </thead>
             <tbody>
+              {filteredTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-[13px] text-[#6B7280]">
+                    No transactions yet.
+                  </td>
+                </tr>
+              ) : null}
               {filteredTransactions.map((transaction, index) => (
                 <motion.tr
                   key={transaction.id}
@@ -4642,6 +4582,26 @@ export default function AdminDashboard() {
     return () => window.clearTimeout(timer);
   }, [toastMessage]);
 
+  const fetchPayments = useCallback(async (rangeLabel) => {
+    try {
+      const days = PAYMENTS_RANGE_DAYS[rangeLabel] || 30;
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/payments?range=${days}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLivePayments(data.transactions || []);
+        if (data.stats) setPaymentStats(data.stats);
+      }
+    } catch (err) {
+      console.error("Failed to fetch payments:", err);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchPayments(paymentsRange);
+  }, [paymentsRange, fetchPayments]);
+
   const fetchBlogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("vencome_token");
@@ -4662,13 +4622,12 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes, paymentsRes] = await Promise.all([
+        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/properties?limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=all&limit=100`, { headers }),
-          fetch(`${import.meta.env.VITE_API_URL}/admin/payments?range=30`, { headers }),
         ]);
 
         if (usersRes.ok) {
@@ -4744,12 +4703,6 @@ export default function AdminDashboard() {
           setDisputes(allReports);
           setLiveDisputes(allReports.filter((report) => report.status === "open"));
         }
-        if (paymentsRes.ok) {
-          const paymentsData = await paymentsRes.json();
-          setLivePayments(paymentsData.transactions || []);
-          if (paymentsData.stats) setPaymentStats(paymentsData.stats);
-        }
-
       } catch (err) {
         console.error("Admin dashboard fetch error:", err);
       } finally {
