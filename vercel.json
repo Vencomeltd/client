@@ -12,5 +12,11 @@
       "source": "/(.*)",
       "destination": "/"
     }
+  ],
+  "headers": [
+    {
+      "source": "/sitemap.xml",
+      "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }]
+    }
   ]
 }
