@@ -545,7 +545,7 @@ export default function MyBookings() {
           <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", maxWidth: "520px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
               <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628" }}>Booking Details</h2>
-              <button onClick={() => setSelectedBooking(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6B7280" }}>×</button>
+              <button aria-label="Close" onClick={() => setSelectedBooking(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6B7280" }}>×</button>
             </div>
             <img src={selectedBooking.image} alt={selectedBooking.space} style={{ width: "100%", height: "180px", objectFit: "cover", borderRadius: "12px", marginBottom: "20px" }} />
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

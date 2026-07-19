@@ -17,6 +17,7 @@ const Notification = ({ message, type = "success", onClose }) => {
       <p className="text-sm">{message}</p>
       {onClose && (
         <button
+          aria-label="Close"
           onClick={onClose}
           className="ml-4 text-gray-500 hover:text-gray-700"
         >

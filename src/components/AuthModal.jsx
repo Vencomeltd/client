@@ -202,6 +202,7 @@ export default function AuthModal({ isOpen, onClose, redirectTo = "/" }) {
           >
             <button
               type="button"
+              aria-label="Close"
               onClick={onClose}
               style={{
                 position: "absolute",

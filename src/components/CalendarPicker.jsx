@@ -186,6 +186,7 @@ export default function CalendarPicker({
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
                 <button
                   type="button"
+                  aria-label="Previous month"
                   onClick={prevMonth}
                   style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
@@ -196,6 +197,7 @@ export default function CalendarPicker({
                 </span>
                 <button
                   type="button"
+                  aria-label="Next month"
                   onClick={nextMonth}
                   style={{ width: "32px", height: "32px", borderRadius: "50%", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
@@ -283,6 +285,7 @@ export default function CalendarPicker({
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
                 <button
                   type="button"
+                  aria-label="Back to date selection"
                   onClick={() => setShowTimePicker(false)}
                   style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center" }}
                 >

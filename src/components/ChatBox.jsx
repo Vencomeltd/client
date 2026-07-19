@@ -74,7 +74,7 @@ const ChatBox = ({ propertyId, onClose }) => {
           />
           <span className="font-semibold">{conversation.host.name}</span>
         </div>
-        <button onClick={onClose} className="text-white hover:opacity-80">
+        <button aria-label="Close" onClick={onClose} className="text-white hover:opacity-80">
           ×
         </button>
       </div>

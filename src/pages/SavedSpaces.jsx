@@ -141,6 +141,7 @@ export default function SavedSpaces() {
                 </Link>
                 <button
                   type="button"
+                  aria-label="Remove from saved spaces"
                   onClick={() => handleUnsave(property._id)}
                   style={{
                     position: "absolute",

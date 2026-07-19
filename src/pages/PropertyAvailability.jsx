@@ -976,6 +976,7 @@ export default function PropertyAvailability() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  aria-label="Previous month"
                   onClick={() => changeMonth(-1)}
                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#111827] transition hover:bg-[#F8F6F0]"
                 >
@@ -983,6 +984,7 @@ export default function PropertyAvailability() {
                 </button>
                 <button
                   type="button"
+                  aria-label="Next month"
                   onClick={() => changeMonth(1)}
                   className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E5E7EB] text-[#111827] transition hover:bg-[#F8F6F0]"
                 >
@@ -1304,6 +1306,7 @@ export default function PropertyAvailability() {
                       <h3 className="text-[14px] font-bold text-[#0A1628]">Booking Details</h3>
                       <button
                         type="button"
+                        aria-label="Close"
                         onClick={clearContextPanel}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280]"
                       >
@@ -1397,6 +1400,7 @@ export default function PropertyAvailability() {
                       <h3 className="text-[14px] font-bold text-[#0A1628]">Blocked Period</h3>
                       <button
                         type="button"
+                        aria-label="Close"
                         onClick={clearContextPanel}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280]"
                       >
@@ -1494,6 +1498,7 @@ export default function PropertyAvailability() {
                       <h3 className="text-[14px] font-bold text-[#0A1628]">Block Dates</h3>
                       <button
                         type="button"
+                        aria-label="Close"
                         onClick={clearContextPanel}
                         className="flex h-7 w-7 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280]"
                       >

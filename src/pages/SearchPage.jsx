@@ -829,6 +829,7 @@ export default function SearchPage() {
                 <div className="mt-10 flex items-center justify-center gap-2">
                   <button
                     type="button"
+                    aria-label="Previous page"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[#E5E7EB] bg-white px-4 text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
@@ -865,6 +866,7 @@ export default function SearchPage() {
 
                   <button
                     type="button"
+                    aria-label="Next page"
                     disabled={currentPage === totalPages}
                     onClick={() =>
                       setCurrentPage((page) => Math.min(totalPages, page + 1))
@@ -1139,6 +1141,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply, onClose }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            aria-label="Decrease minimum capacity"
             onClick={() => onChange("set-min-capacity", minCapacity - 1)}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#0A1628]"
           >
@@ -1149,6 +1152,7 @@ function FilterSidebar({ filters, onChange, onClear, onApply, onClose }) {
           </span>
           <button
             type="button"
+            aria-label="Increase minimum capacity"
             onClick={() => onChange("set-min-capacity", minCapacity + 1)}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#0A1628]"
           >

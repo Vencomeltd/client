@@ -650,6 +650,7 @@ const EditPropertyModal = ({ property, onClose, onUpdate }) => {
       <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
         <h1 className="text-lg font-semibold text-gray-800">Edit Space</h1>
         <button
+          aria-label="Close"
           onClick={onClose}
           className="p-2 hover:bg-gray-100 rounded-full transition"
         >

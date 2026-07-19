@@ -227,6 +227,7 @@ const DateSelector = ({
                   onClick={() => handleYearStep(-1)}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                   title="Previous year"
+                  aria-label="Previous year"
                 >
                   <svg
                     className="w-4 h-4"
@@ -255,6 +256,7 @@ const DateSelector = ({
                   onClick={() => handleYearStep(1)}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                   title="Next year"
+                  aria-label="Next year"
                 >
                   <svg
                     className="w-4 h-4"
@@ -311,6 +313,7 @@ const DateSelector = ({
                   onClick={handlePrevMonth}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                   title="Previous month"
+                  aria-label="Previous month"
                 >
                   <svg
                     className="w-5 h-5"
@@ -355,6 +358,7 @@ const DateSelector = ({
                   onClick={handleNextMonth}
                   className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                   title="Next month"
+                  aria-label="Next month"
                 >
                   <svg
                     className="w-5 h-5"

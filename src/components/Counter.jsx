@@ -32,6 +32,7 @@ const Counter = ({
       <div className="flex items-center space-x-3">
         <button
           type="button"
+          aria-label={`Decrease ${label}`}
           onClick={handleDecrement}
           className="bg-yellow-400 hover:bg-yellow-500 text-white w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all"
         >
@@ -42,6 +43,7 @@ const Counter = ({
         </span>
         <button
           type="button"
+          aria-label={`Increase ${label}`}
           onClick={handleIncrement}
           className="bg-yellow-400 hover:bg-yellow-500 text-white w-8 h-8 rounded-full cursor-pointer flex items-center justify-center transition-all"
         >

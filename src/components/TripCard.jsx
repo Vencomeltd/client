@@ -131,6 +131,7 @@ const TripCard = ({ trip, onBookAgain }) => {
             <button
               key={star}
               type="button"
+              aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
               onClick={() => setRating(star)}
               className={`cursor-pointer ${
                 star <= rating ? "text-yellow-400" : "text-gray-300"

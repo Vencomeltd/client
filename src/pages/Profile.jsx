@@ -103,6 +103,7 @@ export default function Profile() {
             </div>
             <button
               type="button"
+              aria-label="Change profile photo"
               onClick={() => fileRef.current?.click()}
               style={{
                 position: "absolute", bottom: 0, right: 0,

@@ -46,7 +46,7 @@ export default function ReviewModal({ booking, onClose, onSubmitted }) {
           <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
             Leave a Review
           </h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280" }}>
+          <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280" }}>
             <X size={20} />
           </button>
         </div>
@@ -66,6 +66,7 @@ export default function ReviewModal({ booking, onClose, onSubmitted }) {
               <button
                 key={star}
                 type="button"
+                aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
                 onClick={() => setRating(star)}
                 onMouseEnter={() => setHovered(star)}
                 onMouseLeave={() => setHovered(0)}

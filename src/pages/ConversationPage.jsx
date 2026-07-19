@@ -129,6 +129,7 @@ export default function ConversationPage() {
         zIndex: 10,
       }}>
         <button
+          aria-label="Back to messages"
           onClick={() => {
             const currentPath = window.location.pathname;
             const base = currentPath.startsWith("/customer")
@@ -275,6 +276,7 @@ export default function ConversationPage() {
           }}
         />
         <button
+          aria-label="Send message"
           onClick={handleSend}
           disabled={!text.trim() || sending}
           style={{

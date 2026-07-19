@@ -402,6 +402,7 @@ export default function BookingForm({ property }) {
                 </div>
                 <button
                   type="button"
+                  aria-label="Remove uploaded file"
                   onClick={() => {
                     setLicensePdf(null);
                     setLicensePdfError(null);
