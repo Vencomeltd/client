@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import VerifiedName from "../components/VerifiedName";
+import { getLowestWeeklyRate } from "../utils/dayPricing";
 
 const HostProfile = () => {
   const { id } = useParams();
@@ -88,7 +89,10 @@ const HostProfile = () => {
                 className="w-full h-40 object-cover rounded"
               />
               <h3 className="font-semibold mt-2">{prop.title}</h3>
-              <p className="text-primary">${prop.pricing.weekdayPrice}/day</p>
+              <p className="text-primary">
+                {(prop.pricing?.customDayPricing?.length || 0) > 0 ? "From " : ""}$
+                {getLowestWeeklyRate(prop.pricing.weekdayPrice, prop.pricing?.customDayPricing)}/day
+              </p>
             </div>
           ))}
         </div>

@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
+import { getLowestWeeklyRate } from "../utils/dayPricing";
 
 const BADGE_STYLES = {
   Featured: "bg-[#305CDE] text-white",
@@ -15,18 +16,23 @@ const formatPrice = (value) =>
 
 const getListingPrice = (listing) => {
   const p = listing?.pricing;
-  if (!p) return { price: "POA", unit: "" };
+  if (!p) return { price: "POA", unit: "", fromPrefix: false };
 
-  if (p.hourly && p.hourly > 0) return { price: `£${p.hourly}`, unit: "/hr" };
-  if (p.daily && p.daily > 0) return { price: `£${p.daily}`, unit: "/day" };
-  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week" };
-  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month" };
+  const hasDayVariance = (p.customDayPricing?.length || 0) > 0;
 
-  if (p.hourlyPrice && p.hourlyPrice > 0) return { price: `£${p.hourlyPrice}`, unit: "/hr" };
+  if (p.hourly && p.hourly > 0)
+    return { price: `£${getLowestWeeklyRate(p.hourly, p.customDayPricing)}`, unit: "/hr", fromPrefix: hasDayVariance };
+  if (p.daily && p.daily > 0)
+    return { price: `£${getLowestWeeklyRate(p.daily, p.customDayPricing)}`, unit: "/day", fromPrefix: hasDayVariance };
+  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week", fromPrefix: false };
+  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month", fromPrefix: false };
+
+  if (p.hourlyPrice && p.hourlyPrice > 0)
+    return { price: `£${getLowestWeeklyRate(p.hourlyPrice, p.customDayPricing)}`, unit: "/hr", fromPrefix: hasDayVariance };
   if (p.weekdayPrice && p.weekdayPrice > 0)
-    return { price: `£${p.weekdayPrice}`, unit: "/day" };
+    return { price: `£${getLowestWeeklyRate(p.weekdayPrice, p.customDayPricing)}`, unit: "/day", fromPrefix: hasDayVariance };
 
-  return { price: "POA", unit: "" };
+  return { price: "POA", unit: "", fromPrefix: false };
 };
 
 const getLegacyPrice = (property) => {
@@ -90,6 +96,7 @@ const resolveListingData = ({
       : [],
     price: price ?? listingPrice.price ?? getLegacyPrice(source),
     priceUnit: priceUnit ?? listingPrice.unit ?? getLegacyPriceUnit(source),
+    priceFromPrefix: listingPrice.fromPrefix ?? false,
     rating: rating ?? source.rating ?? 0,
     reviewCount: reviewCount ?? source.reviewCount ?? 0,
     badge: badge ?? source.badge ?? null,
@@ -317,6 +324,9 @@ export default function PropertyCard({
               </div>
 
               <p className="mt-2.5 text-left">
+                {listing.priceFromPrefix ? (
+                  <span className="text-[13px] font-normal text-[#6B7280]">From </span>
+                ) : null}
                 <span className="text-[16px] font-bold text-[#111827]">
                   {displayPrice}
                 </span>

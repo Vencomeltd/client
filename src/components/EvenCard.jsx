@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Star } from "lucide-react";
+import { getLowestWeeklyRate } from "../utils/dayPricing";
 
 const EvenCard = ({ id, data }) => {
   const navigate = useNavigate();
@@ -33,11 +34,17 @@ const EvenCard = ({ id, data }) => {
           {data.location.address}, {data.location.city}, {data.location.country}
         </p>
         <div className="flex items-center">
-          {data.pricing?.pricingType === "HOURLY" ? (
-            <p className="text-lg">${data.pricing?.hourlyPrice} / hour</p>
-          ) : (
-            <p className="text-lg">${data.pricing?.weekdayPrice} / night</p>
-          )}
+          {(() => {
+            const hasDayVariance = (data.pricing?.customDayPricing?.length || 0) > 0;
+            const isHourly = data.pricing?.pricingType === "HOURLY";
+            const baseRate = isHourly ? data.pricing?.hourlyPrice : data.pricing?.weekdayPrice;
+            const rate = getLowestWeeklyRate(baseRate, data.pricing?.customDayPricing);
+            return (
+              <p className="text-lg">
+                {hasDayVariance ? "From " : ""}${rate} / {isHourly ? "hour" : "night"}
+              </p>
+            );
+          })()}
           <div className="flex items-center gap-1 px-2 py-1 text-sm font-semibold text-gray-800">
             <Star size={14} className="fill-yellow-400 text-yellow-400" />
             <span>{data.rating}</span>

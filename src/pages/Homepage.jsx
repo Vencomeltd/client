@@ -131,22 +131,6 @@ const CATEGORY_ICON_MAP = {
   "Content Creator Space": Sparkles,
 };
 
-const getListingPrice = (listing) => {
-  const p = listing?.pricing;
-  if (!p) return { price: "POA", unit: "" };
-
-  if (p.hourly && p.hourly > 0) return { price: `£${p.hourly}`, unit: "/hr" };
-  if (p.daily && p.daily > 0) return { price: `£${p.daily}`, unit: "/day" };
-  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week" };
-  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month" };
-
-  if (p.hourlyPrice && p.hourlyPrice > 0) return { price: `£${p.hourlyPrice}`, unit: "/hr" };
-  if (p.weekdayPrice && p.weekdayPrice > 0)
-    return { price: `£${p.weekdayPrice}`, unit: "/day" };
-
-  return { price: "POA", unit: "" };
-};
-
 function HeroSection() {
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
@@ -427,30 +411,24 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
                 }))
               : listingsToRender
             ).map((listing) => (
-              (() => {
-                const { price, unit } = getListingPrice(listing);
-
-                return (
-                  <div
-                    key={listing.id || listing._id}
-                    className="min-w-[260px] shrink-0 md:min-w-[300px]"
-                    style={{ scrollSnapAlign: "start" }}
-                  >
-                    <PropertyCard
-                      id={listing._id}
-                      image={listing.coverImage}
-                      title={listing.title}
-                      location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
-                      price={price}
-                      priceUnit={unit}
-                      category={listing.category?.name || ""}
-                      isLoading={listing.isLoading}
-                      property={listing}
-                      variant="homepage"
-                    />
-                  </div>
-                );
-              })()
+              (
+                <div
+                  key={listing.id || listing._id}
+                  className="min-w-[260px] shrink-0 md:min-w-[300px]"
+                  style={{ scrollSnapAlign: "start" }}
+                >
+                  <PropertyCard
+                    id={listing._id}
+                    image={listing.coverImage}
+                    title={listing.title}
+                    location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
+                    category={listing.category?.name || ""}
+                    isLoading={listing.isLoading}
+                    property={listing}
+                    variant="homepage"
+                  />
+                </div>
+              )
             ))}
           </div>
 

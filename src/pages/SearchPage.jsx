@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
+import { getLowestWeeklyRate } from "../utils/dayPricing";
 import Footer from "../components/Footer";
 
 const DURATION_OPTIONS = ["Any", "Hourly", "Daily", "Weekly", "Monthly", "Annual"];
@@ -135,13 +136,16 @@ function PropertyMap({ listings }) {
       const position = { lat: Number(lat), lng: Number(lng) };
       bounds.extend(position);
 
-      const hourly = listing.pricing?.hourly > 0 ? listing.pricing.hourly : listing.pricing?.hourlyPrice > 0 ? listing.pricing.hourlyPrice : 0;
-      const daily = listing.pricing?.daily > 0 ? listing.pricing.daily : listing.pricing?.weekdayPrice > 0 ? listing.pricing.weekdayPrice : 0;
+      const hourlyBase = listing.pricing?.hourly > 0 ? listing.pricing.hourly : listing.pricing?.hourlyPrice > 0 ? listing.pricing.hourlyPrice : 0;
+      const dailyBase = listing.pricing?.daily > 0 ? listing.pricing.daily : listing.pricing?.weekdayPrice > 0 ? listing.pricing.weekdayPrice : 0;
+      const hasDayVariance = (listing.pricing?.customDayPricing?.length || 0) > 0;
+      const hourly = hourlyBase ? getLowestWeeklyRate(hourlyBase, listing.pricing?.customDayPricing) : 0;
+      const daily = dailyBase ? getLowestWeeklyRate(dailyBase, listing.pricing?.customDayPricing) : 0;
       const weekly = listing.pricing?.weekly > 0 ? listing.pricing.weekly : 0;
       const monthly = listing.pricing?.monthly > 0 ? listing.pricing.monthly : 0;
       const price = hourly || daily || weekly || monthly || 0;
       const priceUnit = hourly ? "hr" : daily ? "day" : weekly ? "wk" : monthly ? "mo" : "";
-      const priceLabel = price > 0 ? `£${price}/${priceUnit}` : "POA";
+      const priceLabel = price > 0 ? `${hasDayVariance && (hourly || daily) ? "From " : ""}£${price}/${priceUnit}` : "POA";
 
       const marker = new window.google.maps.Marker({
         position,
@@ -408,14 +412,18 @@ export default function SearchPage() {
   ]);
 
   const filteredResults = useMemo(() => {
-    const getListingPrice = (listing) =>
-      Number(
+    const getListingPrice = (listing) => {
+      const base = Number(
         listing.pricing?.hourly ??
           listing.pricing?.hourlyPrice ??
           listing.pricing?.daily ??
           listing.pricing?.weekdayPrice ??
           0
       );
+      // Sort/filter by the cheapest possible rate, matching the "From £X"
+      // shown on the card for listings with day-of-week pricing active.
+      return getLowestWeeklyRate(base, listing.pricing?.customDayPricing);
+    };
 
     const sorted = [...listings].sort((a, b) => {
       if (sortBy === "Price: Low to High") return getListingPrice(a) - getListingPrice(b);
@@ -797,26 +805,7 @@ export default function SearchPage() {
                           result.location?.country || ""
                         }`}
                         category={result.category?.name || ""}
-                        price={
-                          (result.pricing?.hourly > 0 ? result.pricing.hourly : null) ??
-                          (result.pricing?.hourlyPrice > 0 ? result.pricing.hourlyPrice : null) ??
-                          (result.pricing?.daily > 0 ? result.pricing.daily : null) ??
-                          (result.pricing?.weekdayPrice > 0 ? result.pricing.weekdayPrice : null) ??
-                          (result.pricing?.weekly > 0 ? result.pricing.weekly : null) ??
-                          (result.pricing?.monthly > 0 ? result.pricing.monthly : null) ??
-                          0
-                        }
-                        priceUnit={
-                          result.pricing?.hourly > 0 || result.pricing?.hourlyPrice > 0
-                            ? "hr"
-                            : result.pricing?.daily > 0 || result.pricing?.weekdayPrice > 0
-                            ? "day"
-                            : result.pricing?.weekly > 0
-                            ? "week"
-                            : result.pricing?.monthly > 0
-                            ? "month"
-                            : "POA"
-                        }
+                        property={result}
                         rating={result.rating || 0}
                         reviewCount={result.reviewNumber || result.reviewCount || 0}
                         isSaved={savedIds.includes(result._id)}
