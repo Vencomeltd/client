@@ -31,6 +31,18 @@ export default function BlogDetails() {
           setMeta('meta[property="og:description"]', "content", b.seoDescription || b.excerpt || "");
           setMeta('meta[property="og:image"]', "content", b.ogImage || b.coverImage || "https://www.vencome.com/vencome-og.jpg");
           setMeta('meta[property="og:url"]', "content", `https://www.vencome.com/blog/${b.slug}`);
+          setMeta('meta[property="og:type"]', "content", "article");
+          // article:tag needs one <meta> per tag (querySelector only grabs
+          // one element), so these can't go through setMeta -- clear any
+          // previously injected ones first (client-side nav between posts)
+          // then add fresh ones for this post's tags.
+          document.querySelectorAll('meta[property="article:tag"]').forEach((el) => el.remove());
+          (b.tags || []).forEach((tag) => {
+            const el = document.createElement("meta");
+            el.setAttribute("property", "article:tag");
+            el.setAttribute("content", tag);
+            document.head.appendChild(el);
+          });
           let canonical = document.querySelector('link[rel="canonical"]');
           if (!canonical) { canonical = document.createElement("link"); canonical.setAttribute("rel", "canonical"); document.head.appendChild(canonical); }
           canonical.setAttribute("href", `https://www.vencome.com/blog/${b.slug}`);
