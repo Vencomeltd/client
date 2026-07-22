@@ -1092,6 +1092,14 @@ export default function BookingDetails() {
   const durationUnits = booking.totalUnits ?? nights;
   const durationWord = UNIT_WORD[booking.pricingUnit] || "night";
   const durationLabel = `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}`;
+  // Only set on HOURLY/DAILY bookings for a listing with day-of-week
+  // pricing active (see routes/bookings.js) -- show the real per-day/slot
+  // breakdown instead of the flat "N nights x £X" line when rates actually
+  // varied within this booking, otherwise fall back to the flat line as
+  // before (zero behavior change for bookings that don't use this).
+  const priceBreakdown = booking.priceBreakdown || [];
+  const hasRateVariance =
+    priceBreakdown.length > 1 && priceBreakdown.some((b) => b.rate !== priceBreakdown[0].rate);
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const canAccept = status === "pending" && isHost;
   const canCancel = status !== "cancelled" && isHost;
@@ -1334,10 +1342,25 @@ export default function BookingDetails() {
               <p className="text-slate-400 text-xs font-medium mt-2">
                 Total charged
               </p>
-              {durationUnits > 0 && (
-                <p className="text-slate-300 text-xs mt-1">
-                  {durationLabel} × £{Math.round(totalPrice / durationUnits)}/{durationWord} = £{totalPrice?.toLocaleString()}
-                </p>
+              {hasRateVariance ? (
+                <div className="mt-2 flex flex-col gap-0.5">
+                  {priceBreakdown.map((entry, i) => (
+                    <p key={i} className="text-slate-300 text-xs">
+                      {new Date(entry.date).toLocaleDateString("en-GB", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                      {" — "}£{entry.rate.toLocaleString()}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                durationUnits > 0 && (
+                  <p className="text-slate-300 text-xs mt-1">
+                    {durationLabel} × £{Math.round(totalPrice / durationUnits)}/{durationWord} = £{totalPrice?.toLocaleString()}
+                  </p>
+                )
               )}
             </div>
 

@@ -31,6 +31,7 @@ import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import CalendarPicker from "../components/CalendarPicker";
 import apiFetch from "../utils/apiClient";
+import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 
 const BRAND = {
   navy: "#0A1628",
@@ -515,7 +516,21 @@ const hasBlockedDates = (startDate, endDate, unavailableSet) => {
 const formatBreakdown = (units, unitWord, price, subtotal) =>
   `${units} ${unitWord}${units !== 1 ? "s" : ""} × £${price.toLocaleString()}/${unitWord} = £${subtotal.toLocaleString()}`;
 
-const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
+// Used instead of formatBreakdown when customDayPricing makes the rate
+// vary across the booking, so the flat "N days x £X" line doesn't lie
+// about what's actually being charged per day.
+const formatDayBreakdown = (breakdown) =>
+  breakdown
+    .map(
+      ({ date, rate }) =>
+        `${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — £${rate.toLocaleString()}`
+    )
+    .join(", ");
+
+const hasRateVariance = (breakdown) =>
+  breakdown.length > 1 && breakdown.some((b) => b.rate !== breakdown[0].rate);
+
+const getBookingMetrics = (tier, selectedDays, checkIn, checkOut, selectedStartDate, customDayPricing) => {
   if (!tier) {
     return { units: 0, label: "", breakdown: "", subtotal: 0 };
   }
@@ -528,11 +543,11 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
     if (diffMs <= 0) return { units: 0, label: "", breakdown: "", subtotal: 0 };
     const hours = Math.max(1, diffMs / (1000 * 60 * 60));
     const roundedHours = Math.round(hours * 10) / 10;
-    const subtotal = Math.round(roundedHours * tier.price * 100) / 100;
+    const { totalPrice: subtotal } = calculateHourlyPriceWithBreakdown(start, roundedHours, tier.price, customDayPricing);
     return {
       units: roundedHours,
       label: `${roundedHours} hour${roundedHours !== 1 ? "s" : ""}`,
-      breakdown: formatBreakdown(roundedHours, "hour", tier.price, subtotal),
+      breakdown: formatBreakdown(roundedHours, "hour", subtotal / roundedHours, subtotal),
       subtotal,
     };
   }
@@ -546,11 +561,19 @@ const getBookingMetrics = (tier, selectedDays, checkIn, checkOut) => {
   // +1 day offset there, gated to the "day" tier only), so the price shown
   // here always matches what gets charged.
   if (tier.unit === "day") {
-    const subtotal = selectedDays * tier.price;
+    if (!selectedStartDate) return { units: 0, label: "", breakdown: "", subtotal: 0 };
+    const { totalPrice: subtotal, breakdown: dayBreakdown } = calculateDailyPriceWithBreakdown(
+      selectedStartDate,
+      selectedDays,
+      tier.price,
+      customDayPricing
+    );
     return {
       units: selectedDays,
       label: `${selectedDays} day${selectedDays !== 1 ? "s" : ""}`,
-      breakdown: formatBreakdown(selectedDays, "day", tier.price, subtotal),
+      breakdown: hasRateVariance(dayBreakdown)
+        ? formatDayBreakdown(dayBreakdown)
+        : formatBreakdown(selectedDays, "day", tier.price, subtotal),
       subtotal,
     };
   }
@@ -741,16 +764,23 @@ export default function PropertyDetails() {
     const pricing = property?.pricing;
     if (!pricing) return null;
 
+    // hourly/daily can have day-of-week overrides -- show the cheapest
+    // possible rate across the week rather than implying a flat price.
+    const adjust = (base) =>
+      (key === "hourly" || key === "daily") && base
+        ? getLowestWeeklyRate(base, pricing.customDayPricing)
+        : base;
+
     const val = pricing[key];
     if (typeof val === "object" && val !== null) {
-      if (val.enabled && val.price && parseFloat(val.price) > 0) return parseFloat(val.price);
+      if (val.enabled && val.price && parseFloat(val.price) > 0) return adjust(parseFloat(val.price));
       return null;
     }
-    if (typeof val === "number" && val > 0) return val;
-    if (typeof val === "string" && parseFloat(val) > 0) return parseFloat(val);
+    if (typeof val === "number" && val > 0) return adjust(val);
+    if (typeof val === "string" && parseFloat(val) > 0) return adjust(parseFloat(val));
 
-    if (key === "hourly" && pricing.hourlyPrice > 0) return pricing.hourlyPrice;
-    if (key === "daily" && pricing.weekdayPrice > 0) return pricing.weekdayPrice;
+    if (key === "hourly" && pricing.hourlyPrice > 0) return adjust(pricing.hourlyPrice);
+    if (key === "daily" && pricing.weekdayPrice > 0) return adjust(pricing.weekdayPrice);
 
     return null;
   };
@@ -1144,8 +1174,16 @@ export default function PropertyDetails() {
   }, [selectedStartDate, selectedEndDate]);
 
   const bookingMetrics = useMemo(
-    () => getBookingMetrics(selectedTier, selectedDays, checkIn, checkOut),
-    [selectedTier, selectedDays, checkIn, checkOut]
+    () =>
+      getBookingMetrics(
+        selectedTier,
+        selectedDays,
+        checkIn,
+        checkOut,
+        selectedStartDate,
+        property?.pricing?.customDayPricing
+      ),
+    [selectedTier, selectedDays, checkIn, checkOut, selectedStartDate, property?.pricing?.customDayPricing]
   );
 
   const cleaningFee = 0;
