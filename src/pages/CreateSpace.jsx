@@ -23,6 +23,7 @@ import {
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { setNavGuard, clearNavGuard, requestNavConfirm } from "../utils/navGuard";
+import DayOfWeekPricing from "../components/DayOfWeekPricing";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -204,6 +205,11 @@ const defaultState = {
     monthly: { enabled: false, price: "" },
     annual: { enabled: false, price: "" },
   },
+  // Optional day-of-week rate overrides for hourly/daily pricing only.
+  // { day: 0-6 (Sun-Sat), rate: number }. Days not listed use the base
+  // hourly/daily rate above -- see customDayPricingEnabled toggle below.
+  customDayPricingEnabled: false,
+  customDayPricing: [],
   minHours: "",
   minNotice: "24hours",
   availability: "",
@@ -1122,6 +1128,10 @@ export default function CreateSpace() {
           flatPricing[key] = parseFloat(val.price);
         }
       });
+
+      if (form.customDayPricingEnabled && form.customDayPricing?.length > 0) {
+        flatPricing.customDayPricing = form.customDayPricing;
+      }
 
       formData.append("title", form.title);
       formData.append("description", form.description);
@@ -2883,6 +2893,14 @@ export default function CreateSpace() {
                       </div>
                     ))}
                   </div>
+
+                  {(form.pricing.hourly?.enabled || form.pricing.daily?.enabled) && (
+                    <DayOfWeekPricing
+                      enabled={form.customDayPricingEnabled}
+                      customDayPricing={form.customDayPricing}
+                      onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+                    />
+                  )}
 
                   <div
                     style={{

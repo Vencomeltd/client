@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
+import DayOfWeekPricing from "../components/DayOfWeekPricing";
 
 export default function EditSpace() {
   const { id } = useParams();
@@ -41,6 +42,8 @@ export default function EditSpace() {
       monthly: { enabled: false, price: "" },
       annual: { enabled: false, price: "" },
     },
+    customDayPricingEnabled: false,
+    customDayPricing: [],
     availability: {
       openDays: [],
       openTime: "",
@@ -102,6 +105,8 @@ export default function EditSpace() {
           photos: [],
           photoUrls: p.images || [],
           pricing,
+          customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
+          customDayPricing: p.pricing?.customDayPricing || [],
           availability: {
             openDays: p.availability?.openDays || [],
             openTime: p.availability?.openTime || "",
@@ -203,6 +208,12 @@ export default function EditSpace() {
           flatPricing[key] = parseFloat(val.price);
         }
       });
+      // Always send this explicitly (even empty) -- the server replaces
+      // property.pricing wholesale on save, so omitting it here would
+      // silently wipe out any customDayPricing set previously.
+      flatPricing.customDayPricing = formData.customDayPricingEnabled
+        ? formData.customDayPricing
+        : [];
 
       const payload = new FormData();
       payload.append("title", formData.title);
@@ -565,6 +576,14 @@ export default function EditSpace() {
               )}
             </div>
           ))}
+
+          {(formData.pricing.hourly?.enabled || formData.pricing.daily?.enabled) && (
+            <DayOfWeekPricing
+              enabled={formData.customDayPricingEnabled}
+              customDayPricing={formData.customDayPricing}
+              onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+            />
+          )}
         </div>
 
         <div

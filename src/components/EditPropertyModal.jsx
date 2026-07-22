@@ -11,6 +11,7 @@ import YesNoToggle from "../components/YesNoToggle";
 import Counter from "../components/Counter";
 import MapComponent from "../components/MapComponent";
 import Notification from "../components/Notification";
+import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import { Autocomplete, useLoadScript } from "@react-google-maps/api";
 import { X } from "lucide-react";
 import CountrySelect from "../components/CountrySelect";
@@ -172,6 +173,7 @@ const DEFAULT_PRICING = {
   weekdayPrice: null,
   hourlyPrice: null,
   preTaxPrice: null,
+  customDayPricing: [],
   discounts: {
     newListing: true,
     lastMinute: false,
@@ -191,7 +193,32 @@ const EditPropertyModal = ({ property, onClose, onUpdate }) => {
     property.availability || "all"
   );
   const [blockedDates, setBlockedDates] = useState(property.blockedDates || []);
+  const [customDayPricingEnabled, setCustomDayPricingEnabled] = useState(
+    (property.pricing?.customDayPricing?.length || 0) > 0
+  );
   const autocompleteRef = useRef(null);
+
+  // customDayPricingEnabled is UI-only (not a schema field, kept out of
+  // spaceData.pricing so it never gets sent to the server); customDayPricing
+  // itself lives in spaceData.pricing since that whole object round-trips
+  // as-is on save.
+  const handleDayPricingChange = (patch) => {
+    if ("customDayPricingEnabled" in patch) {
+      setCustomDayPricingEnabled(patch.customDayPricingEnabled);
+      if (!patch.customDayPricingEnabled) {
+        setSpaceData((prev) => ({
+          ...prev,
+          pricing: { ...prev.pricing, customDayPricing: [] },
+        }));
+      }
+    }
+    if ("customDayPricing" in patch) {
+      setSpaceData((prev) => ({
+        ...prev,
+        pricing: { ...prev.pricing, customDayPricing: patch.customDayPricing },
+      }));
+    }
+  };
 
   // ─── Seed spaceData from the property being edited ───────────────────────────
   const [spaceData, setSpaceData] = useState(() => {
@@ -1095,6 +1122,13 @@ const EditPropertyModal = ({ property, onClose, onUpdate }) => {
                   {errors.hourlyPrice}
                 </p>
               )}
+              <div className="w-full max-w-md text-left">
+                <DayOfWeekPricing
+                  enabled={customDayPricingEnabled}
+                  customDayPricing={spaceData.pricing.customDayPricing || []}
+                  onChange={handleDayPricingChange}
+                />
+              </div>
             </div>
           )}
 
