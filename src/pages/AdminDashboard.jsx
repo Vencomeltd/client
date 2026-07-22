@@ -3294,11 +3294,14 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
         window.tinymce.get("blog-content-editor").remove();
       }
     };
-  }, [showForm]);
+    // Re-init on editingBlog?._id too, not just showForm -- otherwise
+    // switching to edit a different post while the form is already open
+    // leaves the previous post's stale content showing in the editor.
+  }, [showForm, editingBlog?._id]);
 
   useEffect(() => { fetchBlogs(); }, [fetchBlogs]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (statusOverride) => {
     setBlogError("");
     setBlogSuccess("");
     if (!blogForm.title || !blogForm.excerpt || !blogForm.content) {
@@ -3315,7 +3318,11 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...blogForm, tags: blogForm.tags.split(",").map(t => t.trim()).filter(Boolean) }),
+        body: JSON.stringify({
+          ...blogForm,
+          status: statusOverride || blogForm.status,
+          tags: blogForm.tags.split(",").map(t => t.trim()).filter(Boolean),
+        }),
       });
       if (res.ok) {
         setBlogSuccess(editingBlog ? "Blog updated successfully" : "Blog created successfully");
@@ -3334,9 +3341,26 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
     }
   };
 
-  const handleEdit = (blog) => {
-    setEditingBlog(blog);
-    setBlogForm({ title: blog.title, excerpt: blog.excerpt, content: blog.content || "", coverImage: blog.coverImage || "", category: blog.category, tags: (blog.tags || []).join(", "), author: blog.author, status: blog.status });
+  const handleEdit = async (blog) => {
+    // The list this `blog` came from (GET /blog/admin/all) excludes content
+    // to stay lightweight -- fetch the full post so the content editor
+    // doesn't come up blank (which previously overwrote real content with
+    // an empty string on save).
+    let fullBlog = blog;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/admin/${blog._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        fullBlog = data.blog;
+      }
+    } catch {
+      // fall back to the list's (content-less) blog object below
+    }
+    setEditingBlog(fullBlog);
+    setBlogForm({ title: fullBlog.title, excerpt: fullBlog.excerpt, content: fullBlog.content || "", coverImage: fullBlog.coverImage || "", category: fullBlog.category, tags: (fullBlog.tags || []).join(", "), author: fullBlog.author, status: fullBlog.status });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -3472,13 +3496,22 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
             </div>
           </div>
 
-          <button
-            onClick={handleSubmit}
-            disabled={blogLoading}
-            style={{ padding: "14px 32px", background: "#305CDE", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: blogLoading ? "not-allowed" : "pointer", opacity: blogLoading ? 0.7 : 1 }}
-          >
-            {blogLoading ? "Saving..." : editingBlog ? "Update Post" : "Create Post"}
-          </button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => handleSubmit("draft")}
+              disabled={blogLoading}
+              style={{ padding: "14px 32px", background: "#fff", color: "#0A1628", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: blogLoading ? "not-allowed" : "pointer", opacity: blogLoading ? 0.7 : 1 }}
+            >
+              {blogLoading ? "Saving..." : "Save as Draft"}
+            </button>
+            <button
+              onClick={() => handleSubmit("published")}
+              disabled={blogLoading}
+              style={{ padding: "14px 32px", background: "#305CDE", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: blogLoading ? "not-allowed" : "pointer", opacity: blogLoading ? 0.7 : 1 }}
+            >
+              {blogLoading ? "Saving..." : editingBlog ? "Update & Publish" : "Publish"}
+            </button>
+          </div>
         </div>
       )}
 
