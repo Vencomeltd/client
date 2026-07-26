@@ -3683,13 +3683,46 @@ function PaymentsSection({
   onToast,
   livePayments = [],
   paymentStats = {},
+  onReleaseFunds,
 }) {
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [releasingId, setReleasingId] = useState(null);
+
   const filteredTransactions = livePayments.filter((transaction) => {
     if (paymentsFilter === "all") return true;
     if (paymentsFilter === "completed") return transaction.status === "completed";
     if (paymentsFilter === "escrow_held") return transaction.status === "escrow_held";
     return transaction.status === "refunded";
   });
+
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) {
+      onToast("No transactions to export");
+      return;
+    }
+    const headers = ["Transaction ID", "Booking Ref", "Customer", "Host", "Space", "Amount", "Commission", "Host Payout", "Status", "Date"];
+    const rows = filteredTransactions.map((t) => [
+      t.id, t.bookingRef, t.customer, t.host, t.space, t.amount, t.commission, t.hostPayout, t.status,
+      t.date ? new Date(t.date).toISOString() : "",
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vencome-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    onToast("CSV downloaded");
+  };
+
+  const handleRelease = async (transaction) => {
+    setReleasingId(transaction.bookingId);
+    await onReleaseFunds(transaction);
+    setReleasingId(null);
+  };
 
   return (
     <>
@@ -3710,7 +3743,7 @@ function PaymentsSection({
 
           <button
             type="button"
-            onClick={() => onToast("CSV export started")}
+            onClick={handleExportCSV}
             className="inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-4 py-2.5 text-[13px] font-medium text-[#111827]"
           >
             <Download size={14} />
@@ -3855,16 +3888,21 @@ function PaymentsSection({
                   <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{transaction.date}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" className="text-[13px] font-medium text-[#305CDE]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTransaction(transaction)}
+                        className="text-[13px] font-medium text-[#305CDE]"
+                      >
                         View
                       </button>
-                      {transaction.status === "escrow_held" ? (
+                      {transaction.status === "escrow_held" && transaction.bookingStatus === "completed" && !transaction.disputeFrozen ? (
                         <button
                           type="button"
-                          onClick={() => onToast("Funds released to host")}
-                          className="rounded-lg bg-[#0A1628] px-3 py-2 text-[12px] font-semibold text-white"
+                          disabled={releasingId === transaction.bookingId}
+                          onClick={() => handleRelease(transaction)}
+                          className="rounded-lg bg-[#0A1628] px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
                         >
-                          Release Funds
+                          {releasingId === transaction.bookingId ? "Releasing…" : "Release Funds"}
                         </button>
                       ) : null}
                     </div>
@@ -3875,6 +3913,70 @@ function PaymentsSection({
           </table>
         </div>
       </div>
+
+      {selectedTransaction && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 32, maxWidth: 520, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", margin: 0 }}>Transaction Details</h2>
+              <button aria-label="Close" onClick={() => setSelectedTransaction(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280" }}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Transaction ID</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedTransaction.id}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Booking Ref</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{selectedTransaction.bookingRef}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Customer</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedTransaction.customer}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Host</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedTransaction.host}</p>
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Space</p>
+                <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{selectedTransaction.space}</p>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Amount</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{formatCurrency(selectedTransaction.amount)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Commission</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#305CDE", margin: 0 }}>{formatCurrency(selectedTransaction.commission)}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Host Payout</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#16A34A", margin: 0 }}>{formatCurrency(selectedTransaction.hostPayout)}</p>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Status</p>
+                  <StatusPill status={selectedTransaction.status} type="payment" />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 4px" }}>Date</p>
+                  <p style={{ fontSize: 14, color: "#374151", margin: 0 }}>{formatDate(selectedTransaction.date)}</p>
+                </div>
+              </div>
+              {selectedTransaction.disputeFrozen && (
+                <p style={{ fontSize: 13, color: "#DC2626", fontWeight: 600, margin: 0 }}>Frozen pending dispute review — cannot release funds.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -4649,6 +4751,25 @@ export default function AdminDashboard() {
     fetchPayments(paymentsRange);
   }, [paymentsRange, fetchPayments]);
 
+  const handleReleaseFunds = async (transaction) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/payments/${transaction.bookingId}/release`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast("Funds released to host");
+        fetchPayments(paymentsRange);
+      } else {
+        showToast(data.error || "Couldn't release funds");
+      }
+    } catch (err) {
+      console.error("Release funds error:", err);
+      showToast("Couldn't release funds");
+    }
+  };
+
   const fetchBlogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("vencome_token");
@@ -4893,6 +5014,7 @@ export default function AdminDashboard() {
         onToast={showToast}
         livePayments={livePayments}
         paymentStats={paymentStats}
+        onReleaseFunds={handleReleaseFunds}
       />
     );
   } else if (activeSection === "disputes") {
