@@ -3269,7 +3269,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
             const formData = new FormData();
             formData.append("file", blobInfo.blob(), blobInfo.filename());
             const token = localStorage.getItem("vencome_token");
-            fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+            fetch(`${import.meta.env.VITE_API_URL}/upload`, {
               method: "POST",
               headers: { Authorization: `Bearer ${token}` },
               body: formData,
@@ -3455,7 +3455,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
                     formData.append("file", file);
                     try {
                       const token = localStorage.getItem("vencome_token");
-                      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+                      const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
                         method: "POST",
                         headers: { Authorization: `Bearer ${token}` },
                         body: formData,
