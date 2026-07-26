@@ -435,6 +435,34 @@ const NAV_ITEMS = [
   },
 ];
 
+const ADMIN_ROLE_LABELS = {
+  full_admin: "Full Admin",
+  finance: "Finance",
+  support: "Support",
+  content: "Content",
+};
+
+const ADMIN_ROLES = [
+  { value: "full_admin", label: "Full Admin — everything" },
+  { value: "finance", label: "Finance — Payments, Invoices, Commission" },
+  { value: "support", label: "Support — Users, Listings, Bookings, Disputes" },
+  { value: "content", label: "Content — Markets, Categories, Broadcast, Blog" },
+];
+
+// Sections each non-full_admin tier can see — mirrors the server-side
+// requireAdminRole gates in vencome-server/routes/admin.js. full_admin (or an
+// unknown/loading role) sees everything; team + settings stay full_admin-only.
+const ROLE_SECTIONS = {
+  finance: ["overview", "analytics", "payments", "invoices", "commission"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes"],
+  content: ["overview", "analytics", "markets", "categories", "broadcast", "content"],
+};
+
+function canAccessSection(adminRole, section) {
+  if (!adminRole || adminRole === "full_admin") return true;
+  return (ROLE_SECTIONS[adminRole] || []).includes(section);
+}
+
 const SECTION_TITLES = {
   overview: "Overview",
   users: "Users",
@@ -743,12 +771,14 @@ function GrowthBadge({ value, positive = true }) {
   );
 }
 
-function AdminLayout({ children, activeSection, onSectionChange, searchQuery, setSearchQuery }) {
-  const grouped = NAV_ITEMS.reduce((acc, item) => {
-    if (!acc[item.group]) acc[item.group] = [];
-    acc[item.group].push(item);
-    return acc;
-  }, {});
+function AdminLayout({ children, activeSection, onSectionChange, searchQuery, setSearchQuery, adminRole, adminName }) {
+  const grouped = NAV_ITEMS
+    .filter((item) => canAccessSection(adminRole, item.section))
+    .reduce((acc, item) => {
+      if (!acc[item.group]) acc[item.group] = [];
+      acc[item.group].push(item);
+      return acc;
+    }, {});
 
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-[#F8F6F0]">
@@ -772,8 +802,8 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
               <User size={18} color="#305CDE" />
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-white">Admin</p>
-              <p className="text-[11px] text-white/50">Super Admin</p>
+              <p className="text-[13px] font-semibold text-white">{adminName || "Admin"}</p>
+              <p className="text-[11px] text-white/50">{ADMIN_ROLE_LABELS[adminRole] || "Full Admin"}</p>
             </div>
           </div>
         </div>
@@ -2230,8 +2260,10 @@ function TeamSection({ onToast }) {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTitle, setInviteTitle] = useState("");
+  const [inviteRole, setInviteRole] = useState("full_admin");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
+  const [savingRoleId, setSavingRoleId] = useState(null);
 
   const loadTeam = async () => {
     setLoading(true);
@@ -2277,6 +2309,25 @@ function TeamSection({ onToast }) {
     }
   };
 
+  const changeRole = async (member, adminRole) => {
+    setSavingRoleId(member._id);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/team/${member._id}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ adminRole }),
+      });
+      if (!res.ok) throw new Error();
+      setTeam((current) => current.map((m) => (m._id === member._id ? { ...m, adminRole } : m)));
+      onToast("Role updated");
+    } catch {
+      onToast("Failed to update role");
+    } finally {
+      setSavingRoleId(null);
+    }
+  };
+
   const revokeAccess = async (member) => {
     if (!window.confirm(`Revoke admin access for ${member.displayName || member.email}?`)) return;
     try {
@@ -2306,7 +2357,7 @@ function TeamSection({ onToast }) {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/team/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: inviteEmail.trim(), adminTitle: inviteTitle.trim() }),
+        body: JSON.stringify({ email: inviteEmail.trim(), adminTitle: inviteTitle.trim(), adminRole: inviteRole }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2318,6 +2369,7 @@ function TeamSection({ onToast }) {
       setShowInvite(false);
       setInviteEmail("");
       setInviteTitle("");
+      setInviteRole("full_admin");
       await loadTeam();
     } catch {
       setInviteError("Failed to add team member");
@@ -2365,6 +2417,19 @@ function TeamSection({ onToast }) {
                     <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{name}</p>
                     <p style={{ fontSize: 12, color: "#6B7280", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{member.email}</p>
                   </div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <select
+                    value={member.adminRole || "full_admin"}
+                    onChange={(e) => changeRole(member, e.target.value)}
+                    disabled={savingRoleId === member._id}
+                    style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "#374151", width: "100%" }}
+                  >
+                    {ADMIN_ROLES.map((role) => (
+                      <option key={role.value} value={role.value}>{role.label}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {editingId === member._id ? (
@@ -2417,7 +2482,7 @@ function TeamSection({ onToast }) {
       <Modal isOpen={showInvite} onClose={() => !inviting && setShowInvite(false)}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Add Team Member</h3>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
-          They must already have a VenCome account. This grants them full admin access.
+          They must already have a VenCome account. Their role controls which admin sections they can see.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input
@@ -2434,6 +2499,15 @@ function TeamSection({ onToast }) {
             onChange={(e) => setInviteTitle(e.target.value)}
             style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
           />
+          <select
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value)}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          >
+            {ADMIN_ROLES.map((role) => (
+              <option key={role.value} value={role.value}>{role.label}</option>
+            ))}
+          </select>
         </div>
         {inviteError ? (
           <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
@@ -2464,6 +2538,7 @@ function TeamSection({ onToast }) {
 }
 
 const EMPTY_CATEGORY_FORM = { name: "", description: "", image: "", status: "published" };
+const EMPTY_SUBCATEGORY_FORM = { name: "", description: "", image: "" };
 
 function CategoriesSection({ onToast }) {
   const [categories, setCategories] = useState([]);
@@ -2473,6 +2548,10 @@ function CategoriesSection({ onToast }) {
   const [form, setForm] = useState(EMPTY_CATEGORY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+
+  const [subForm, setSubForm] = useState(EMPTY_SUBCATEGORY_FORM);
+  const [editingSubId, setEditingSubId] = useState(null);
+  const [savingSub, setSavingSub] = useState(false);
 
   const loadCategories = async () => {
     setLoading(true);
@@ -2512,12 +2591,68 @@ function CategoriesSection({ onToast }) {
       status: category.status || "published",
     });
     setFormError("");
+    setSubForm(EMPTY_SUBCATEGORY_FORM);
+    setEditingSubId(null);
     setShowForm(true);
   };
 
   const closeForm = () => {
     if (saving) return;
     setShowForm(false);
+  };
+
+  const startEditSub = (sub) => {
+    setEditingSubId(sub._id);
+    setSubForm({ name: sub.name, description: sub.description || "", image: sub.image || "" });
+  };
+
+  const handleSaveSub = async () => {
+    if (!subForm.name.trim() || !subForm.description.trim()) {
+      onToast("Subcategory name and description are required");
+      return;
+    }
+    setSavingSub(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const payload = { name: subForm.name.trim(), description: subForm.description.trim(), image: subForm.image.trim() || undefined };
+      const url = editingSubId
+        ? `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories/${editingSubId}`
+        : `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories`;
+      const res = await fetch(url, {
+        method: editingSubId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onToast(data.error || "Failed to save subcategory");
+        return;
+      }
+      onToast(editingSubId ? "Subcategory updated" : "Subcategory added");
+      setSubForm(EMPTY_SUBCATEGORY_FORM);
+      setEditingSubId(null);
+      await loadCategories();
+    } catch {
+      onToast("Failed to save subcategory");
+    } finally {
+      setSavingSub(false);
+    }
+  };
+
+  const handleDeleteSub = async (sub) => {
+    if (!window.confirm(`Delete subcategory "${sub.name}"?`)) return;
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories/${sub._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      onToast("Subcategory deleted");
+      await loadCategories();
+    } catch {
+      onToast("Failed to delete subcategory");
+    }
   };
 
   const handleSave = async () => {
@@ -2693,13 +2828,39 @@ function CategoriesSection({ onToast }) {
             rows={3}
             style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14, resize: "vertical" }}
           />
-          <input
-            type="text"
-            placeholder="Image URL (optional)"
-            value={form.image}
-            onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
-          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              placeholder="Image URL (optional)"
+              value={form.image}
+              onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            />
+            <label style={{ padding: "10px 16px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#F8F6F0", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#374151" }}>
+              Upload
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const uploadData = new FormData();
+                uploadData.append("file", file);
+                try {
+                  const token = localStorage.getItem("vencome_token");
+                  const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: uploadData,
+                  });
+                  const data = await res.json();
+                  if (data.url) setForm((f) => ({ ...f, image: data.url }));
+                } catch (err) {
+                  console.error("Upload error:", err);
+                }
+              }} />
+            </label>
+          </div>
+          {form.image && (
+            <img src={form.image} alt="Category preview" style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
+          )}
           <select
             value={form.status}
             onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
@@ -2709,6 +2870,94 @@ function CategoriesSection({ onToast }) {
             <option value="draft">Draft (hidden)</option>
           </select>
         </div>
+
+        {editingId && (
+          <div style={{ marginTop: 20, borderTop: "1px solid #F3F4F6", paddingTop: 16 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 10 }}>Subcategories</p>
+            {(categories.find((c) => c._id === editingId)?.subcategories || []).map((sub) => (
+              <div key={sub._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+                {sub.image && <img src={sub.image} alt={sub.name} style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0 }}>{sub.name}</p>
+                  <p style={{ fontSize: 12, color: "#6B7280", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub.description}</p>
+                </div>
+                <button type="button" onClick={() => startEditSub(sub)} style={{ border: "1px solid #E5E7EB", background: "white", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                  <Pencil size={11} />
+                </button>
+                <button type="button" onClick={() => handleDeleteSub(sub)} style={{ border: "1px solid #FCA5A5", background: "white", color: "#DC2626", borderRadius: 6, padding: "4px 8px", cursor: "pointer" }}>
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10, background: "#F8F6F0", borderRadius: 10, padding: 12 }}>
+              <input
+                type="text"
+                placeholder="Subcategory name"
+                value={subForm.name}
+                onChange={(e) => setSubForm((f) => ({ ...f, name: e.target.value }))}
+                style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              />
+              <input
+                type="text"
+                placeholder="Subcategory description"
+                value={subForm.description}
+                onChange={(e) => setSubForm((f) => ({ ...f, description: e.target.value }))}
+                style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="text"
+                  placeholder="Image URL (optional, falls back to category image)"
+                  value={subForm.image}
+                  onChange={(e) => setSubForm((f) => ({ ...f, image: e.target.value }))}
+                  style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                />
+                <label style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: "#374151" }}>
+                  Upload
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const uploadData = new FormData();
+                    uploadData.append("file", file);
+                    try {
+                      const token = localStorage.getItem("vencome_token");
+                      const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${token}` },
+                        body: uploadData,
+                      });
+                      const data = await res.json();
+                      if (data.url) setSubForm((f) => ({ ...f, image: data.url }));
+                    } catch (err) {
+                      console.error("Upload error:", err);
+                    }
+                  }} />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                {editingSubId ? (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingSubId(null); setSubForm(EMPTY_SUBCATEGORY_FORM); }}
+                    style={{ border: "1px solid #E5E7EB", background: "white", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: "#111827" }}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleSaveSub}
+                  disabled={savingSub}
+                  style={{ border: "none", background: "#0A1628", color: "white", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: savingSub ? "not-allowed" : "pointer", opacity: savingSub ? 0.7 : 1 }}
+                >
+                  {savingSub ? "Saving..." : editingSubId ? "Save Subcategory" : "Add Subcategory"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {formError ? (
           <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
             {formError}
@@ -3028,35 +3277,155 @@ function BroadcastSection({ users }) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [target, setTarget] = useState("all");
+  const [specificUserIds, setSpecificUserIds] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
-  const targetCount = target === "all" ? users.length : target === "hosts" ? users.filter(u => u.role === "host" || u.isHost).length : users.filter(u => !u.isHost && u.role !== "host").length;
+  const [templates, setTemplates] = useState([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const token = localStorage.getItem("vencome_token");
+
+  const loadTemplates = useCallback(async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/templates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setTemplates((await res.json()).templates || []);
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setHistory((await res.json()).broadcasts || []);
+    } catch (err) {
+      console.error("Failed to load broadcast history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+    loadHistory();
+  }, [loadTemplates, loadHistory]);
+
+  const targetCount =
+    target === "all" ? users.length :
+    target === "hosts" ? users.filter(u => u.isHost).length :
+    target === "specific" ? specificUserIds.length :
+    users.filter(u => !u.isHost).length;
+
+  const filteredUserOptions = users.filter((u) => {
+    if (!userSearch.trim()) return true;
+    const q = userSearch.toLowerCase();
+    const name = u.displayName || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+    return name.toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+  });
+
+  const toggleSpecificUser = (userId) => {
+    setSpecificUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+    setSent(false);
+  };
 
   const handleSend = async () => {
     if (!subject || !message) { setError("Subject and message are required"); return; }
+    if (target === "specific" && specificUserIds.length === 0) { setError("Select at least one recipient"); return; }
     setSending(true);
     setError("");
     try {
-      const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ subject, message, target }),
+        body: JSON.stringify({
+          subject,
+          message,
+          target,
+          userIds: target === "specific" ? specificUserIds : undefined,
+          scheduledFor: scheduledFor || undefined,
+        }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setSent(true);
         setSubject("");
         setMessage("");
+        setScheduledFor("");
+        setSpecificUserIds([]);
+        loadHistory();
       } else {
-        const err = await res.json();
-        setError(err.error || "Failed to send broadcast");
+        setError(data.error || "Failed to send broadcast");
       }
     } catch {
       setError("Something went wrong");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim() || !subject || !message) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: templateName.trim(), subject, message }),
+      });
+      if (!res.ok) throw new Error();
+      setShowSaveTemplate(false);
+      setTemplateName("");
+      loadTemplates();
+    } catch {
+      setError("Failed to save template");
+    }
+  };
+
+  const handleLoadTemplate = (template) => {
+    setSubject(template.subject);
+    setMessage(template.message);
+    setSent(false);
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    if (!window.confirm(`Delete template "${template.name}"?`)) return;
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/templates/${template._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      loadTemplates();
+    } catch (err) {
+      console.error("Failed to delete template:", err);
+    }
+  };
+
+  const handleCancelScheduled = async (broadcast) => {
+    if (!window.confirm("Cancel this scheduled broadcast?")) return;
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      loadHistory();
+    } catch (err) {
+      console.error("Failed to cancel broadcast:", err);
     }
   };
 
@@ -3069,7 +3438,25 @@ function BroadcastSection({ users }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
         <div style={{ background: "#fff", borderRadius: 20, padding: 32, border: "1.5px solid #E5E7EB" }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 20 }}>Compose Broadcast</h3>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", margin: 0 }}>Compose Broadcast</h3>
+            {templates.length > 0 && (
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const tpl = templates.find((t) => t._id === e.target.value);
+                  if (tpl) handleLoadTemplate(tpl);
+                  e.target.value = "";
+                }}
+                style={{ border: "1px solid #E5E7EB", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "#374151" }}
+              >
+                <option value="" disabled>Load template...</option>
+                {templates.map((t) => (
+                  <option key={t._id} value={t._id}>{t.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
           {sent && (
             <div style={{ background: "#DCFCE7", border: "1px solid #BBF7D0", borderRadius: 10, padding: 14, marginBottom: 16 }}>
@@ -3084,19 +3471,101 @@ function BroadcastSection({ users }) {
               <option value="all">All Users ({users.length})</option>
               <option value="hosts">Hosts only ({users.filter(u => u.isHost).length})</option>
               <option value="customers">Customers only ({users.filter(u => !u.isHost).length})</option>
+              <option value="specific">Specific users...</option>
             </select>
           </div>
+
+          {target === "specific" && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                Recipients ({specificUserIds.length} selected)
+              </label>
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                style={{ width: "100%", padding: "8px 12px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 13, marginBottom: 8, boxSizing: "border-box" }}
+              />
+              <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #E5E7EB", borderRadius: 10 }}>
+                {filteredUserOptions.slice(0, 100).map((u) => {
+                  const name = u.displayName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email;
+                  const checked = specificUserIds.includes(u._id);
+                  return (
+                    <label key={u._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #F3F4F6", cursor: "pointer", fontSize: 13 }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleSpecificUser(u._id)} />
+                      <span style={{ flex: 1, color: "#111827" }}>{name}</span>
+                      <span style={{ color: "#9CA3AF", fontSize: 12 }}>{u.email}</span>
+                    </label>
+                  );
+                })}
+                {filteredUserOptions.length === 0 && (
+                  <p style={{ padding: 12, fontSize: 13, color: "#9CA3AF", margin: 0 }}>No users match "{userSearch}"</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Subject</label>
             <input value={subject} onChange={e => { setSubject(e.target.value); setSent(false); }} placeholder="e.g. Important update from VenCome" style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none", boxSizing: "border-box" }} />
           </div>
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Message</label>
             <textarea value={message} onChange={e => { setMessage(e.target.value); setSent(false); }} placeholder="Write your message here..." rows={8} style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
           </div>
-          <button onClick={handleSend} disabled={sending} style={{ padding: "14px 32px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.7 : 1 }}>
-            {sending ? "Sending..." : `Send to ${targetCount} users`}
-          </button>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Schedule for later (optional)</label>
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => { setScheduledFor(e.target.value); setSent(false); }}
+              style={{ padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={handleSend} disabled={sending} style={{ padding: "14px 32px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.7 : 1 }}>
+              {sending ? "Sending..." : scheduledFor ? `Schedule for ${targetCount} users` : `Send to ${targetCount} users`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSaveTemplate(true)}
+              disabled={!subject || !message}
+              style={{ padding: "14px 20px", background: "white", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (!subject || !message) ? "not-allowed" : "pointer", opacity: (!subject || !message) ? 0.5 : 1 }}
+            >
+              Save as Template
+            </button>
+          </div>
+
+          {showSaveTemplate && (
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <input
+                type="text"
+                placeholder="Template name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 12px", fontSize: 13 }}
+              />
+              <button type="button" onClick={handleSaveTemplate} style={{ border: "none", background: "#0A1628", color: "white", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>Save</button>
+              <button type="button" onClick={() => { setShowSaveTemplate(false); setTemplateName(""); }} style={{ border: "1px solid #E5E7EB", background: "white", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600 }}>Cancel</button>
+            </div>
+          )}
+
+          {templates.length > 0 && (
+            <div style={{ marginTop: 20, borderTop: "1px solid #F3F4F6", paddingTop: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Templates</p>
+              {templates.map((t) => (
+                <div key={t._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0" }}>
+                  <span style={{ fontSize: 13, color: "#111827" }}>{t.name}</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" onClick={() => handleLoadTemplate(t)} style={{ border: "none", background: "none", color: "#305CDE", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Load</button>
+                    <button type="button" onClick={() => handleDeleteTemplate(t)} style={{ border: "none", background: "none", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -3115,7 +3584,41 @@ function BroadcastSection({ users }) {
           </div>
           <div style={{ background: "#FEF3C7", borderRadius: 20, padding: 20, border: "1px solid #FDE68A" }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: "#92400E", marginBottom: 6 }}>⚠️ Before you send</p>
-            <p style={{ fontSize: 13, color: "#92400E", margin: 0, lineHeight: 1.5 }}>Broadcast emails are sent to all selected users immediately. This action cannot be undone.</p>
+            <p style={{ fontSize: 13, color: "#92400E", margin: 0, lineHeight: 1.5 }}>Broadcast emails send immediately unless scheduled for later. This action cannot be undone.</p>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>History</h3>
+            {historyLoading ? (
+              <p style={{ fontSize: 13, color: "#9CA3AF" }}>Loading...</p>
+            ) : history.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#9CA3AF" }}>No broadcasts sent yet.</p>
+            ) : (
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                {history.map((b) => (
+                  <div key={b._id} style={{ padding: "10px 0", borderBottom: "1px solid #F3F4F6" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0 }}>{b.subject}</p>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, textTransform: "uppercase", padding: "2px 8px", borderRadius: 999,
+                        color: b.status === "sent" ? "#16A34A" : b.status === "scheduled" ? "#D97706" : b.status === "cancelled" ? "#6B7280" : "#DC2626",
+                        background: b.status === "sent" ? "rgba(22,163,74,0.1)" : b.status === "scheduled" ? "rgba(217,119,6,0.1)" : b.status === "cancelled" ? "rgba(107,114,128,0.1)" : "rgba(220,38,38,0.1)",
+                      }}>
+                        {b.status}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>
+                      {b.target}{b.recipientCount ? ` · ${b.recipientCount} recipients` : ""} · {formatDate(b.status === "scheduled" ? b.scheduledFor : b.sentAt || b.createdAt)}
+                    </p>
+                    {b.status === "scheduled" && (
+                      <button type="button" onClick={() => handleCancelScheduled(b)} style={{ border: "none", background: "none", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, padding: 0 }}>
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -4370,7 +4873,22 @@ function SettingsSection({
   setGeneralSettings,
   featureFlags,
   setFeatureFlags,
+  onSaveSettings,
+  savingSettings,
+  settingsLoaded,
 }) {
+  const saveButton = (
+    <div className="mt-2 flex justify-end">
+      <button
+        type="button"
+        onClick={onSaveSettings}
+        disabled={!settingsLoaded || savingSettings}
+        className="rounded-lg bg-[#0A1628] px-5 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
+      >
+        {savingSettings ? "Saving..." : "Save Changes"}
+      </button>
+    </div>
+  );
   const tabs = ["General", "Security", "Notifications", "Feature Flags"];
 
   return (
@@ -4429,30 +4947,31 @@ function SettingsSection({
           </SettingsRow>
           <SettingsRow
             label="Maintenance Mode"
-            note={generalSettings.maintenance ? "Platform will be unavailable to users" : undefined}
+            note={generalSettings.maintenanceMode ? "Platform is unavailable to non-admin users right now" : undefined}
           >
             <ToggleSwitch
-              enabled={generalSettings.maintenance}
-              onChange={(value) => setGeneralSettings((current) => ({ ...current, maintenance: value }))}
+              enabled={generalSettings.maintenanceMode}
+              onChange={(value) => setGeneralSettings((current) => ({ ...current, maintenanceMode: value }))}
             />
           </SettingsRow>
           <SettingsRow
             label="New User Registrations"
-            note={!generalSettings.registrations ? "Registration is disabled" : undefined}
+            note={!generalSettings.registrationsEnabled ? "Registration is disabled" : undefined}
           >
             <ToggleSwitch
-              enabled={generalSettings.registrations}
-              onChange={(value) => setGeneralSettings((current) => ({ ...current, registrations: value }))}
+              enabled={generalSettings.registrationsEnabled}
+              onChange={(value) => setGeneralSettings((current) => ({ ...current, registrationsEnabled: value }))}
             />
           </SettingsRow>
           <SettingsRow label="Host Applications">
             <ToggleSwitch
-              enabled={generalSettings.hostApplications}
+              enabled={generalSettings.hostApplicationsEnabled}
               onChange={(value) =>
-                setGeneralSettings((current) => ({ ...current, hostApplications: value }))
+                setGeneralSettings((current) => ({ ...current, hostApplicationsEnabled: value }))
               }
             />
           </SettingsRow>
+          {saveButton}
         </div>
       ) : null}
 
@@ -4482,16 +5001,31 @@ function SettingsSection({
 
       {settingsTab === "Security" ? (
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-6">
-          <SettingsRow label="Admin 2FA" note="Require two-factor authentication for admin access">
-            <ToggleSwitch enabled onChange={() => {}} />
+          <SettingsRow
+            label="Admin 2FA"
+            note={generalSettings.requireAdmin2FA ? "Admin logins require an emailed verification code" : "⚠ Admins can sign in with just a password"}
+          >
+            <ToggleSwitch
+              enabled={generalSettings.requireAdmin2FA}
+              onChange={(value) => setGeneralSettings((current) => ({ ...current, requireAdmin2FA: value }))}
+            />
           </SettingsRow>
-          <SettingsRow label="Session Timeout">
-            <select className="h-10 rounded-lg border border-[#E5E7EB] px-3 text-[13px] outline-none">
-              <option>30 minutes</option>
-              <option>1 hour</option>
-              <option>4 hours</option>
+          <SettingsRow label="Session Timeout" note="How long an admin stays signed in before needing to log in again">
+            <select
+              value={generalSettings.sessionTimeoutMinutes}
+              onChange={(event) =>
+                setGeneralSettings((current) => ({ ...current, sessionTimeoutMinutes: Number(event.target.value) }))
+              }
+              className="h-10 rounded-lg border border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+            >
+              <option value={30}>30 minutes</option>
+              <option value={60}>1 hour</option>
+              <option value={240}>4 hours</option>
+              <option value={480}>8 hours</option>
+              <option value={10080}>7 days</option>
             </select>
           </SettingsRow>
+          {saveButton}
         </div>
       ) : null}
 
@@ -4533,6 +5067,27 @@ export default function AdminDashboard() {
     setActiveSection(section);
     window.history.pushState({}, "", `/admin?section=${section}`);
   };
+  const [myAdmin, setMyAdmin] = useState(null);
+
+  useEffect(() => {
+    const loadMyAdmin = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setMyAdmin(await res.json());
+      } catch (err) {
+        console.error("Failed to load current admin:", err);
+      }
+    };
+    loadMyAdmin();
+  }, [token]);
+
+  useEffect(() => {
+    if (myAdmin && !canAccessSection(myAdmin.adminRole, activeSection)) {
+      navigateToSection("overview");
+    }
+  }, [myAdmin, activeSection]);
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
   const [users, setUsers] = useState([]);
@@ -4719,11 +5274,57 @@ export default function AdminDashboard() {
     platformName: "VenCome",
     supportEmail: "support@vencome.com",
     currency: "GBP",
-    maintenance: false,
-    registrations: true,
-    hostApplications: true,
+    maintenanceMode: false,
+    registrationsEnabled: true,
+    hostApplicationsEnabled: true,
+    requireAdmin2FA: true,
+    sessionTimeoutMinutes: 480,
   });
   const [featureFlags, setFeatureFlags] = useState(FEATURE_FLAGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/settings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setGeneralSettings((current) => ({ ...current, ...data.settings }));
+        }
+      } catch (err) {
+        console.error("Failed to load platform settings:", err);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    };
+    loadSettings();
+  }, [token]);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(generalSettings),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setGeneralSettings((current) => ({ ...current, ...data.settings }));
+        showToast("Settings saved");
+      } else {
+        showToast(data.error || "Failed to save settings");
+      }
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      showToast("Failed to save settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   useEffect(() => {
     if (!toastMessage) return undefined;
@@ -5050,6 +5651,9 @@ export default function AdminDashboard() {
         setGeneralSettings={setGeneralSettings}
         featureFlags={featureFlags}
         setFeatureFlags={setFeatureFlags}
+        onSaveSettings={handleSaveSettings}
+        savingSettings={savingSettings}
+        settingsLoaded={settingsLoaded}
       />
     );
   } else {
@@ -5071,6 +5675,8 @@ export default function AdminDashboard() {
         }}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        adminRole={myAdmin?.adminRole}
+        adminName={myAdmin?.displayName || [myAdmin?.firstName, myAdmin?.lastName].filter(Boolean).join(" ") || myAdmin?.email}
       >
         <AnimatePresence mode="wait">
           <motion.div

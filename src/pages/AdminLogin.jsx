@@ -8,8 +8,18 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [awaitingOtp, setAwaitingOtp] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const finishLogin = (data) => {
+    localStorage.setItem("vencome_token", data.token);
+    localStorage.setItem("vencome_user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+    navigate("/admin");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,12 +40,39 @@ export default function AdminLogin() {
         return;
       }
 
-      localStorage.setItem("vencome_token", data.token);
-      localStorage.setItem("vencome_user", JSON.stringify(data.user));
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.requiresVerification) {
+        setAwaitingOtp(true);
+        setLoading(false);
+        return;
+      }
 
-      navigate("/admin");
+      finishLogin(data);
+    } catch (err) {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/admin/verify-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Invalid or expired code");
+        setLoading(false);
+        return;
+      }
+
+      finishLogin(data);
     } catch (err) {
       setError("Network error. Please try again.");
       setLoading(false);
@@ -73,66 +110,118 @@ export default function AdminLogin() {
           fontSize: "14px", color: "#6B7280", textAlign: "center",
           margin: "0 0 28px",
         }}>
-          Restricted area. Authorized personnel only.
+          {awaitingOtp ? `Enter the code sent to ${email}` : "Restricted area. Authorized personnel only."}
         </p>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div>
-            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+        {awaitingOtp ? (
+          <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+                Verification Code
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                autoFocus
+                style={{
+                  width: "100%", height: "48px", padding: "0 14px",
+                  borderRadius: "10px", border: "1.5px solid #E5E7EB",
+                  fontSize: "20px", letterSpacing: "4px", outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {error && (
+              <p style={{ color: "#EF4444", fontSize: "13px", margin: 0 }}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
               style={{
-                width: "100%", height: "48px", padding: "0 14px",
-                borderRadius: "10px", border: "1.5px solid #E5E7EB",
-                fontSize: "15px", outline: "none", boxSizing: "border-box",
+                width: "100%", height: "48px", borderRadius: "10px",
+                border: "none", background: loading ? "#9CA3AF" : "#0A1628",
+                color: "#fff", fontSize: "15px", fontWeight: "700",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                gap: "8px", marginTop: "8px",
               }}
-            />
-          </div>
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={16} />}
+              {loading ? "Verifying..." : "Verify & Sign In"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAwaitingOtp(false); setOtp(""); setError(""); }}
+              style={{ background: "none", border: "none", color: "#6B7280", fontSize: "13px", cursor: "pointer" }}
+            >
+              Back to sign in
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{
+                  width: "100%", height: "48px", padding: "0 14px",
+                  borderRadius: "10px", border: "1.5px solid #E5E7EB",
+                  fontSize: "15px", outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
 
-          <div>
-            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{
+                  width: "100%", height: "48px", padding: "0 14px",
+                  borderRadius: "10px", border: "1.5px solid #E5E7EB",
+                  fontSize: "15px", outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {error && (
+              <p style={{ color: "#EF4444", fontSize: "13px", margin: 0 }}>
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
               style={{
-                width: "100%", height: "48px", padding: "0 14px",
-                borderRadius: "10px", border: "1.5px solid #E5E7EB",
-                fontSize: "15px", outline: "none", boxSizing: "border-box",
+                width: "100%", height: "48px", borderRadius: "10px",
+                border: "none", background: loading ? "#9CA3AF" : "#0A1628",
+                color: "#fff", fontSize: "15px", fontWeight: "700",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                gap: "8px", marginTop: "8px",
               }}
-            />
-          </div>
-
-          {error && (
-            <p style={{ color: "#EF4444", fontSize: "13px", margin: 0 }}>
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%", height: "48px", borderRadius: "10px",
-              border: "none", background: loading ? "#9CA3AF" : "#0A1628",
-              color: "#fff", fontSize: "15px", fontWeight: "700",
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              gap: "8px", marginTop: "8px",
-            }}
-          >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
-            {loading ? "Verifying..." : "Sign In"}
-          </button>
-        </form>
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={16} />}
+              {loading ? "Verifying..." : "Sign In"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
