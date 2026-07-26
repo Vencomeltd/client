@@ -3264,6 +3264,20 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
         menubar: false,
         skin: "oxide",
         content_css: "default",
+        images_upload_handler: (blobInfo) =>
+          new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append("file", blobInfo.blob(), blobInfo.filename());
+            const token = localStorage.getItem("vencome_token");
+            fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
+            })
+              .then((res) => res.json())
+              .then((data) => (data.url ? resolve(data.url) : reject("Upload failed")))
+              .catch(() => reject("Upload failed"));
+          }),
         setup: (editor) => {
           editor.on("change keyup input", () => {
             setBlogForm(p => ({ ...p, content: editor.getContent() }));
