@@ -23,13 +23,16 @@ const Sidebar = ({ user, onLinkClick }) => {
         method: "POST",
         credentials: "include",
       });
-
-      onLinkClick?.();
-      navigate("/");
-      window.location.reload();
     } catch (err) {
       console.error("Logout failed:", err);
     }
+
+    localStorage.removeItem("vencome_token");
+    localStorage.removeItem("vencome_refresh");
+    localStorage.removeItem("vencome_user");
+    onLinkClick?.();
+    navigate("/");
+    window.location.reload();
   };
 
   return (
