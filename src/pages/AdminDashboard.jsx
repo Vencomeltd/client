@@ -483,14 +483,6 @@ const SECTION_TITLES = {
 
 const MOBILE_ADMIN_NAV = ["overview", "users", "listings", "payments", "disputes"];
 
-const MARKET_OVERRIDES = [
-  { market: "United Kingdom", rate: 10, active: true },
-  { market: "Saudi Arabia", rate: 8, active: true },
-  { market: "UAE", rate: 8, active: true },
-  { market: "United States", rate: 12, active: false },
-  { market: "Europe", rate: 10, active: true },
-];
-
 const FEATURE_FLAGS = [
   {
     key: "instantBook",
@@ -2579,6 +2571,8 @@ function CategoriesSection({ onToast }) {
     setEditingId(null);
     setForm(EMPTY_CATEGORY_FORM);
     setFormError("");
+    setSubForm(EMPTY_SUBCATEGORY_FORM);
+    setEditingSubId(null);
     setShowForm(true);
   };
 
@@ -2589,6 +2583,7 @@ function CategoriesSection({ onToast }) {
       description: category.description || "",
       image: category.image || "",
       status: category.status || "published",
+      subcategories: category.subcategories || [],
     });
     setFormError("");
     setSubForm(EMPTY_SUBCATEGORY_FORM);
@@ -2602,19 +2597,37 @@ function CategoriesSection({ onToast }) {
   };
 
   const startEditSub = (sub) => {
-    setEditingSubId(sub._id);
+    setEditingSubId(sub._id || sub._localId);
     setSubForm({ name: sub.name, description: sub.description || "", image: sub.image || "" });
   };
 
+  // While creating a new category (no _id yet), subcategories are staged
+  // locally on form.subcategories and sent along with the create request.
+  // Once a category exists (edit mode), each add/edit/delete hits its own
+  // endpoint immediately since the parent doc is already persisted.
   const handleSaveSub = async () => {
     if (!subForm.name.trim() || !subForm.description.trim()) {
       onToast("Subcategory name and description are required");
       return;
     }
+    const payload = { name: subForm.name.trim(), description: subForm.description.trim(), image: subForm.image.trim() || undefined };
+
+    if (!editingId) {
+      setForm((f) => ({
+        ...f,
+        subcategories: editingSubId
+          ? (f.subcategories || []).map((s) => ((s._localId || s._id) === editingSubId ? { ...s, ...payload } : s))
+          : [...(f.subcategories || []), { ...payload, _localId: `local-${Date.now()}-${Math.random()}` }],
+      }));
+      onToast(editingSubId ? "Subcategory updated" : "Subcategory added — saved when you create this category");
+      setSubForm(EMPTY_SUBCATEGORY_FORM);
+      setEditingSubId(null);
+      return;
+    }
+
     setSavingSub(true);
     try {
       const token = localStorage.getItem("vencome_token");
-      const payload = { name: subForm.name.trim(), description: subForm.description.trim(), image: subForm.image.trim() || undefined };
       const url = editingSubId
         ? `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories/${editingSubId}`
         : `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories`;
@@ -2631,6 +2644,7 @@ function CategoriesSection({ onToast }) {
       onToast(editingSubId ? "Subcategory updated" : "Subcategory added");
       setSubForm(EMPTY_SUBCATEGORY_FORM);
       setEditingSubId(null);
+      setForm((f) => ({ ...f, subcategories: data.category?.subcategories || f.subcategories }));
       await loadCategories();
     } catch {
       onToast("Failed to save subcategory");
@@ -2641,6 +2655,12 @@ function CategoriesSection({ onToast }) {
 
   const handleDeleteSub = async (sub) => {
     if (!window.confirm(`Delete subcategory "${sub.name}"?`)) return;
+
+    if (!editingId) {
+      setForm((f) => ({ ...f, subcategories: (f.subcategories || []).filter((s) => (s._localId || s._id) !== (sub._localId || sub._id)) }));
+      return;
+    }
+
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/${editingId}/subcategories/${sub._id}`, {
@@ -2649,6 +2669,7 @@ function CategoriesSection({ onToast }) {
       });
       if (!res.ok) throw new Error();
       onToast("Subcategory deleted");
+      setForm((f) => ({ ...f, subcategories: (f.subcategories || []).filter((s) => s._id !== sub._id) }));
       await loadCategories();
     } catch {
       onToast("Failed to delete subcategory");
@@ -2669,6 +2690,9 @@ function CategoriesSection({ onToast }) {
         description: form.description.trim(),
         image: form.image.trim() || undefined,
         status: form.status,
+        subcategories: !editingId
+          ? (form.subcategories || []).map(({ name, description, image }) => ({ name, description, image }))
+          : undefined,
       };
       const url = editingId
         ? `${import.meta.env.VITE_API_URL}/admin/categories/${editingId}`
@@ -2871,11 +2895,10 @@ function CategoriesSection({ onToast }) {
           </select>
         </div>
 
-        {editingId && (
-          <div style={{ marginTop: 20, borderTop: "1px solid #F3F4F6", paddingTop: 16 }}>
+        <div style={{ marginTop: 20, borderTop: "1px solid #F3F4F6", paddingTop: 16 }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 10 }}>Subcategories</p>
-            {(categories.find((c) => c._id === editingId)?.subcategories || []).map((sub) => (
-              <div key={sub._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+            {(form.subcategories || []).map((sub) => (
+              <div key={sub._id || sub._localId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
                 {sub.image && <img src={sub.image} alt={sub.name} style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0 }}>{sub.name}</p>
@@ -2955,8 +2978,7 @@ function CategoriesSection({ onToast }) {
                 </button>
               </div>
             </div>
-          </div>
-        )}
+        </div>
 
         {formError ? (
           <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
@@ -2992,7 +3014,7 @@ const MARKET_STATUS_META = {
   planned: { label: "Planned", color: "#6B7280" },
 };
 
-const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", status: "planned", phase: "" };
+const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", status: "planned", phase: "", currency: "GBP", primaryLanguage: "English" };
 
 function MarketsSection({ bookings, onToast }) {
   const [markets, setMarkets] = useState([]);
@@ -3047,6 +3069,8 @@ function MarketsSection({ bookings, onToast }) {
       citiesText: (market.cities || []).join(", "),
       status: market.status,
       phase: market.phase || "",
+      currency: market.currency || "GBP",
+      primaryLanguage: market.primaryLanguage || "English",
     });
     setShowForm(true);
   };
@@ -3070,6 +3094,8 @@ function MarketsSection({ bookings, onToast }) {
         cities: form.citiesText.split(",").map((c) => c.trim()).filter(Boolean),
         status: form.status,
         phase: form.phase.trim(),
+        currency: form.currency,
+        primaryLanguage: form.primaryLanguage.trim() || "English",
       };
       const url = editingId
         ? `${import.meta.env.VITE_API_URL}/admin/markets/${editingId}`
@@ -3153,11 +3179,12 @@ function MarketsSection({ bookings, onToast }) {
                     <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>bookings</p>
                   </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                   {(market.cities || []).map((city) => (
                     <span key={city} style={{ fontSize: 12, color: "#6B7280", background: "#F3F4F6", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
                   ))}
                 </div>
+                <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 16px" }}>{market.currency || "GBP"} · {market.primaryLanguage || "English"}</p>
                 <div style={{ display: "flex", gap: 8, borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
                   <button
                     type="button"
@@ -3246,6 +3273,26 @@ function MarketsSection({ bookings, onToast }) {
               placeholder="Phase (e.g. Phase 1)"
               value={form.phase}
               onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <select
+              value={form.currency}
+              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+              style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+            >
+              <option>GBP</option>
+              <option>USD</option>
+              <option>EUR</option>
+              <option>AED</option>
+              <option>SAR</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Primary language (e.g. English)"
+              value={form.primaryLanguage}
+              onChange={(e) => setForm((f) => ({ ...f, primaryLanguage: e.target.value }))}
               style={{ flex: 1, border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
             />
           </div>
@@ -4698,12 +4745,104 @@ function DisputesSection({ disputes, setDisputes, disputesFilter, setDisputesFil
   );
 }
 
-function CommissionSection({ globalCommission, setGlobalCommission, marketOverrides, setMarketOverrides, onToast }) {
+function CommissionSection({ onToast }) {
+  const [loading, setLoading] = useState(true);
+  const [defaultRate, setDefaultRate] = useState(10);
+  const [originalDefaultRate, setOriginalDefaultRate] = useState(10);
+  const [markets, setMarkets] = useState([]);
+  const [savingDefault, setSavingDefault] = useState(false);
+  const [savingMarketId, setSavingMarketId] = useState(null);
+
+  const token = localStorage.getItem("vencome_token");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/commission`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDefaultRate(data.defaultCommissionRate ?? 10);
+        setOriginalDefaultRate(data.defaultCommissionRate ?? 10);
+        setMarkets(
+          (data.markets || []).map((m) => ({
+            ...m,
+            rate: m.commissionRate ?? 0,
+            active: !!m.commissionOverrideActive,
+            originalRate: m.commissionRate ?? 0,
+            originalActive: !!m.commissionOverrideActive,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load commission settings:", err);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveDefaultRate = async () => {
+    setSavingDefault(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/commission`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ defaultCommissionRate: Number(defaultRate) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onToast(data.error || "Failed to save commission rate");
+        return;
+      }
+      setOriginalDefaultRate(data.defaultCommissionRate);
+      onToast("Global commission rate saved");
+    } catch {
+      onToast("Failed to save commission rate");
+    } finally {
+      setSavingDefault(false);
+    }
+  };
+
+  const saveMarketRow = async (row) => {
+    setSavingMarketId(row._id);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/commission/markets/${row._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ commissionRate: row.rate, commissionOverrideActive: row.active }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onToast(data.error || "Failed to save market override");
+        return;
+      }
+      setMarkets((current) =>
+        current.map((m) => (m._id === row._id ? { ...m, originalRate: row.rate, originalActive: row.active } : m))
+      );
+      onToast(`${row.name} commission override saved`);
+    } catch {
+      onToast("Failed to save market override");
+    } finally {
+      setSavingMarketId(null);
+    }
+  };
+
+  if (loading) {
+    return <div className="max-w-[640px] rounded-[20px] border border-[#E5E7EB] bg-white p-8 text-center text-[14px] text-[#6B7280]">Loading commission settings...</div>;
+  }
+
   return (
     <div className="max-w-[640px] rounded-[20px] border border-[#E5E7EB] bg-white p-4 md:p-8">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Commission Rate Settings</h2>
       <p className="mt-2 text-[14px] text-[#6B7280]">
-        Adjust the platform commission rate globally or by market segment. Changes apply to new bookings only.
+        Applies to HOURLY/DAILY/WEEKLY bookings — ANNUAL (3%) and MONTHLY (6%) rates are fixed. Changes apply to new bookings only.
       </p>
 
       <div className="mt-6">
@@ -4711,145 +4850,131 @@ function CommissionSection({ globalCommission, setGlobalCommission, marketOverri
         <div className="mt-3 flex items-center gap-3">
           <input
             type="number"
-            value={globalCommission}
-            onChange={(event) => setGlobalCommission(event.target.value)}
+            value={defaultRate}
+            onChange={(event) => setDefaultRate(event.target.value)}
             className="h-14 w-[100px] rounded-xl border-2 border-[#E5E7EB] text-center text-[28px] font-extrabold text-[#0A1628] outline-none focus:border-[#0A1628]"
           />
           <span className="text-[20px] text-[#6B7280]">%</span>
+          {Number(defaultRate) !== originalDefaultRate && (
+            <button
+              type="button"
+              onClick={saveDefaultRate}
+              disabled={savingDefault}
+              className="rounded-lg bg-[#305CDE] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+            >
+              {savingDefault ? "Saving..." : "Save"}
+            </button>
+          )}
         </div>
         <p className="mt-2 text-[12px] text-[#6B7280]">
           Currently applied to all markets unless overridden below
         </p>
       </div>
 
-      <div className="mt-8 hidden overflow-hidden rounded-xl border border-[#E5E7EB] md:block">
-        <div className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr] gap-4 bg-[#F8F6F0] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">
-          <span>Market</span>
-          <span>Override Rate</span>
-          <span>Status</span>
-          <span>Action</span>
-        </div>
-        {marketOverrides.map((row) => {
-          const changed = row.rate !== row.originalRate || row.active !== row.originalActive;
-          return (
-            <div
-              key={row.market}
-              className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr] items-center gap-4 border-t border-[#F3F4F6] px-4 py-3"
-            >
-              <span className="text-[14px] font-semibold text-[#0A1628]">{row.market}</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={row.rate}
-                  onChange={(event) =>
-                    setMarketOverrides((current) =>
-                      current.map((item) =>
-                        item.market === row.market ? { ...item, rate: Number(event.target.value) } : item
-                      )
-                    )
-                  }
-                  className="h-9 w-[60px] rounded-lg border border-[#E5E7EB] px-2 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
-                />
-                <span className="text-[13px] text-[#6B7280]">%</span>
-              </div>
-              <ToggleSwitch
-                enabled={row.active}
-                onChange={(value) =>
-                  setMarketOverrides((current) =>
-                    current.map((item) => (item.market === row.market ? { ...item, active: value } : item))
-                  )
-                }
-                size="sm"
-              />
-              <div>
-                {changed ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMarketOverrides((current) =>
-                        current.map((item) =>
-                          item.market === row.market
-                            ? { ...item, originalRate: item.rate, originalActive: item.active }
-                            : item
-                        )
-                      )
-                    }
-                    className="rounded-lg bg-[#305CDE] px-3 py-1.5 text-[12px] font-semibold text-white"
-                  >
-                    Save
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-[#9CA3AF]">Edit</span>
-                )}
-              </div>
+      {markets.length === 0 ? (
+        <p className="mt-8 text-[13px] text-[#6B7280]">
+          No markets configured yet — add markets on the Markets page to set per-market overrides.
+        </p>
+      ) : (
+        <>
+          <div className="mt-8 hidden overflow-hidden rounded-xl border border-[#E5E7EB] md:block">
+            <div className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr] gap-4 bg-[#F8F6F0] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">
+              <span>Market</span>
+              <span>Override Rate</span>
+              <span>Status</span>
+              <span>Action</span>
             </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-8 space-y-3 md:hidden">
-        {marketOverrides.map((row) => {
-          const changed = row.rate !== row.originalRate || row.active !== row.originalActive;
-          return (
-            <div key={row.market} className="rounded-xl border border-[#E5E7EB] p-4">
-              <p className="text-[14px] font-semibold text-[#0A1628]">{row.market}</p>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={row.rate}
-                    onChange={(event) =>
-                      setMarketOverrides((current) =>
-                        current.map((item) =>
-                          item.market === row.market ? { ...item, rate: Number(event.target.value) } : item
-                        )
-                      )
-                    }
-                    className="h-9 w-[60px] rounded-lg border border-[#E5E7EB] px-2 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
-                  />
-                  <span className="text-[13px] text-[#6B7280]">%</span>
-                </div>
-                <ToggleSwitch
-                  enabled={row.active}
-                  onChange={(value) =>
-                    setMarketOverrides((current) =>
-                      current.map((item) => (item.market === row.market ? { ...item, active: value } : item))
-                    )
-                  }
-                  size="sm"
-                />
-              </div>
-              {changed ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMarketOverrides((current) =>
-                      current.map((item) =>
-                        item.market === row.market
-                          ? { ...item, originalRate: item.rate, originalActive: item.active }
-                          : item
-                      )
-                    )
-                  }
-                  className="mt-3 rounded-lg bg-[#305CDE] px-3 py-2 text-[12px] font-semibold text-white"
+            {markets.map((row) => {
+              const changed = row.rate !== row.originalRate || row.active !== row.originalActive;
+              return (
+                <div
+                  key={row._id}
+                  className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr] items-center gap-4 border-t border-[#F3F4F6] px-4 py-3"
                 >
-                  Save
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
+                  <span className="text-[14px] font-semibold text-[#0A1628]">{row.flag} {row.name}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={row.rate}
+                      onChange={(event) =>
+                        setMarkets((current) =>
+                          current.map((item) => (item._id === row._id ? { ...item, rate: Number(event.target.value) } : item))
+                        )
+                      }
+                      className="h-9 w-[60px] rounded-lg border border-[#E5E7EB] px-2 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+                    />
+                    <span className="text-[13px] text-[#6B7280]">%</span>
+                  </div>
+                  <ToggleSwitch
+                    enabled={row.active}
+                    onChange={(value) =>
+                      setMarkets((current) => current.map((item) => (item._id === row._id ? { ...item, active: value } : item)))
+                    }
+                    size="sm"
+                  />
+                  <div>
+                    {changed ? (
+                      <button
+                        type="button"
+                        onClick={() => saveMarketRow(row)}
+                        disabled={savingMarketId === row._id}
+                        className="rounded-lg bg-[#305CDE] px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                      >
+                        {savingMarketId === row._id ? "Saving..." : "Save"}
+                      </button>
+                    ) : (
+                      <span className="text-[12px] text-[#9CA3AF]">{row.active ? "Overridden" : "Default"}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="button"
-          onClick={() => onToast("Commission settings saved")}
-          className="rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white"
-        >
-          Save All Changes
-        </button>
-      </div>
+          <div className="mt-8 space-y-3 md:hidden">
+            {markets.map((row) => {
+              const changed = row.rate !== row.originalRate || row.active !== row.originalActive;
+              return (
+                <div key={row._id} className="rounded-xl border border-[#E5E7EB] p-4">
+                  <p className="text-[14px] font-semibold text-[#0A1628]">{row.flag} {row.name}</p>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={row.rate}
+                        onChange={(event) =>
+                          setMarkets((current) =>
+                            current.map((item) => (item._id === row._id ? { ...item, rate: Number(event.target.value) } : item))
+                          )
+                        }
+                        className="h-9 w-[60px] rounded-lg border border-[#E5E7EB] px-2 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+                      />
+                      <span className="text-[13px] text-[#6B7280]">%</span>
+                    </div>
+                    <ToggleSwitch
+                      enabled={row.active}
+                      onChange={(value) =>
+                        setMarkets((current) => current.map((item) => (item._id === row._id ? { ...item, active: value } : item)))
+                      }
+                      size="sm"
+                    />
+                  </div>
+                  {changed ? (
+                    <button
+                      type="button"
+                      onClick={() => saveMarketRow(row)}
+                      disabled={savingMarketId === row._id}
+                      className="mt-3 rounded-lg bg-[#305CDE] px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
+                    >
+                      {savingMarketId === row._id ? "Saving..." : "Save"}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -5260,15 +5385,6 @@ export default function AdminDashboard() {
   const [disputes, setDisputes] = useState([]);
   const [disputesFilter, setDisputesFilter] = useState("all");
 
-  const [globalCommission, setGlobalCommission] = useState("10");
-  const [marketOverrides, setMarketOverrides] = useState(
-    MARKET_OVERRIDES.map((item) => ({
-      ...item,
-      originalRate: item.rate,
-      originalActive: item.active,
-    }))
-  );
-
   const [settingsTab, setSettingsTab] = useState("General");
   const [generalSettings, setGeneralSettings] = useState({
     platformName: "VenCome",
@@ -5631,15 +5747,7 @@ export default function AdminDashboard() {
   } else if (activeSection === "invoices") {
     sectionContent = <InvoicesSection onToast={showToast} />;
   } else if (activeSection === "commission") {
-    sectionContent = (
-      <CommissionSection
-        globalCommission={globalCommission}
-        setGlobalCommission={setGlobalCommission}
-        marketOverrides={marketOverrides}
-        setMarketOverrides={setMarketOverrides}
-        onToast={showToast}
-      />
-    );
+    sectionContent = <CommissionSection onToast={showToast} />;
   } else if (activeSection === "team") {
     sectionContent = <TeamSection onToast={showToast} />;
   } else if (activeSection === "settings") {
