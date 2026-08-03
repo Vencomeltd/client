@@ -18,7 +18,7 @@ const COLORS = {
 
 const API = import.meta.env.VITE_API_URL;
 
-const BG_IMAGES = [
+export const BG_IMAGES = [
   "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400&q=80",
   "https://images.unsplash.com/photo-1556761175-4b46a572b786?w=400&q=80",
   "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&q=80",

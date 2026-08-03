@@ -92,6 +92,7 @@ function AppContent() {
     location.pathname === "/" ||
     location.pathname === "/login" ||
     location.pathname === "/signup" ||
+    location.pathname === "/forgot-password" ||
     location.pathname === "/search" ||
     location.pathname.startsWith("/property/") ||
     location.pathname.startsWith("/dashboard") ||
