@@ -46,7 +46,7 @@ export default function EditSpace() {
     customDayPricingEnabled: false,
     customDayPricing: [],
     singleDayOnly: false,
-    discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false },
+    discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: 0 },
     blockedDates: [],
     leaseAgreement: null,
     availability: {
@@ -118,6 +118,7 @@ export default function EditSpace() {
             lastMinute: p.pricing?.discounts?.lastMinute || false,
             weekly: p.pricing?.discounts?.weekly || false,
             monthly: p.pricing?.discounts?.monthly || false,
+            extendedHours: p.pricing?.discounts?.extendedHours || 0,
           },
           blockedDates: p.blockedDates || [],
           leaseAgreement: p.leaseAgreement || null,
@@ -720,6 +721,54 @@ export default function EditSpace() {
                 </div>
               );
             })}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "16px",
+                padding: "16px",
+                borderRadius: "10px",
+                border: `1.5px solid ${Number(formData.discounts?.extendedHours) > 0 ? "#0A1628" : "#E5E7EB"}`,
+                background: Number(formData.discounts?.extendedHours) > 0 ? "rgba(10,22,40,0.02)" : "#fff",
+              }}
+            >
+              <div>
+                <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 4px" }}>
+                  Extended Hours Discount
+                </p>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+                  Offer your own discount for hourly bookings longer than 3 hours. Set to 0 to disable.
+                </p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.discounts?.extendedHours || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      discounts: { ...prev.discounts, extendedHours: e.target.value === "" ? 0 : Number(e.target.value) },
+                    }))
+                  }
+                  placeholder="0"
+                  style={{
+                    width: "60px",
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    border: "1.5px solid #E5E7EB",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#0A1628",
+                    textAlign: "center",
+                  }}
+                />
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>%</span>
+              </div>
+            </div>
           </div>
         </div>
 

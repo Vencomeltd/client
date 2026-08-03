@@ -236,6 +236,7 @@ const defaultState = {
     lastMinute: false,
     weekly: false,
     monthly: false,
+    extendedHours: 0,
   },
   bookingApproval: "approveFirstFive",
   blockedDates: [],
@@ -3233,6 +3234,54 @@ export default function CreateSpace() {
                       </div>
                     );
                   })}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                      padding: "20px",
+                      borderRadius: "12px",
+                      border: `2px solid ${Number(form.discounts?.extendedHours) > 0 ? "#0A1628" : "#E5E7EB"}`,
+                      background: Number(form.discounts?.extendedHours) > 0 ? "rgba(10,22,40,0.02)" : "#fff",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "0 0 4px" }}>
+                        Extended Hours Discount
+                      </p>
+                      <p style={{ fontSize: "13px", color: "#6B7280", margin: 0, lineHeight: "1.5" }}>
+                        Offer your own discount for hourly bookings longer than 3 hours. Set to 0 to disable.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={form.discounts?.extendedHours || ""}
+                        onChange={(e) =>
+                          updateField("discounts", {
+                            ...form.discounts,
+                            extendedHours: e.target.value === "" ? 0 : Number(e.target.value),
+                          })
+                        }
+                        placeholder="0"
+                        style={{
+                          width: "64px",
+                          padding: "8px 10px",
+                          borderRadius: "8px",
+                          border: "1.5px solid #E5E7EB",
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#0A1628",
+                          textAlign: "center",
+                        }}
+                      />
+                      <span style={{ fontSize: "14px", color: "#6B7280" }}>%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
