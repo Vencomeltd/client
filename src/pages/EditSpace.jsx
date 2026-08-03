@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
+import BlockDatesEditor from "../components/BlockDatesEditor";
 
 export default function EditSpace() {
   const { id } = useParams();
@@ -45,6 +46,9 @@ export default function EditSpace() {
     customDayPricingEnabled: false,
     customDayPricing: [],
     singleDayOnly: false,
+    discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false },
+    blockedDates: [],
+    leaseAgreement: null,
     availability: {
       openDays: [],
       openTime: "",
@@ -109,6 +113,14 @@ export default function EditSpace() {
           customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
           customDayPricing: p.pricing?.customDayPricing || [],
           singleDayOnly: p.bookingSettings?.singleDayOnly || false,
+          discounts: {
+            newListing: p.pricing?.discounts?.newListing || false,
+            lastMinute: p.pricing?.discounts?.lastMinute || false,
+            weekly: p.pricing?.discounts?.weekly || false,
+            monthly: p.pricing?.discounts?.monthly || false,
+          },
+          blockedDates: p.blockedDates || [],
+          leaseAgreement: p.leaseAgreement || null,
           availability: {
             openDays: p.availability?.openDays || [],
             openTime: p.availability?.openTime || "",
@@ -265,6 +277,14 @@ export default function EditSpace() {
           minNotice: formData.availability.minNotice,
         })
       );
+      payload.append("discounts", JSON.stringify(formData.discounts || {}));
+      payload.append("blockedDates", JSON.stringify(formData.blockedDates || []));
+
+      if (formData.leaseAgreement instanceof File) {
+        payload.append("leaseFile", formData.leaseAgreement);
+      } else if (typeof formData.leaseAgreement === "string" && formData.leaseAgreement) {
+        payload.append("existingLeaseAgreement", formData.leaseAgreement);
+      }
 
       formData.photos.forEach((photo) => {
         payload.append("images", photo);
@@ -638,6 +658,80 @@ export default function EditSpace() {
             marginBottom: "16px",
           }}
         >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
+            Discounts
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {[
+              { key: "newListing", title: "New Listing Promotion (20%)", description: "Automatic 20% discount on your first few bookings." },
+              { key: "lastMinute", title: "Last Minute Discount (1%)", description: "Small savings for guests booking within a few days of arrival." },
+              { key: "weekly", title: "Weekly Discount (10%)", description: "Reward guests who stay for 7 days or more." },
+              { key: "monthly", title: "Monthly Discount (20%)", description: "Attract long-term stays with generous monthly savings." },
+            ].map((discount) => {
+              const enabled = formData.discounts?.[discount.key] || false;
+              return (
+                <div
+                  key={discount.key}
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      discounts: { ...prev.discounts, [discount.key]: !enabled },
+                    }))
+                  }
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "16px",
+                    padding: "16px",
+                    borderRadius: "10px",
+                    border: `1.5px solid ${enabled ? "#0A1628" : "#E5E7EB"}`,
+                    background: enabled ? "rgba(10,22,40,0.02)" : "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: "0 0 4px" }}>
+                      {discount.title}
+                    </p>
+                    <p style={{ fontSize: "13px", color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+                      {discount.description}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      width: "22px",
+                      height: "22px",
+                      borderRadius: "6px",
+                      flexShrink: 0,
+                      border: `2px solid ${enabled ? "#0A1628" : "#D1D5DB"}`,
+                      background: enabled ? "#0A1628" : "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {enabled && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
           <h3
             style={{
               fontSize: "16px",
@@ -728,6 +822,27 @@ export default function EditSpace() {
               Enable Instant Book
             </label>
           </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "8px" }}>
+            Block Dates
+          </h3>
+          <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
+            Click dates to mark them as unavailable. Guests cannot book these dates.
+          </p>
+          <BlockDatesEditor
+            blockedDates={formData.blockedDates}
+            onChange={(next) => setFormData((prev) => ({ ...prev, blockedDates: next }))}
+          />
         </div>
 
         <div
@@ -927,6 +1042,72 @@ export default function EditSpace() {
               }}
             />
           </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
+            Lease Agreement
+          </h3>
+          {!formData.leaseAgreement ? (
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "32px 24px",
+                border: "2px dashed #E5E7EB",
+                borderRadius: "12px",
+                cursor: "pointer",
+                background: "#fff",
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) setFormData((prev) => ({ ...prev, leaseAgreement: file }));
+                }}
+              />
+              <p style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", margin: "0 0 4px" }}>
+                Click to upload lease agreement
+              </p>
+              <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>PDF, DOC or DOCX up to 10MB</p>
+            </label>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 18px",
+                border: "1.5px solid #86EFAC",
+                borderRadius: "10px",
+                background: "#F0FDF4",
+              }}
+            >
+              <p style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", margin: 0 }}>
+                {formData.leaseAgreement instanceof File ? formData.leaseAgreement.name : "Lease agreement uploaded"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, leaseAgreement: null }))}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", fontSize: "13px", fontWeight: "600" }}
+              >
+                Remove
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "space-between", paddingBottom: "40px" }}>
