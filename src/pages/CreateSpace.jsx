@@ -1094,9 +1094,21 @@ export default function CreateSpace() {
           singleDayOnly: form.pricing.daily?.enabled ? !!form.singleDayOnly : false,
         })
       );
+      // The server expects availability as a structured object
+      // ({openDays, openTime, closeTime, minNotice}), matching what
+      // EditSpace.jsx already sends -- this used to send a bare
+      // JSON-stringified array of day names instead, which Mongoose
+      // silently coerced to schema defaults (empty openDays/openTime/
+      // closeTime) on every single listing ever created, despite the step
+      // being required and shown correctly in the Preview step.
       formData.append(
         "availability",
-        form.availability || JSON.stringify(form.availabilityDays || []) || "all"
+        JSON.stringify({
+          openDays: form.availabilityDays || [],
+          openTime: form.startTime || "",
+          closeTime: form.endTime || "",
+          minNotice: form.minNotice || "24hours",
+        })
       );
       formData.append("coverImageIndex", form.coverImageIndex ?? 0);
       formData.append("wifi", form.wifi || false);

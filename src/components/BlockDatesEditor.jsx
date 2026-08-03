@@ -73,7 +73,14 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
     }
 
     const start = blockStart < selectedDate ? blockStart : selectedDate;
-    const end = blockStart < selectedDate ? selectedDate : blockStart;
+    const rangeEnd = blockStart < selectedDate ? selectedDate : blockStart;
+    // Exclusive upper boundary (rangeEnd + 1 day), matching the quick-block
+    // tools below -- clicking the same day twice (a single-day block) used
+    // to save start === end, a zero-width range that isBlockedDate's own
+    // `current < end` check can never match, silently making the block a
+    // no-op both here and (via the equivalent check in routes/bookings.js)
+    // for actually preventing guest bookings.
+    const end = new Date(rangeEnd.getTime() + 86400000);
 
     if (blockMode === "block") {
       const existing = blockedDates || [];
