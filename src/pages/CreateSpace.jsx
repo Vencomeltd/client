@@ -974,7 +974,11 @@ export default function CreateSpace() {
       const end = new Date(blocked.end);
       start.setHours(0, 0, 0, 0);
       end.setHours(0, 0, 0, 0);
-      return current >= start && current <= end;
+      // end is stored as start + 1 day (an exclusive boundary marking a
+      // single blocked calendar day) -- using <= here treated the day
+      // *after* every blocked day as blocked too (e.g. "Block All
+      // Wednesdays" also shaded every Thursday).
+      return current >= start && current < end;
     });
   };
 
