@@ -75,17 +75,28 @@ const getBookingLocation = (booking) =>
 const getListingLocation = (listing) =>
   [listing.location?.city, listing.location?.country].filter(Boolean).join(", ");
 
-const getListingCardProps = (listing) => ({
-  id: listing._id,
-  image: listing.coverImage,
-  title: listing.title,
-  location: listing.location?.city || "",
-  category: listing.category?.name || "",
-  price: listing.pricing?.hourly || 0,
-  priceUnit: listing.pricing?.hourly ? "hr" : "POA",
-  rating: listing.rating || 0,
-  reviewCount: listing.reviewNumber || 0,
-});
+const getListingCardProps = (listing) => {
+  // Only ever checked hourly, so any daily/weekly/monthly-only listing
+  // (no hourly rate set) fell straight to £0/POA even with a real price.
+  const hourly = listing.pricing?.hourly || 0;
+  const daily = listing.pricing?.daily || 0;
+  const weekly = listing.pricing?.weekly || 0;
+  const monthly = listing.pricing?.monthly || 0;
+  const price = hourly || daily || weekly || monthly || 0;
+  const priceUnit = hourly ? "hr" : daily ? "day" : weekly ? "wk" : monthly ? "mo" : "POA";
+
+  return {
+    id: listing._id,
+    image: listing.coverImage,
+    title: listing.title,
+    location: listing.location?.city || "",
+    category: listing.category?.name || "",
+    price,
+    priceUnit,
+    rating: listing.rating || 0,
+    reviewCount: listing.reviewNumber || 0,
+  };
+};
 
 // ── STATUS BADGE ──────────────────────────────────────────────────────────────
 
