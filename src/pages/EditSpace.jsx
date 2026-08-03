@@ -742,6 +742,45 @@ export default function EditSpace() {
           >
             Availability
           </h3>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "8px" }}>
+              Open Days
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => {
+                const selected = formData.availability.openDays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        availability: {
+                          ...prev.availability,
+                          openDays: selected
+                            ? prev.availability.openDays.filter((d) => d !== day)
+                            : [...prev.availability.openDays, day],
+                        },
+                      }))
+                    }
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "8px",
+                      border: `1.5px solid ${selected ? "#0A1628" : "#E5E7EB"}`,
+                      background: selected ? "rgba(10,22,40,0.03)" : "#fff",
+                      color: selected ? "#0A1628" : "#111827",
+                      fontSize: "13px",
+                      fontWeight: selected ? "600" : "400",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div style={{ display: "flex", gap: "16px", marginBottom: "16px", flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: "140px" }}>
               <label
