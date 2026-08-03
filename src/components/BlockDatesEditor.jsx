@@ -154,7 +154,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
                   return bs.toDateString() === d.toDateString();
                 });
                 if (!alreadyBlocked) {
-                  newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "manual" });
+                  newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal" });
                 }
                 cursor.setDate(cursor.getDate() + 1);
               }
@@ -224,7 +224,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
                     return bs.toDateString() === d.toDateString();
                   });
                   if (!alreadyBlocked) {
-                    newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "manual" });
+                    newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal" });
                   }
                 }
                 cursor.setDate(cursor.getDate() + 1);
