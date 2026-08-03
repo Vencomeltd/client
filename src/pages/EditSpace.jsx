@@ -44,6 +44,7 @@ export default function EditSpace() {
     },
     customDayPricingEnabled: false,
     customDayPricing: [],
+    singleDayOnly: false,
     availability: {
       openDays: [],
       openTime: "",
@@ -107,6 +108,7 @@ export default function EditSpace() {
           pricing,
           customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
           customDayPricing: p.pricing?.customDayPricing || [],
+          singleDayOnly: p.bookingSettings?.singleDayOnly || false,
           availability: {
             openDays: p.availability?.openDays || [],
             openTime: p.availability?.openTime || "",
@@ -251,6 +253,7 @@ export default function EditSpace() {
           instantBook: formData.availability.instantBook,
           bufferBefore: formData.bufferTime.before,
           bufferAfter: formData.bufferTime.after,
+          singleDayOnly: formData.pricing.daily?.enabled ? !!formData.singleDayOnly : false,
         })
       );
       payload.append(
@@ -583,6 +586,46 @@ export default function EditSpace() {
               customDayPricing={formData.customDayPricing}
               onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
             />
+          )}
+
+          {formData.pricing.daily?.enabled && (
+            <div
+              style={{ marginTop: "24px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+              onClick={() => setFormData((prev) => ({ ...prev, singleDayOnly: !prev.singleDayOnly }))}
+            >
+              <div>
+                <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "15px", margin: 0 }}>
+                  Single-day bookings only
+                </p>
+                <p style={{ color: "#6B7280", fontSize: "13px", margin: "2px 0 0" }}>
+                  Like a one-way flight — guests can only book one calendar day at a time, not a multi-night stay
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={formData.singleDayOnly ? "Disable single-day-only bookings" : "Enable single-day-only bookings"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFormData((prev) => ({ ...prev, singleDayOnly: !prev.singleDayOnly }));
+                }}
+                style={{
+                  width: "48px", height: "26px", borderRadius: "9999px",
+                  background: formData.singleDayOnly ? "#0A1628" : "#E5E7EB",
+                  border: "none", cursor: "pointer", position: "relative",
+                  transition: "background 0.2s ease", flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute", top: "3px",
+                    left: formData.singleDayOnly ? "25px" : "3px",
+                    width: "20px", height: "20px", borderRadius: "50%",
+                    background: "#fff", transition: "left 0.2s ease",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </button>
+            </div>
           )}
         </div>
 

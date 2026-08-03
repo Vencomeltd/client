@@ -210,6 +210,9 @@ const defaultState = {
   // hourly/daily rate above -- see customDayPricingEnabled toggle below.
   customDayPricingEnabled: false,
   customDayPricing: [],
+  // DAILY pricing only -- restricts a booking to exactly one calendar day
+  // instead of allowing a multi-night stay. See bookingSettings.singleDayOnly.
+  singleDayOnly: false,
   minHours: "",
   minNotice: "24hours",
   availability: "",
@@ -1179,6 +1182,7 @@ export default function CreateSpace() {
           minNotice: form.minNotice || "24hours",
           approveAllBookings: !form.instantBook,
           refundPolicy: form.refundPolicy || "moderate",
+          singleDayOnly: form.pricing.daily?.enabled ? !!form.singleDayOnly : false,
         })
       );
       formData.append(
@@ -2904,6 +2908,46 @@ export default function CreateSpace() {
                       customDayPricing={form.customDayPricing}
                       onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
                     />
+                  )}
+
+                  {form.pricing.daily?.enabled && (
+                    <div
+                      style={{ marginTop: "24px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+                      onClick={() => setForm((prev) => ({ ...prev, singleDayOnly: !prev.singleDayOnly }))}
+                    >
+                      <div>
+                        <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "15px", margin: 0 }}>
+                          Single-day bookings only
+                        </p>
+                        <p style={{ color: "#6B7280", fontSize: "13px", margin: "2px 0 0" }}>
+                          Like a one-way flight — guests can only book one calendar day at a time, not a multi-night stay
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={form.singleDayOnly ? "Disable single-day-only bookings" : "Enable single-day-only bookings"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setForm((prev) => ({ ...prev, singleDayOnly: !prev.singleDayOnly }));
+                        }}
+                        style={{
+                          width: "48px", height: "26px", borderRadius: "9999px",
+                          background: form.singleDayOnly ? "#0A1628" : "#E5E7EB",
+                          border: "none", cursor: "pointer", position: "relative",
+                          transition: "background 0.2s ease", flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute", top: "3px",
+                            left: form.singleDayOnly ? "25px" : "3px",
+                            width: "20px", height: "20px", borderRadius: "50%",
+                            background: "#fff", transition: "left 0.2s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                          }}
+                        />
+                      </button>
+                    </div>
                   )}
 
                   <div
