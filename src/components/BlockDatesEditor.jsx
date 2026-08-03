@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const DAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 };
 const DAYS_SHORT = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -18,6 +18,13 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
   const [recurringDay, setRecurringDay] = useState("");
   const [recurringFrom, setRecurringFrom] = useState("");
   const [recurringTo, setRecurringTo] = useState("");
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const blockCalendarToday = useMemo(() => {
     const today = new Date();
@@ -283,8 +290,12 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
         </button>
         <span style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628" }}>
           {blockViewDate.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
-          {" – "}
-          {new Date(blockViewDate.getFullYear(), blockViewDate.getMonth() + 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+          {!isMobile && (
+            <>
+              {" – "}
+              {new Date(blockViewDate.getFullYear(), blockViewDate.getMonth() + 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+            </>
+          )}
         </span>
         <button
           type="button"
@@ -302,8 +313,11 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
         </p>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-        {[blockViewDate, new Date(blockViewDate.getFullYear(), blockViewDate.getMonth() + 1, 1)].map((monthDate, monthIndex) => {
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "24px" }}>
+        {(isMobile
+          ? [blockViewDate]
+          : [blockViewDate, new Date(blockViewDate.getFullYear(), blockViewDate.getMonth() + 1, 1)]
+        ).map((monthDate, monthIndex) => {
           const cells = getBlockDaysInMonth(monthDate);
 
           return (
