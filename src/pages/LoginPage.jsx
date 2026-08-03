@@ -44,6 +44,8 @@ export default function LoginPage({ mode = "login" }) {
   const [step, setStep] = useState("role");
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [firstName, setFirstName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
@@ -138,6 +140,96 @@ export default function LoginPage({ mode = "login" }) {
     }
   };
 
+  // Shared by both the OTP-verify success path and the direct password-login
+  // success path -- stores tokens, promotes the account to host if needed,
+  // and navigates to the right landing page.
+  const completeLogin = async (data) => {
+    let resolvedUser = data.user;
+    localStorage.setItem("vencome_token", data.token);
+    localStorage.setItem("vencome_refresh", data.refreshToken);
+    localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+    localStorage.setItem("vencome_login_time", Date.now().toString());
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("refreshToken", data.refreshToken);
+    localStorage.setItem("user", JSON.stringify(resolvedUser));
+
+    if (role === "host" && !resolvedUser.isHost) {
+      const roleRes = await fetch(`${API}/auth/update-role`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${data.token}`,
+        },
+        body: JSON.stringify({ isHost: true }),
+      });
+
+      if (roleRes.ok) {
+        resolvedUser = { ...resolvedUser, isHost: true };
+        localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
+        localStorage.setItem("user", JSON.stringify(resolvedUser));
+      }
+    }
+
+    updateUser(resolvedUser);
+    setFirstName(resolvedUser.firstName || email.split("@")[0]);
+    setStep("success");
+    const userIsHost = resolvedUser?.isHost === true || role === "host";
+    const goStraightToCreateSpace = isNewAccount && userIsHost;
+    setJustSignedUpAsHost(goStraightToCreateSpace);
+
+    window.setTimeout(() => {
+      if (goStraightToCreateSpace) {
+        navigate("/create-space");
+      } else if (userIsHost) {
+        navigate("/dashboard");
+      } else {
+        navigate("/customer/dashboard");
+      }
+    }, 1500);
+  };
+
+  const handlePasswordLogin = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    setEmailError("");
+    setPasswordError("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPasswordError(data.error || "Invalid email or password");
+        setIsLoading(false);
+        return;
+      }
+
+      // Real password verified -- the server skips the OTP step and returns
+      // tokens directly (requiresVerification is only set on the otp-flow path).
+      if (data.requiresVerification) {
+        setIsNewAccount(false);
+        setStep("otp");
+        setResendTimer(30);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsNewAccount(false);
+      await completeLogin(data);
+    } catch (err) {
+      setPasswordError("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
     const code = otp.join("");
     if (code.length < 6) return;
@@ -160,48 +252,7 @@ export default function LoginPage({ mode = "login" }) {
         return;
       }
 
-      let resolvedUser = data.user;
-      localStorage.setItem("vencome_token", data.token);
-      localStorage.setItem("vencome_refresh", data.refreshToken);
-      localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
-      localStorage.setItem("vencome_login_time", Date.now().toString());
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("refreshToken", data.refreshToken);
-      localStorage.setItem("user", JSON.stringify(resolvedUser));
-
-      if (role === "host" && !resolvedUser.isHost) {
-        const roleRes = await fetch(`${API}/auth/update-role`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${data.token}`,
-          },
-          body: JSON.stringify({ isHost: true }),
-        });
-
-        if (roleRes.ok) {
-          resolvedUser = { ...resolvedUser, isHost: true };
-          localStorage.setItem("vencome_user", JSON.stringify(resolvedUser));
-          localStorage.setItem("user", JSON.stringify(resolvedUser));
-        }
-      }
-
-      updateUser(resolvedUser);
-      setFirstName(resolvedUser.firstName || email.split("@")[0]);
-      setStep("success");
-      const userIsHost = resolvedUser?.isHost === true || role === "host";
-      const goStraightToCreateSpace = isNewAccount && userIsHost;
-      setJustSignedUpAsHost(goStraightToCreateSpace);
-
-      window.setTimeout(() => {
-        if (goStraightToCreateSpace) {
-          navigate("/create-space");
-        } else if (userIsHost) {
-          navigate("/dashboard");
-        } else {
-          navigate("/customer/dashboard");
-        }
-      }, 1500);
+      await completeLogin(data);
     } catch (err) {
       setOtpError("Network error. Please try again.");
     } finally {
@@ -428,6 +479,67 @@ export default function LoginPage({ mode = "login" }) {
                     ) : null}
                   </div>
 
+                  {mode !== "signup" ? (
+                    <div style={{ marginBottom: 16 }}>
+                      <input
+                        type="password"
+                        placeholder="Password (optional — leave blank to use a code)"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        style={{
+                          width: "100%",
+                          height: 52,
+                          border: "1.5px solid",
+                          borderColor: passwordError ? COLORS.error : COLORS.border,
+                          borderRadius: 10,
+                          padding: "0 16px",
+                          fontSize: 15,
+                          color: COLORS.navy,
+                          outline: "none",
+                          boxSizing: "border-box",
+                          fontFamily: "inherit",
+                        }}
+                        onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                        onBlur={(e) =>
+                          (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
+                        }
+                      />
+                      {passwordError ? (
+                        <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
+                          {passwordError}
+                        </p>
+                      ) : null}
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                        <Link
+                          to="/forgot-password"
+                          style={{ fontSize: 12, color: COLORS.grey, textDecoration: "none" }}
+                        >
+                          Forgot password?
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPassword("");
+                            setPasswordError("");
+                            handleContinue();
+                          }}
+                          style={{
+                            fontSize: 12,
+                            color: COLORS.blue,
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Log in with OTP instead
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <label
                     style={{
                       display: "flex",
@@ -458,7 +570,9 @@ export default function LoginPage({ mode = "login" }) {
 
                   <button
                     type="button"
-                    onClick={handleContinue}
+                    onClick={() =>
+                      mode !== "signup" && password ? handlePasswordLogin() : handleContinue()
+                    }
                     disabled={isLoading}
                     style={{
                       width: "100%",

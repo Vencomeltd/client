@@ -1,16 +1,20 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Input from "../components/Input";
 import Button from "../components/Button";
 import OTPInput from "../components/OTPInput";
 import { apiFetch } from "../utils/api";
 
-const ForgotPassword = ({ onBackToLogin }) => {
+const ForgotPassword = () => {
+  const navigate = useNavigate();
+  const onBackToLogin = () => navigate("/login");
   const [step, setStep] = useState(1);
-  const [otp, setOtp] = useState(null);
+  const [resetToken, setResetToken] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [resendMessage, setResendMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleBackToCredentials = () => {
@@ -19,20 +23,16 @@ const ForgotPassword = ({ onBackToLogin }) => {
 
   const handleResendOTP = async () => {
     setLoading(true);
+    setResendMessage("");
     try {
       await apiFetch({
         endpoint: "/auth/forgot-password",
         method: "POST",
         body: { email },
       });
-
-      toast.success(<CustomToast message="OTP resent successfully!" />, {
-        className: "custom-toast-success",
-      });
+      setResendMessage("A new code has been sent.");
     } catch (err) {
-      toast.error(
-        <CustomToast message={err.message || "Failed to resend OTP"} />
-      );
+      setError(err.message || "Failed to resend OTP");
     } finally {
       setLoading(false);
     }
@@ -59,12 +59,12 @@ const ForgotPassword = ({ onBackToLogin }) => {
 
   const handleOTPVerify = async (otp) => {
     try {
-      await apiFetch({
+      const data = await apiFetch({
         endpoint: "/auth/verify-otp",
         method: "POST",
         body: { email, otp },
       });
-      setOtp(otp);
+      setResetToken(data.resetToken);
       setStep(3);
     } catch (err) {
       throw err;
@@ -80,7 +80,7 @@ const ForgotPassword = ({ onBackToLogin }) => {
       await apiFetch({
         endpoint: "/auth/reset-password",
         method: "POST",
-        body: { email, otp, password, confirmPassword },
+        body: { resetToken, password, confirmPassword },
       });
       onBackToLogin();
     } catch (err) {
@@ -142,13 +142,16 @@ const ForgotPassword = ({ onBackToLogin }) => {
               Verify Your Email
             </h2>
             <p className="text-gray-600 mb-4">
-              We've sent a 4-digit code to <strong>{email}</strong>
+              We've sent a 6-digit code to <strong>{email}</strong>
             </p>
             <p className="text-xs text-gray-500">
               The code will expire in 10 minutes
             </p>
           </div>
           <OTPInput email={email} onVerify={handleOTPVerify} />
+          {resendMessage && (
+            <p className="text-green-600 text-sm text-center mt-2">{resendMessage}</p>
+          )}
           <div className="flex items-center justify-between text-sm mt-6">
             <button
               type="button"
