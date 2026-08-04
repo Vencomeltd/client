@@ -1093,6 +1093,12 @@ export default function CreateSpace() {
           approveAllBookings: !form.instantBook,
           refundPolicy: form.refundPolicy || "moderate",
           singleDayOnly: form.pricing.daily?.enabled ? !!form.singleDayOnly : false,
+          // Collected in the wizard and already sent correctly in the
+          // draft-autosave payload below, but was missing here entirely --
+          // silently discarded on every new listing's publish. EditSpace.jsx
+          // already sends these two fields correctly on edit.
+          bufferBefore: effectiveBufferBefore,
+          bufferAfter: effectiveBufferAfter,
         })
       );
       // The server expects availability as a structured object
