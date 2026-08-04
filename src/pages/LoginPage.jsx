@@ -46,6 +46,8 @@ export default function LoginPage({ mode = "login" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [firstName, setFirstName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
@@ -225,6 +227,58 @@ export default function LoginPage({ mode = "login" }) {
       await completeLogin(data);
     } catch (err) {
       setPasswordError("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignupSubmit = async () => {
+    setEmailError("");
+    setPasswordError("");
+    setConfirmPasswordError("");
+
+    if (!role) {
+      setEmailError("Please select an account type");
+      return;
+    }
+    if (!email || !isValidEmail(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    if (!password || password.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setConfirmPasswordError("Passwords do not match");
+      return;
+    }
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`${API}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          isHost: role === "host",
+          newsletterOptIn,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEmailError(data.error || "Something went wrong");
+        setIsLoading(false);
+        return;
+      }
+
+      setIsNewAccount(true);
+      setStep("otp");
+      setResendTimer(30);
+    } catch (err) {
+      setEmailError("Network error. Please check your connection.");
     } finally {
       setIsLoading(false);
     }
@@ -538,7 +592,78 @@ export default function LoginPage({ mode = "login" }) {
                         </button>
                       </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 16 }}>
+                        <input
+                          type="password"
+                          placeholder="Create a password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={{
+                            width: "100%",
+                            height: 52,
+                            border: "1.5px solid",
+                            borderColor: passwordError ? COLORS.error : COLORS.border,
+                            borderRadius: 10,
+                            padding: "0 16px",
+                            fontSize: 15,
+                            color: COLORS.navy,
+                            outline: "none",
+                            boxSizing: "border-box",
+                            fontFamily: "inherit",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                          onBlur={(e) =>
+                            (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
+                          }
+                        />
+                        {passwordError ? (
+                          <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
+                            {passwordError}
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: 12, color: COLORS.grey, marginTop: 6 }}>
+                            At least 8 characters
+                          </p>
+                        )}
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <input
+                          type="password"
+                          placeholder="Confirm password"
+                          value={confirmPassword}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            setConfirmPasswordError("");
+                          }}
+                          style={{
+                            width: "100%",
+                            height: 52,
+                            border: "1.5px solid",
+                            borderColor: confirmPasswordError ? COLORS.error : COLORS.border,
+                            borderRadius: 10,
+                            padding: "0 16px",
+                            fontSize: 15,
+                            color: COLORS.navy,
+                            outline: "none",
+                            boxSizing: "border-box",
+                            fontFamily: "inherit",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                          onBlur={(e) =>
+                            (e.target.style.borderColor = confirmPasswordError ? COLORS.error : COLORS.border)
+                          }
+                        />
+                        {confirmPasswordError ? (
+                          <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
+                            {confirmPasswordError}
+                          </p>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
 
                   <label
                     style={{
@@ -570,9 +695,11 @@ export default function LoginPage({ mode = "login" }) {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      mode !== "signup" && password ? handlePasswordLogin() : handleContinue()
-                    }
+                    onClick={() => {
+                      if (mode === "signup") return handleSignupSubmit();
+                      if (password) return handlePasswordLogin();
+                      return handleContinue();
+                    }}
                     disabled={isLoading}
                     style={{
                       width: "100%",
@@ -601,10 +728,37 @@ export default function LoginPage({ mode = "login" }) {
                       >
                         <Loader2 size={20} />
                       </motion.div>
+                    ) : mode === "signup" ? (
+                      "Create Account"
                     ) : (
                       "Continue"
                     )}
                   </button>
+
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: COLORS.grey,
+                      textAlign: "center",
+                      marginBottom: 20,
+                    }}
+                  >
+                    {mode === "signup" ? (
+                      <>
+                        Already have an account?{" "}
+                        <Link to="/login" style={{ color: COLORS.blue, fontWeight: 700, textDecoration: "none" }}>
+                          Log in
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        Don't have an account?{" "}
+                        <Link to="/signup" style={{ color: COLORS.blue, fontWeight: 700, textDecoration: "none" }}>
+                          Sign up
+                        </Link>
+                      </>
+                    )}
+                  </p>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
                     <div style={{ flex: 1, height: 1, background: COLORS.border }} />
