@@ -578,9 +578,17 @@ function getListingPriceLabel(listing = {}) {
 }
 
 function getListingHostName(listing = {}) {
+  // Signup only ever collects an email (see LoginPage.jsx) -- name fields
+  // stay empty until a host separately fills in their profile, so a real,
+  // legitimate host with real listings showed as "Unknown host" here just
+  // for not having done that yet. Fall back to their email (always
+  // present for any genuinely linked host) before giving up entirely --
+  // this is also literally what Adriana asked for in chat ("where can I
+  // find the host of a listing? Their email?").
   return (
     listing.host?.displayName ||
     [listing.host?.firstName, listing.host?.lastName].filter(Boolean).join(" ") ||
+    listing.host?.email ||
     "Unknown host"
   );
 }
