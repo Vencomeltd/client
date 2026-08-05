@@ -123,7 +123,8 @@ function AppContent() {
     location.pathname === "/sitemap" ||
     location.pathname === "/blogs" ||
     location.pathname.startsWith("/profile") ||
-    location.pathname.startsWith("/settings");
+    location.pathname.startsWith("/settings") ||
+    location.pathname === "/notifications";
 
   return (
     <>

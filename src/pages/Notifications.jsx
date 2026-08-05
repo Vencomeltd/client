@@ -4,6 +4,7 @@ import { BellRing, X } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import { useNotifications } from "../context/NotificationContext";
 import { TYPE_CONFIG, timeAgo } from "../utils/notificationDisplay";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 function groupByDate(notifications) {
   const groups = {};
@@ -103,14 +104,14 @@ export default function Notifications() {
   const grouped = groupByDate(filtered);
 
   return (
+    <DashboardLayout title="Notifications">
     <div className="notifications-page">
       <div className="notif-container">
         {/* Header */}
         <div className="notif-header">
           <div className="notif-header-left">
-            <h1 className="notif-title">Notifications</h1>
             {unreadCount > 0 && (
-              <span className="notif-badge">{unreadCount}</span>
+              <span className="notif-badge">{unreadCount} unread</span>
             )}
           </div>
           <div className="notif-header-actions">
@@ -606,5 +607,6 @@ export default function Notifications() {
         }
       `}</style>
     </div>
+    </DashboardLayout>
   );
 }
