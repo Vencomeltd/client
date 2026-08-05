@@ -655,7 +655,6 @@ export default function DashboardLayout({ children, title }) {
                 ) : null}
               </AnimatePresence>
             </div>
-            <UserInitialsAvatar name={displayName} size="h-8 w-8" textSize="text-[12px]" />
           </div>
         </header>
 
