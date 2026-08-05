@@ -670,6 +670,82 @@ function Toast({ message }) {
   );
 }
 
+// Reusable in-app replacement for window.confirm(). Each component that
+// needs a confirm dialog calls useConfirm() locally (state can't be shared
+// across the many independent section components in this file) and renders
+// the returned ConfirmDialog element anywhere in its JSX tree.
+function ConfirmModal({ isOpen, title, message, confirmLabel, danger, onConfirm, onCancel }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onCancel}>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 12 }}>{title}</h3>
+      <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 24, lineHeight: 1.5 }}>{message}</p>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            padding: "10px 18px",
+            borderRadius: 10,
+            border: "1px solid #E5E7EB",
+            background: "white",
+            color: "#374151",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          style={{
+            padding: "10px 18px",
+            borderRadius: 10,
+            border: "none",
+            background: danger ? "#DC2626" : "#2E58EC",
+            color: "white",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function useConfirm() {
+  const [state, setState] = useState(null);
+
+  const confirm = useCallback((message, options = {}) => {
+    return new Promise((resolve) => {
+      setState({ message, resolve, ...options });
+    });
+  }, []);
+
+  const resolveWith = (result) => {
+    state?.resolve(result);
+    setState(null);
+  };
+
+  const ConfirmDialog = (
+    <ConfirmModal
+      isOpen={!!state}
+      title={state?.title || "Are you sure?"}
+      message={state?.message || ""}
+      confirmLabel={state?.confirmLabel || "Confirm"}
+      danger={state?.danger !== false}
+      onConfirm={() => resolveWith(true)}
+      onCancel={() => resolveWith(false)}
+    />
+  );
+
+  return { confirm, ConfirmDialog };
+}
+
 function StatusPill({ status, type = "generic" }) {
   if (type === "listing") {
     const classes =
@@ -2264,6 +2340,7 @@ function TeamSection({ onToast }) {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [savingRoleId, setSavingRoleId] = useState(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const loadTeam = async () => {
     setLoading(true);
@@ -2329,7 +2406,7 @@ function TeamSection({ onToast }) {
   };
 
   const revokeAccess = async (member) => {
-    if (!window.confirm(`Revoke admin access for ${member.displayName || member.email}?`)) return;
+    if (!(await confirm(`Revoke admin access for ${member.displayName || member.email}?`))) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${member._id}/admin`, {
@@ -2479,6 +2556,8 @@ function TeamSection({ onToast }) {
         </div>
       )}
 
+      {ConfirmDialog}
+
       <Modal isOpen={showInvite} onClose={() => !inviting && setShowInvite(false)}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Add Team Member</h3>
         <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
@@ -2552,6 +2631,7 @@ function CategoriesSection({ onToast }) {
   const [subForm, setSubForm] = useState(EMPTY_SUBCATEGORY_FORM);
   const [editingSubId, setEditingSubId] = useState(null);
   const [savingSub, setSavingSub] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const loadCategories = async () => {
     setLoading(true);
@@ -2662,7 +2742,7 @@ function CategoriesSection({ onToast }) {
   };
 
   const handleDeleteSub = async (sub) => {
-    if (!window.confirm(`Delete subcategory "${sub.name}"?`)) return;
+    if (!(await confirm(`Delete subcategory "${sub.name}"?`))) return;
 
     if (!editingId) {
       setForm((f) => ({ ...f, subcategories: (f.subcategories || []).filter((s) => (s._localId || s._id) !== (sub._localId || sub._id)) }));
@@ -2744,7 +2824,7 @@ function CategoriesSection({ onToast }) {
   };
 
   const handleDelete = async (category) => {
-    if (!window.confirm(`Delete "${category.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${category.name}"? This cannot be undone.`))) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/${category._id}`, {
@@ -2840,6 +2920,8 @@ function CategoriesSection({ onToast }) {
           ))}
         </div>
       )}
+
+      {ConfirmDialog}
 
       <Modal isOpen={showForm} onClose={closeForm}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>
@@ -3031,6 +3113,7 @@ function MarketsSection({ bookings, onToast }) {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_MARKET_FORM);
   const [saving, setSaving] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const loadMarkets = async () => {
     setLoading(true);
@@ -3130,7 +3213,7 @@ function MarketsSection({ bookings, onToast }) {
   };
 
   const handleDelete = async (market) => {
-    if (!window.confirm(`Delete "${market.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${market.name}"? This cannot be undone.`))) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/markets/${market._id}`, {
@@ -3238,6 +3321,8 @@ function MarketsSection({ bookings, onToast }) {
         </div>
       ) : null}
 
+      {ConfirmDialog}
+
       <Modal isOpen={showForm} onClose={closeForm}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>
           {editingId ? "Edit Market" : "Create Market"}
@@ -3341,6 +3426,7 @@ function BroadcastSection({ users }) {
 
   const [templates, setTemplates] = useState([]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
   const [templateName, setTemplateName] = useState("");
 
   const [history, setHistory] = useState([]);
@@ -3459,7 +3545,7 @@ function BroadcastSection({ users }) {
   };
 
   const handleDeleteTemplate = async (template) => {
-    if (!window.confirm(`Delete template "${template.name}"?`)) return;
+    if (!(await confirm(`Delete template "${template.name}"?`))) return;
     try {
       await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/templates/${template._id}`, {
         method: "DELETE",
@@ -3472,7 +3558,7 @@ function BroadcastSection({ users }) {
   };
 
   const handleCancelScheduled = async (broadcast) => {
-    if (!window.confirm("Cancel this scheduled broadcast?")) return;
+    if (!(await confirm("Cancel this scheduled broadcast?"))) return;
     try {
       await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, {
         method: "DELETE",
@@ -3486,6 +3572,8 @@ function BroadcastSection({ users }) {
 
   return (
     <>
+      {ConfirmDialog}
+
       <div className="mb-6">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Broadcast</h2>
         <p className="mt-1 text-[13px] text-[#6B7280]">Send announcements and updates to your users</p>
@@ -3805,6 +3893,7 @@ function AnalyticsSection({ chartData, categoryData, stats, bookings, livePaymen
 
 function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog, setEditingBlog, blogError, setBlogError, blogSuccess, setBlogSuccess, blogLoading, setBlogLoading }) {
   const [showForm, setShowForm] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   useEffect(() => {
     if (!showForm) return;
@@ -3938,7 +4027,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this blog post?")) return;
+    if (!(await confirm("Delete this blog post?"))) return;
     const token = localStorage.getItem("vencome_token");
     await fetch(`${import.meta.env.VITE_API_URL}/blog/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     fetchBlogs();
@@ -3959,6 +4048,8 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
 
   return (
     <>
+      {ConfirmDialog}
+
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h2 className="text-[20px] font-extrabold text-[#0A1628]">Content & Blog</h2>
@@ -5200,6 +5291,7 @@ export default function AdminDashboard() {
     setActiveSection(section);
     window.history.pushState({}, "", `/admin?section=${section}`);
   };
+  const { confirm, ConfirmDialog } = useConfirm();
   const [myAdmin, setMyAdmin] = useState(null);
 
   useEffect(() => {
@@ -5341,7 +5433,7 @@ export default function AdminDashboard() {
   // SupportAccessBanner.jsx / Impersonate.jsx, which stash this admin's own
   // session first so it can be restored).
   const handleImpersonateUser = async (user) => {
-    if (!window.confirm(`Log in as ${getUserDisplayName(user)}? This will be logged.`)) return;
+    if (!(await confirm(`Log in as ${getUserDisplayName(user)}? This will be logged.`, { danger: false, confirmLabel: "Log in" }))) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/impersonate`, {
@@ -5367,7 +5459,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteUser = async (user) => {
-    if (!window.confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`)) return;
+    if (!(await confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`))) return;
     try {
       const token = localStorage.getItem("vencome_token");
       const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}`, {
@@ -5808,6 +5900,7 @@ export default function AdminDashboard() {
       </AdminLayout>
 
       <Toast message={toastMessage} />
+      {ConfirmDialog}
     </motion.div>
   );
 }
