@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -25,6 +25,7 @@ import {
 import { getUser } from "../utils/auth";
 import { isNavGuardActive, requestNavConfirm, getNavGuardHandler } from "../utils/navGuard";
 import { useNotifications } from "../context/NotificationContext";
+import { TYPE_CONFIG, timeAgo } from "../utils/notificationDisplay";
 
 const getDisplayName = (user) =>
   user?.displayName ||
@@ -359,7 +360,30 @@ function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, on
 export default function DashboardLayout({ children, title }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { unreadCount: notifUnreadCount } = useNotifications() || {};
+  const {
+    unreadCount: notifUnreadCount,
+    notifications: notifItems,
+    markRead: markNotifRead,
+    markAllRead: markAllNotifsRead,
+  } = useNotifications() || {};
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleOutsideClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [notifOpen]);
+
+  const handleNotifClick = async (n) => {
+    if (!n.read) await markNotifRead(n._id);
+    setNotifOpen(false);
+    if (n.link) navigate(n.link);
+  };
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("vencome_sidebar_collapsed") === "1"
@@ -543,19 +567,94 @@ export default function DashboardLayout({ children, title }) {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate("/notifications")}
-              className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F8F6F0]"
-              aria-label={notifUnreadCount > 0 ? `Notifications, ${notifUnreadCount} unread` : "Notifications"}
-            >
-              <Bell size={20} />
-              {notifUnreadCount > 0 ? (
-                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#DC2626] px-1 text-[10px] font-bold text-white">
-                  {notifUnreadCount > 9 ? "9+" : notifUnreadCount}
-                </span>
-              ) : null}
-            </button>
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setNotifOpen((o) => !o)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[#E5E7EB] text-[#6B7280] transition hover:bg-[#F8F6F0]"
+                aria-label={notifUnreadCount > 0 ? `Notifications, ${notifUnreadCount} unread` : "Notifications"}
+                aria-expanded={notifOpen}
+              >
+                <Bell size={20} />
+                {notifUnreadCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#DC2626] px-1 text-[10px] font-bold text-white">
+                    {notifUnreadCount > 9 ? "9+" : notifUnreadCount}
+                  </span>
+                ) : null}
+              </button>
+
+              <AnimatePresence>
+                {notifOpen ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] max-w-[90vw] overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
+                  >
+                    <div className="flex items-center justify-between border-b border-[#F3F4F6] px-4 py-3">
+                      <span className="text-[14px] font-bold text-[#0A1628]">Notifications</span>
+                      {notifUnreadCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => markAllNotifsRead()}
+                          className="text-[12px] font-semibold text-[#2E58EC] hover:opacity-70"
+                        >
+                          Mark all read
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="max-h-[360px] overflow-y-auto">
+                      {!notifItems || notifItems.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                          <Bell size={22} className="text-[#D1D5DB]" />
+                          <p className="text-[13px] text-[#6B7280]">No notifications yet</p>
+                        </div>
+                      ) : (
+                        notifItems.slice(0, 8).map((n) => {
+                          const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.admin_message;
+                          const Icon = cfg.icon;
+                          return (
+                            <button
+                              key={n._id}
+                              type="button"
+                              onClick={() => handleNotifClick(n)}
+                              className={`flex w-full items-start gap-3 border-b border-[#F9FAFB] px-4 py-3 text-left transition hover:bg-[#F8F6F0] ${
+                                !n.read ? "bg-[#FAFBFF]" : "bg-white"
+                              }`}
+                            >
+                              <span
+                                className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+                                style={{ background: `${cfg.color}1F` }}
+                              >
+                                <Icon size={15} color={cfg.color} />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className={`block truncate text-[13px] ${!n.read ? "font-bold text-[#0A1628]" : "font-medium text-[#374151]"}`}>
+                                  {n.title}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[12px] text-[#6B7280]">{n.body}</span>
+                                <span className="mt-1 block text-[11px] text-[#9CA3AF]">{timeAgo(n.createdAt)}</span>
+                              </span>
+                              {!n.read ? <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#2E58EC]" /> : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <Link
+                      to="/notifications"
+                      onClick={() => setNotifOpen(false)}
+                      className="block border-t border-[#F3F4F6] px-4 py-3 text-center text-[13px] font-semibold text-[#2E58EC] hover:bg-[#F8F6F0]"
+                    >
+                      View all notifications
+                    </Link>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
             <UserInitialsAvatar name={displayName} size="h-8 w-8" textSize="text-[12px]" />
           </div>
         </header>
