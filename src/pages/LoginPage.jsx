@@ -213,8 +213,10 @@ export default function LoginPage({ mode = "login" }) {
         return;
       }
 
-      // Real password verified -- the server skips the OTP step and returns
-      // tokens directly (requiresVerification is only set on the otp-flow path).
+      // Real password verified -- the server normally skips the OTP step and
+      // returns tokens directly. requiresVerification is set on the
+      // passwordless otp-flow path, and also here if the account's email was
+      // never verified in the first place (signed up, never entered the OTP).
       if (data.requiresVerification) {
         setIsNewAccount(false);
         setStep("otp");
