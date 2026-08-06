@@ -2565,12 +2565,19 @@ function DescriptionSection({ description, expanded, onToggle }) {
 }
 
 function AmenitiesSection({ property }) {
+  // Drop zero-value entries (e.g. "0 SQM") — a field the host never filled
+  // in shouldn't be listed at all, not shown as zero.
+  const items = (property?.whatsIncluded || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item && !/^0\s/.test(item));
+
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">What's Included</h2>
 
       <div className="mt-5">
-        {property?.whatsIncluded ? (
+        {items.length > 0 ? (
           <ul
             style={{
               listStyle: "none",
@@ -2581,7 +2588,7 @@ function AmenitiesSection({ property }) {
               gap: "10px",
             }}
           >
-            {property.whatsIncluded.split(",").map((item, index) => (
+            {items.map((item, index) => (
               <li
                 key={index}
                 style={{

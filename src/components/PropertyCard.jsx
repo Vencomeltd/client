@@ -156,7 +156,7 @@ export default function PropertyCard({
   location,
   category,
   price,
-  priceUnit = "day",
+  priceUnit,
   rating = 0,
   reviewCount = 0,
   badge = null,

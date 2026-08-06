@@ -940,8 +940,8 @@ export default function CreateSpace() {
     if (form.restrooms > 0) {
       parts.push(`${form.restrooms} Restroom${form.restrooms > 1 ? "s" : ""}`);
     }
-    if (form.sizeSQM) parts.push(`${form.sizeSQM} SQM`);
-    if (form.seatCapacity) parts.push(`${form.seatCapacity} Seat Capacity`);
+    if (Number(form.sizeSQM) > 0) parts.push(`${form.sizeSQM} SQM`);
+    if (Number(form.seatCapacity) > 0) parts.push(`${form.seatCapacity} Seat Capacity`);
     (form.extras || []).forEach((extra) => {
       if (extra.name) parts.push(extra.name);
     });

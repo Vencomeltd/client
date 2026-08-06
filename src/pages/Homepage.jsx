@@ -415,7 +415,7 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
               (
                 <div
                   key={listing.id || listing._id}
-                  className="min-w-[260px] shrink-0 md:min-w-[300px]"
+                  className="w-[260px] shrink-0 md:w-[300px]"
                   style={{ scrollSnapAlign: "start" }}
                 >
                   <PropertyCard
