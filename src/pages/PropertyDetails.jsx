@@ -1267,7 +1267,7 @@ export default function PropertyDetails() {
     );
   }
 
-  const openImage = (index, hideNavbar = false) => {
+  const openImage = (index, hideNavbar = true) => {
     setLightboxDirection(index >= activeImageIndex ? 1 : -1);
     setActiveImageIndex(index);
     setHideNavbarForLightbox(hideNavbar);
