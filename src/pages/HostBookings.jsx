@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Check, ClipboardList, X } from "lucide-react";
+import { Check, ClipboardList, Star, X } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import VencomeLoader from "../components/Loader";
+import ReviewModal from "../components/ReviewModal";
 
 const HostBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
+  const [reviewBooking, setReviewBooking] = useState(null);
 
   const fetchBookings = async () => {
     try {
@@ -204,11 +206,50 @@ const HostBookings = () => {
                       </button>
                     </div>
                   )}
+
+                  {booking.status === "completed" && !booking.hostReviewed && (
+                    <div style={{ marginTop: "12px" }}>
+                      <button
+                        onClick={() => setReviewBooking(booking)}
+                        style={{
+                          background: "#fff",
+                          color: "#0A1628",
+                          border: "1.5px solid #E5E7EB",
+                          borderRadius: "8px",
+                          padding: "10px 16px",
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <Star size={14} />
+                          Review Guest
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {reviewBooking && (
+        <ReviewModal
+          booking={reviewBooking}
+          endpoint="/reviews/host"
+          title="Review This Guest"
+          subjectName={reviewBooking.guest?.displayName || reviewBooking.guest?.firstName || "Guest"}
+          onClose={() => setReviewBooking(null)}
+          onSubmitted={() => {
+            setReviewBooking(null);
+            setBookings((prev) =>
+              prev.map((b) => (b._id === reviewBooking._id ? { ...b, hostReviewed: true } : b))
+            );
+          }}
+        />
       )}
     </DashboardLayout>
   );

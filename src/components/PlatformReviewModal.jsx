@@ -2,14 +2,7 @@ import { useState } from "react";
 import { Star, X } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
-export default function ReviewModal({
-  booking,
-  onClose,
-  onSubmitted,
-  endpoint = "/reviews",
-  title = "Leave a Review",
-  subjectName,
-}) {
+export default function PlatformReviewModal({ onClose, onSubmitted, bookingId }) {
   const [rating, setRating] = useState(0);
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState("");
@@ -25,9 +18,9 @@ export default function ReviewModal({
     setError(null);
     try {
       await apiFetch({
-        endpoint,
+        endpoint: "/platform-reviews",
         method: "POST",
-        body: { bookingId: booking._id, rating, comment },
+        body: { rating, comment, bookingId },
       });
       onSubmitted();
       onClose();
@@ -49,20 +42,18 @@ export default function ReviewModal({
         maxWidth: "480px", width: "100%",
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
-            {title}
+            How did you find VenCome?
           </h2>
           <button aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6B7280" }}>
             <X size={20} />
           </button>
         </div>
 
-        {(subjectName || booking?.property?.title) && (
-          <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "20px" }}>
-            Reviewing: <strong style={{ color: "#0A1628" }}>{subjectName || booking.property.title}</strong>
-          </p>
-        )}
+        <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "20px" }}>
+          You just made your first booking — mind sharing a quick review of your experience with VenCome so far?
+        </p>
 
         <div style={{ marginBottom: "24px" }}>
           <p style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", marginBottom: "12px" }}>
@@ -96,12 +87,12 @@ export default function ReviewModal({
 
         <div style={{ marginBottom: "24px" }}>
           <label style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", display: "block", marginBottom: "8px" }}>
-            Your review (optional)
+            Tell us more (optional)
           </label>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Share your experience with this space..."
+            placeholder="How did you hear about us? What made you book?"
             rows={4}
             style={{
               width: "100%", padding: "12px", borderRadius: "10px",
@@ -127,7 +118,7 @@ export default function ReviewModal({
               color: "#0A1628", fontSize: "15px", fontWeight: "600", cursor: "pointer",
             }}
           >
-            Cancel
+            Maybe Later
           </button>
           <button
             onClick={handleSubmit}

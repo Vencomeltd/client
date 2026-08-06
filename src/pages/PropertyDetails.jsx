@@ -31,6 +31,8 @@ import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import CalendarPicker from "../components/CalendarPicker";
 import apiFetch from "../utils/apiClient";
+import { apiFetch as apiFetchJson } from "../utils/api";
+import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 
 const BRAND = {
@@ -697,6 +699,8 @@ export default function PropertyDetails() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [canPromptPlatformReview, setCanPromptPlatformReview] = useState(false);
+  const [showPlatformReview, setShowPlatformReview] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState(null);
   const [selectedEndDate, setSelectedEndDate] = useState(null);
   const [expandedReviews, setExpandedReviews] = useState({});
@@ -1111,6 +1115,9 @@ export default function PropertyDetails() {
       setBookingSuccess(true);
       // Clean the URL without reload
       window.history.replaceState({}, "", window.location.pathname);
+      apiFetchJson({ endpoint: "/platform-reviews/should-prompt", method: "GET", showErrorToast: false })
+        .then((res) => setCanPromptPlatformReview(!!res?.shouldPrompt))
+        .catch(() => {});
     }
     if (params.get("cancel") === "true") {
       window.history.replaceState({}, "", window.location.pathname);
@@ -1828,7 +1835,10 @@ export default function PropertyDetails() {
                 View My Bookings
               </button>
               <button
-                onClick={() => setBookingSuccess(false)}
+                onClick={() => {
+                  setBookingSuccess(false);
+                  if (canPromptPlatformReview) setShowPlatformReview(true);
+                }}
                 style={{
                   background: "transparent",
                   color: "#0A1628",
@@ -1845,6 +1855,13 @@ export default function PropertyDetails() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPlatformReview && (
+        <PlatformReviewModal
+          onClose={() => setShowPlatformReview(false)}
+          onSubmitted={() => setCanPromptPlatformReview(false)}
+        />
       )}
 
       {showTermsGate && (

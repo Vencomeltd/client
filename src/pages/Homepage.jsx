@@ -28,6 +28,7 @@ import {
 import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
+import PlatformReviewsSection from "../components/PlatformReviewsSection";
 
 const BRAND = {
   navy: "#0A1628",
@@ -925,6 +926,7 @@ export default function Homepage() {
         <TrustSignals />
         <RecentBlogs blogs={recentBlogs} loading={loadingBlogs} />
         <FAQSection />
+        <PlatformReviewsSection />
       </main>
       <Footer />
     </>
