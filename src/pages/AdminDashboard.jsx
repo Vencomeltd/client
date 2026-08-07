@@ -3911,6 +3911,14 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
         menubar: false,
         skin: "oxide",
         content_css: "default",
+        // TinyMCE defaults to rewriting same-site absolute URLs into
+        // relative ones on save (and can mangle them entirely when the
+        // link's host doesn't exactly match the admin panel's own host,
+        // e.g. www vs non-www) -- disable all of that so a link is stored
+        // and re-shown exactly as typed.
+        relative_urls: false,
+        remove_script_host: false,
+        convert_urls: false,
         images_upload_handler: (blobInfo) =>
           new Promise((resolve, reject) => {
             const formData = new FormData();
