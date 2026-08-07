@@ -14,6 +14,8 @@ export default function EditSpace() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [deletingPhotoUrl, setDeletingPhotoUrl] = useState(null);
+  const [photoError, setPhotoError] = useState("");
 
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
@@ -36,6 +38,7 @@ export default function EditSpace() {
     lng: null,
     photos: [],
     photoUrls: [],
+    extras: [],
     pricing: {
       hourly: { enabled: false, price: "" },
       daily: { enabled: false, price: "" },
@@ -109,6 +112,7 @@ export default function EditSpace() {
           lng: p.coordinates?.lng || p.coordinates?.longitude || null,
           photos: [],
           photoUrls: p.images || [],
+          extras: p.extras || [],
           pricing,
           customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
           customDayPricing: p.pricing?.customDayPricing || [],
@@ -280,6 +284,7 @@ export default function EditSpace() {
       );
       payload.append("discounts", JSON.stringify(formData.discounts || {}));
       payload.append("blockedDates", JSON.stringify(formData.blockedDates || []));
+      payload.append("extras", JSON.stringify(formData.extras || []));
 
       if (formData.leaseAgreement instanceof File) {
         payload.append("leaseFile", formData.leaseAgreement);
@@ -319,6 +324,33 @@ export default function EditSpace() {
       alert(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Deletes an already-saved photo immediately (not deferred to "Save
+  // Changes") -- it hits R2 storage and the property doc directly via the
+  // existing DELETE /:id/images endpoint, same as new-photo uploads are
+  // immediate on Save but existing-photo removal has always been a live
+  // action in this app's photo pipeline.
+  const handleDeletePhoto = async (url) => {
+    setPhotoError("");
+    setDeletingPhotoUrl(url);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}/images`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ imageUrls: [url] }),
+      });
+      if (!response.ok) throw new Error("Failed to delete photo");
+      setFormData((prev) => ({
+        ...prev,
+        photoUrls: prev.photoUrls.filter((u) => u !== url),
+      }));
+    } catch (err) {
+      setPhotoError("Failed to delete photo. Please try again.");
+    } finally {
+      setDeletingPhotoUrl(null);
     }
   };
 
@@ -510,6 +542,294 @@ export default function EditSpace() {
               }}
             />
           </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
+            Photos
+          </h3>
+
+          {photoError && (
+            <p style={{ fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>{photoError}</p>
+          )}
+
+          {formData.photoUrls.length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                gap: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              {formData.photoUrls.map((url) => (
+                <div
+                  key={url}
+                  style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1.5px solid #E5E7EB" }}
+                >
+                  <img
+                    src={url}
+                    alt=""
+                    style={{
+                      width: "100%",
+                      height: "110px",
+                      objectFit: "cover",
+                      display: "block",
+                      opacity: deletingPhotoUrl === url ? 0.4 : 1,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Delete photo"
+                    onClick={() => handleDeletePhoto(url)}
+                    disabled={deletingPhotoUrl === url}
+                    style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "50%",
+                      background: "rgba(0,0,0,0.6)",
+                      color: "#fff",
+                      border: "none",
+                      cursor: deletingPhotoUrl === url ? "not-allowed" : "pointer",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {deletingPhotoUrl === url ? "…" : "×"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {formData.photos.length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                gap: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              {formData.photos.map((file, index) => (
+                <div
+                  key={index}
+                  style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1.5px solid #305CDE" }}
+                >
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt=""
+                    style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      bottom: "4px",
+                      left: "4px",
+                      background: "rgba(48,92,222,0.9)",
+                      color: "#fff",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      padding: "2px 6px",
+                      borderRadius: "999px",
+                    }}
+                  >
+                    NEW
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Remove new photo"
+                    onClick={() => {
+                      const updated = formData.photos.filter((_, i) => i !== index);
+                      setFormData((prev) => ({ ...prev, photos: updated }));
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "50%",
+                      background: "rgba(0,0,0,0.6)",
+                      color: "#fff",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <label
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "28px 20px",
+              border: "2px dashed #E5E7EB",
+              borderRadius: "12px",
+              cursor: "pointer",
+              background: "#fff",
+            }}
+          >
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                setFormData((prev) => ({ ...prev, photos: [...prev.photos, ...files] }));
+                e.target.value = "";
+              }}
+            />
+            <p style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", margin: "0 0 4px" }}>
+              Click to add photos
+            </p>
+            <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+              JPEG, PNG, WebP up to 10MB each
+            </p>
+          </label>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0 }}>Add-ons</h3>
+              <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
+                Optional add-ons guests can include in their booking
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setFormData((prev) => ({ ...prev, extras: [...(prev.extras || []), { name: "", price: "" }] }))
+              }
+              style={{
+                padding: "8px 16px",
+                borderRadius: "8px",
+                background: "#0A1628",
+                color: "#fff",
+                border: "none",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              + Add Add-on
+            </button>
+          </div>
+
+          {(formData.extras || []).length === 0 ? (
+            <div
+              style={{
+                padding: "24px",
+                border: "1.5px dashed #E5E7EB",
+                borderRadius: "12px",
+                textAlign: "center",
+                color: "#9CA3AF",
+                fontSize: "14px",
+              }}
+            >
+              No add-ons added yet. Click "Add Add-on" to add one.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {formData.extras.map((extra, index) => (
+                <div key={index} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    placeholder="Add-on name (e.g. Projector, Catering)"
+                    value={extra.name}
+                    onChange={(e) => {
+                      const updated = [...formData.extras];
+                      updated[index] = { ...updated[index], name: e.target.value };
+                      setFormData((prev) => ({ ...prev, extras: updated }));
+                    }}
+                    style={{
+                      flex: 2,
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      border: "1.5px solid #E5E7EB",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628" }}>£</span>
+                    <input
+                      type="number"
+                      placeholder="Price"
+                      value={extra.price}
+                      onChange={(e) => {
+                        const updated = [...formData.extras];
+                        updated[index] = { ...updated[index], price: e.target.value };
+                        setFormData((prev) => ({ ...prev, extras: updated }));
+                      }}
+                      style={{
+                        width: "100px",
+                        padding: "10px 14px",
+                        borderRadius: "8px",
+                        border: "1.5px solid #E5E7EB",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Remove add-on"
+                    onClick={() => {
+                      const updated = formData.extras.filter((_, i) => i !== index);
+                      setFormData((prev) => ({ ...prev, extras: updated }));
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#DC2626",
+                      cursor: "pointer",
+                      fontSize: "18px",
+                      padding: "4px",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div
