@@ -504,7 +504,7 @@ export default function Dashboard() {
         <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {loading ? (
             Array.from({ length: 4 }, (_, index) => (
-              <div key={`listing-skeleton-${index}`} className="min-w-[220px] shrink-0 rounded-[14px] bg-[#F3F4F6] sm:min-w-[260px]" style={{ height: 320 }} />
+              <div key={`listing-skeleton-${index}`} className="w-[220px] shrink-0 rounded-[14px] bg-[#F3F4F6] sm:w-[260px]" style={{ height: 320 }} />
             ))
           ) : listings.length === 0 ? (
             <div className="w-full rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-8 text-center">
@@ -520,7 +520,7 @@ export default function Dashboard() {
             listings.slice(0, 4).map((listing) => (
               <div
                 key={listing._id}
-                className="min-w-[220px] shrink-0 overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white sm:min-w-[260px]"
+                className="w-[220px] shrink-0 overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white sm:w-[260px]"
               >
                 <Link to={`/property/${listing._id}`} className="block">
                   <div className="relative">

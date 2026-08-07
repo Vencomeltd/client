@@ -521,7 +521,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
             </div>
           ) : (
             listings.map((listing) => (
-              <div key={listing._id} style={{ minWidth: 240, flexShrink: 0 }}>
+              <div key={listing._id} style={{ width: 240, flexShrink: 0 }}>
                 <PropertyCard {...getListingCardProps(listing)} property={listing} />
               </div>
             ))
@@ -563,7 +563,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
             </div>
           ) : (
             savedListings.slice(0, 4).map((listing) => (
-              <Link key={listing._id} to={`/property/${listing._id}`} style={{ minWidth: 240, flexShrink: 0, textDecoration: "none" }}>
+              <Link key={listing._id} to={`/property/${listing._id}`} style={{ width: 240, flexShrink: 0, textDecoration: "none" }}>
                 <PropertyCard {...getListingCardProps(listing)} />
               </Link>
             ))
