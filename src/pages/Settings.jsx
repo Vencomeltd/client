@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import IdentityVerification from "../components/IdentityVerification";
 import BusinessVerification from "../components/BusinessVerification";
 import PhoneNumberField from "../components/PhoneNumberField";
+import EmailField from "../components/EmailField";
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -22,16 +23,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
-  // "idle" (showing current email) -> "form" (enter new email + password) ->
-  // "otp" (enter the code sent to the new address).
-  const [emailChange, setEmailChange] = useState({
-    step: "idle",
-    newEmail: "",
-    currentPassword: "",
-    otp: "",
-    loading: false,
-    error: "",
-  });
   const [notifications, setNotifications] = useState({
     emailBookings: true,
     emailMessages: true,
@@ -374,52 +365,6 @@ export default function Settings() {
     }
   };
 
-  const handleRequestEmailChange = async () => {
-    if (!emailChange.newEmail || !emailChange.currentPassword) {
-      setEmailChange((p) => ({ ...p, error: "Please fill in both fields" }));
-      return;
-    }
-    setEmailChange((p) => ({ ...p, loading: true, error: "" }));
-    try {
-      const res = await apiFetch("/settings/email/request-change", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          newEmail: emailChange.newEmail,
-          currentPassword: emailChange.currentPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to request email change");
-      toast.success("Verification code sent to your new email");
-      setEmailChange((p) => ({ ...p, step: "otp", loading: false }));
-    } catch (err) {
-      setEmailChange((p) => ({ ...p, loading: false, error: err.message || "Failed to request email change" }));
-    }
-  };
-
-  const handleVerifyEmailChange = async () => {
-    if (!emailChange.otp) {
-      setEmailChange((p) => ({ ...p, error: "Please enter the verification code" }));
-      return;
-    }
-    setEmailChange((p) => ({ ...p, loading: true, error: "" }));
-    try {
-      const res = await apiFetch("/settings/email/verify-change", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ otp: emailChange.otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Invalid or expired code");
-      setUser((p) => ({ ...p, email: data.user.email }));
-      toast.success("Email updated successfully");
-      setEmailChange({ step: "idle", newEmail: "", currentPassword: "", otp: "", loading: false, error: "" });
-    } catch (err) {
-      setEmailChange((p) => ({ ...p, loading: false, error: err.message || "Invalid or expired code" }));
-    }
-  };
-
   const handleExportData = async () => {
     setExportingData(true);
     try {
@@ -590,92 +535,15 @@ export default function Settings() {
                     <input style={inputStyle} value={user?.lastName || ""} onChange={e => setUser(p => ({ ...p, lastName: e.target.value }))} />
                   </div>
                 </div>
-                <div>
-                  <label style={labelStyle}>Email Address</label>
-                  {emailChange.step === "idle" && (
-                    <>
-                      <input style={{ ...inputStyle, background: "#F9FAFB", color: "#9CA3AF" }} value={user?.email || ""} disabled />
-                      <button
-                        type="button"
-                        onClick={() => setEmailChange({ step: "form", newEmail: "", currentPassword: "", otp: "", loading: false, error: "" })}
-                        style={{ marginTop: "6px", background: "none", border: "none", padding: 0, color: "#2E58EC", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}
-                      >
-                        Change email
-                      </button>
-                    </>
-                  )}
-
-                  {emailChange.step === "form" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      <input
-                        type="email"
-                        style={inputStyle}
-                        placeholder="New email address"
-                        value={emailChange.newEmail}
-                        onChange={(e) => setEmailChange((p) => ({ ...p, newEmail: e.target.value, error: "" }))}
-                      />
-                      <input
-                        type="password"
-                        style={inputStyle}
-                        placeholder="Current password"
-                        value={emailChange.currentPassword}
-                        onChange={(e) => setEmailChange((p) => ({ ...p, currentPassword: e.target.value, error: "" }))}
-                      />
-                      {emailChange.error && <p style={{ fontSize: "12px", color: "#DC2626", margin: 0 }}>{emailChange.error}</p>}
-                      <div style={{ display: "flex", gap: "10px" }}>
-                        <button
-                          type="button"
-                          onClick={handleRequestEmailChange}
-                          disabled={emailChange.loading}
-                          style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: emailChange.loading ? "#9CA3AF" : "#2E58EC", color: "#fff", fontSize: "13px", fontWeight: "700", cursor: emailChange.loading ? "not-allowed" : "pointer" }}
-                        >
-                          {emailChange.loading ? "Sending..." : "Send Verification Code"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEmailChange({ step: "idle", newEmail: "", currentPassword: "", otp: "", loading: false, error: "" })}
-                          style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#374151", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {emailChange.step === "otp" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
-                        Enter the code sent to <strong>{emailChange.newEmail}</strong>
-                      </p>
-                      <input
-                        type="text"
-                        style={inputStyle}
-                        placeholder="6-digit code"
-                        maxLength={6}
-                        value={emailChange.otp}
-                        onChange={(e) => setEmailChange((p) => ({ ...p, otp: e.target.value.replace(/\D/g, ""), error: "" }))}
-                      />
-                      {emailChange.error && <p style={{ fontSize: "12px", color: "#DC2626", margin: 0 }}>{emailChange.error}</p>}
-                      <div style={{ display: "flex", gap: "10px" }}>
-                        <button
-                          type="button"
-                          onClick={handleVerifyEmailChange}
-                          disabled={emailChange.loading}
-                          style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: emailChange.loading ? "#9CA3AF" : "#2E58EC", color: "#fff", fontSize: "13px", fontWeight: "700", cursor: emailChange.loading ? "not-allowed" : "pointer" }}
-                        >
-                          {emailChange.loading ? "Verifying..." : "Confirm Email"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEmailChange({ step: "idle", newEmail: "", currentPassword: "", otp: "", loading: false, error: "" })}
-                          style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid #E5E7EB", background: "#fff", color: "#374151", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <EmailField
+                  value={user?.email}
+                  labelStyle={labelStyle}
+                  inputStyle={inputStyle}
+                  onChanged={(email) => {
+                    setUser(p => ({ ...p, email }));
+                    updateStoredUser({ email });
+                  }}
+                />
                 <PhoneNumberField
                   value={user?.phoneNumber}
                   verified={user?.isPhoneVerified}

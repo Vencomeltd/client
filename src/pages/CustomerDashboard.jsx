@@ -26,6 +26,7 @@ import Modal from "../components/Modal";
 import { getUser, updateStoredUser } from "../utils/auth";
 import apiFetch from "../utils/apiClient";
 import PhoneNumberField from "../components/PhoneNumberField";
+import EmailField from "../components/EmailField";
 
 const SECTION_TITLES = {
   overview: "Overview",
@@ -809,7 +810,7 @@ function ProfileSection() {
   const currentUser = getUser();
   const [firstName, setFirstName] = useState(currentUser?.firstName || "");
   const [lastName, setLastName] = useState(currentUser?.lastName || "");
-  const [email] = useState(currentUser?.email || "");
+  const [email, setEmail] = useState(currentUser?.email || "");
   const [phone, setPhone] = useState(currentUser?.phoneNumber || "");
   const [phoneVerified, setPhoneVerified] = useState(currentUser?.isPhoneVerified || false);
   const [imageFile, setImageFile] = useState(null);
@@ -826,6 +827,7 @@ function ProfileSection() {
         const data = await res.json();
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
+        setEmail(data.email || "");
         setPhone(data.phoneNumber || "");
         setPhoneVerified(data.isPhoneVerified || false);
         setImagePreview(data.profileImage || null);
@@ -905,7 +907,6 @@ function ProfileSection() {
           {[
             { label: "First Name", value: firstName, onChange: setFirstName },
             { label: "Last Name", value: lastName, onChange: setLastName },
-            { label: "Email", value: email, onChange: () => {}, disabled: true },
           ].map(field => (
             <div key={field.label}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#0A1628", marginBottom: 6 }}>{field.label}</label>
@@ -913,6 +914,15 @@ function ProfileSection() {
                 style={{ width: "100%", height: 48, borderRadius: 10, border: "1px solid #E5E7EB", padding: "0 16px", fontSize: 15, color: "#111827", outline: "none", background: field.disabled ? "#F8F6F0" : "white", boxSizing: "border-box" }} />
             </div>
           ))}
+          <EmailField
+            value={email}
+            labelStyle={{ display: "block", fontSize: 13, fontWeight: 600, color: "#0A1628", marginBottom: 6 }}
+            inputStyle={{ width: "100%", height: 48, borderRadius: 10, border: "1px solid #E5E7EB", padding: "0 16px", fontSize: 15, color: "#111827", outline: "none", boxSizing: "border-box" }}
+            onChanged={(newEmail) => {
+              setEmail(newEmail);
+              updateStoredUser({ email: newEmail });
+            }}
+          />
           <PhoneNumberField
             value={phone}
             verified={phoneVerified}

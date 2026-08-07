@@ -4,6 +4,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { updateStoredUser } from "../utils/auth";
 import PhoneNumberField from "../components/PhoneNumberField";
+import EmailField from "../components/EmailField";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -191,25 +192,13 @@ export default function Profile() {
             />
           </div>
 
-          <div>
-            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={user?.email || ""}
-              disabled
-              style={{
-                width: "100%", padding: "12px 14px", borderRadius: "10px",
-                border: "1.5px solid #E5E7EB", fontSize: "14px",
-                background: "#F9FAFB", color: "#6B7280",
-                outline: "none", boxSizing: "border-box",
-              }}
-            />
-            <p style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "4px" }}>
-              Email cannot be changed here. Contact support.
-            </p>
-          </div>
+          <EmailField
+            value={user?.email}
+            onChanged={(email) => {
+              setUser(prev => ({ ...prev, email }));
+              updateStoredUser({ email });
+            }}
+          />
 
           <PhoneNumberField
             value={user?.phoneNumber}
