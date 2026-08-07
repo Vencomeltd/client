@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
+import { updateStoredUser } from "../utils/auth";
+import PhoneNumberField from "../components/PhoneNumberField";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -48,7 +50,6 @@ export default function Profile() {
       formData.append("firstName", user.firstName || "");
       formData.append("lastName", user.lastName || "");
       formData.append("bio", user.bio || "");
-      formData.append("phoneNumber", user.phoneNumber || "");
       if (imageFile) formData.append("profileImage", imageFile);
 
       const res = await apiFetch("/profile", {
@@ -58,6 +59,12 @@ export default function Profile() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to save");
       setUser(data);
+      updateStoredUser({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        displayName: data.displayName,
+        profileImage: data.profileImage,
+      });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
@@ -204,22 +211,14 @@ export default function Profile() {
             </p>
           </div>
 
-          <div>
-            <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              value={user?.phoneNumber || ""}
-              onChange={(e) => setUser(prev => ({ ...prev, phoneNumber: e.target.value }))}
-              placeholder="+44 7700 900000"
-              style={{
-                width: "100%", padding: "12px 14px", borderRadius: "10px",
-                border: "1.5px solid #E5E7EB", fontSize: "14px",
-                outline: "none", boxSizing: "border-box",
-              }}
-            />
-          </div>
+          <PhoneNumberField
+            value={user?.phoneNumber}
+            verified={user?.isPhoneVerified}
+            onVerified={(phoneNumber, isPhoneVerified) => {
+              setUser(prev => ({ ...prev, phoneNumber, isPhoneVerified }));
+              updateStoredUser({ phoneNumber });
+            }}
+          />
 
           <div>
             <label style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", display: "block", marginBottom: "8px" }}>

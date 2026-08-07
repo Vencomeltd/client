@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
+import { updateStoredUser } from "../utils/auth";
 import { toast } from "react-toastify";
 import IdentityVerification from "../components/IdentityVerification";
 import BusinessVerification from "../components/BusinessVerification";
+import PhoneNumberField from "../components/PhoneNumberField";
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -320,11 +322,14 @@ export default function Settings() {
         body: JSON.stringify({
           firstName: user.firstName,
           lastName: user.lastName,
-          phoneNumber: user.phoneNumber,
           address: user.address || {},
         }),
       });
       if (!res.ok) throw new Error("Failed to save");
+      updateStoredUser({
+        firstName: user.firstName,
+        lastName: user.lastName,
+      });
       toast.success("Account settings saved");
     } catch (err) {
       toast.error(err.message || "Failed to save settings");
@@ -671,10 +676,16 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
-                <div>
-                  <label style={labelStyle}>Phone Number</label>
-                  <input style={inputStyle} value={user?.phoneNumber || ""} onChange={e => setUser(p => ({ ...p, phoneNumber: e.target.value }))} placeholder="+44 7700 900000" />
-                </div>
+                <PhoneNumberField
+                  value={user?.phoneNumber}
+                  verified={user?.isPhoneVerified}
+                  labelStyle={labelStyle}
+                  inputStyle={inputStyle}
+                  onVerified={(phoneNumber, isPhoneVerified) => {
+                    setUser(p => ({ ...p, phoneNumber, isPhoneVerified }));
+                    updateStoredUser({ phoneNumber });
+                  }}
+                />
                 <div>
                   <label style={labelStyle}>Country</label>
                   <input style={inputStyle} value={user?.address?.country || ""} onChange={e => setUser(p => ({ ...p, address: { ...p.address, country: e.target.value } }))} placeholder="United Kingdom" />

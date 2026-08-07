@@ -12,6 +12,16 @@ export const getUser = () => {
 
 export const isLoggedIn = () => !!getToken();
 
+// Merges fresh fields into whichever stored-user key is present, so pages
+// that read via getUser() (e.g. the dashboard sidebar) reflect a profile
+// edit without requiring the user to log out and back in.
+export const updateStoredUser = (updates) => {
+  const key = localStorage.getItem("vencome_user") ? "vencome_user" : "user";
+  if (!localStorage.getItem(key)) return;
+  const merged = { ...getUser(), ...updates };
+  localStorage.setItem(key, JSON.stringify(merged));
+};
+
 export const isHost = () => {
   const user = getUser();
   return user?.isHost === true;

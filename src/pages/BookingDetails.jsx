@@ -910,6 +910,7 @@ export default function BookingDetails() {
   const [toast, setToast] = useState(null);
   const [leaseUrl, setLeaseUrl] = useState(null);
   const [leaseSignedAt, setLeaseSignedAt] = useState(null);
+  const [hostContact, setHostContact] = useState(null);
 
   // Determine if current user is the host
   const isHost = Boolean(
@@ -971,6 +972,26 @@ export default function BookingDetails() {
           setProperty(propertyData.value.property);
         if (guestData.status === "fulfilled" && guestData.value)
           setGuest(guestData.value);
+
+        // If the current viewer is the guest (not the host), fetch the
+        // host's contact details via the counterparty-scoped profile
+        // endpoint so their phone number can be shown for this booking.
+        const fetchedProperty =
+          propertyData.status === "fulfilled" ? propertyData.value?.property : null;
+        const hostId = fetchedProperty?.host?._id;
+        const currentUserId = (userData.user || userData)?._id;
+        if (hostId && hostId !== currentUserId) {
+          try {
+            const hostData = await apiFetch({
+              endpoint: `/profile/${hostId}`,
+              method: "GET",
+              cacheable: true,
+            });
+            setHostContact(hostData);
+          } catch (err) {
+            console.error(err);
+          }
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -1106,6 +1127,8 @@ export default function BookingDetails() {
   const initials = `${guest?.firstName?.[0] || ""}${
     guest?.lastName?.[0] || ""
   }`;
+  const counterpartyAvatar = isHost ? guest?.profileImage : property?.host?.profileImage;
+  const hasCounterpartyAvatar = Boolean(counterpartyAvatar) && !counterpartyAvatar.includes("gravatar");
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1260,31 +1283,42 @@ export default function BookingDetails() {
                 {isHost ? "Guest" : "Host"}
               </p>
               <div className="flex items-center gap-4 mb-5">
-                <div className="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                  {isHost ? initials || "?" : property?.hostInitials || "?"}
-                </div>
+                {hasCounterpartyAvatar ? (
+                  <img
+                    src={counterpartyAvatar}
+                    alt=""
+                    className="w-11 h-11 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                    {isHost
+                      ? initials || "?"
+                      : `${property?.host?.firstName?.[0] || ""}${property?.host?.lastName?.[0] || ""}` ||
+                        "?"}
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-slate-900 text-sm">
                     {isHost
                       ? `${guest?.firstName} ${guest?.lastName}`
-                      : property.host.firstName +
-                          " " +
-                          property.host.lastName || "Property Host"}
+                      : property?.host?.displayName ||
+                        [property?.host?.firstName, property?.host?.lastName]
+                          .filter(Boolean)
+                          .join(" ") ||
+                        "Property Host"}
                   </p>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    {isHost ? guest?.email : property?.host.email || ""}
+                    {isHost ? guest?.email : property?.host?.email || ""}
                   </p>
                 </div>
               </div>
               <div className="border-t border-slate-100 pt-1">
-                {/* <InfoRow
+                <InfoRow
                   label={isHost ? "Phone" : "Contact"}
                   value={
-                    isHost
-                      ? guest?.phoneNumber
-                      : property?.hostPhoneNumber || "—"
+                    (isHost ? guest?.phoneNumber : hostContact?.phoneNumber) || "—"
                   }
-                /> */}
+                />
                 {isHost && <InfoRow label="Guests" value={guests} />}
               </div>
             </div>

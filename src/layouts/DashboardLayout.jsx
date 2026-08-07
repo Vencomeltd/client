@@ -42,7 +42,18 @@ const getInitials = (name) =>
     .map((part) => part[0]?.toUpperCase() || "")
     .join("") || "U";
 
-function UserInitialsAvatar({ name, size = "h-11 w-11", textSize = "text-[14px]" }) {
+function UserInitialsAvatar({ name, image, size = "h-11 w-11", textSize = "text-[14px]" }) {
+  const hasRealImage = image && !image.includes("gravatar");
+  if (hasRealImage) {
+    return (
+      <img
+        src={image}
+        alt={name}
+        title={name}
+        className={`${size} shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
   return (
     <div
       className={`flex ${size} items-center justify-center rounded-full bg-[rgba(48,92,222,0.18)] font-bold text-[#9FB5FF] ${textSize}`}
@@ -283,7 +294,7 @@ function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, on
 
       <div className={collapsed ? "flex justify-center px-3 py-4" : "px-5 py-4"}>
         <div className={`flex items-center gap-3 ${collapsed ? "flex-col" : ""}`}>
-          <UserInitialsAvatar name={displayName} />
+          <UserInitialsAvatar name={displayName} image={currentUser?.profileImage} />
           {collapsed ? null : (
             <div className="min-w-0">
               <p className="truncate text-[14px] font-semibold text-white">{displayName}</p>

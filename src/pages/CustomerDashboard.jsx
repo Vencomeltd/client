@@ -6,10 +6,12 @@ import {
   ArrowRight,
   CalendarDays,
   CalendarX,
+  Camera,
   Check,
   Clock,
   Heart,
   HelpCircle,
+  Loader2,
   MapPin,
   MessageSquare,
   Search,
@@ -21,7 +23,9 @@ import {
 import DashboardLayout from "../layouts/DashboardLayout";
 import PropertyCard from "../components/PropertyCard";
 import Modal from "../components/Modal";
-import { getUser } from "../utils/auth";
+import { getUser, updateStoredUser } from "../utils/auth";
+import apiFetch from "../utils/apiClient";
+import PhoneNumberField from "../components/PhoneNumberField";
 
 const SECTION_TITLES = {
   overview: "Overview",
@@ -807,16 +811,85 @@ function ProfileSection() {
   const [lastName, setLastName] = useState(currentUser?.lastName || "");
   const [email] = useState(currentUser?.email || "");
   const [phone, setPhone] = useState(currentUser?.phoneNumber || "");
-  const [company, setCompany] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(currentUser?.isPhoneVerified || false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(currentUser?.profileImage || null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const fileRef = useRef();
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await apiFetch("/auth/me");
+        const data = await res.json();
+        setFirstName(data.firstName || "");
+        setLastName(data.lastName || "");
+        setPhone(data.phoneNumber || "");
+        setPhoneVerified(data.isPhoneVerified || false);
+        setImagePreview(data.profileImage || null);
+      } catch {
+        // fall back silently to the cached localStorage values already set above
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess(false);
+    try {
+      const formData = new FormData();
+      formData.append("firstName", firstName);
+      formData.append("lastName", lastName);
+      if (imageFile) formData.append("profileImage", imageFile);
+
+      const res = await apiFetch("/profile", { method: "PUT", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save");
+
+      setImagePreview(data.profileImage || null);
+      updateStoredUser({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        profileImage: data.profileImage,
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasRealPhoto = imagePreview && !imagePreview.includes("gravatar");
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
       style={{ display: "grid", gap: 24 }} className="grid-cols-1 lg:grid-cols-2">
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", padding: 28, textAlign: "center" }}>
-        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
-          <User size={36} color="#2E58EC" />
+        <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#F0F4FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", overflow: "hidden" }}>
+          {hasRealPhoto ? (
+            <img src={imagePreview} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <User size={36} color="#2E58EC" />
+          )}
         </div>
-        <button type="button" style={{ fontSize: 13, fontWeight: 600, color: "#2E58EC", background: "none", border: "none", cursor: "pointer", marginTop: 12 }}>Edit Photo</button>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
+        <button type="button" onClick={() => fileRef.current?.click()}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#2E58EC", background: "none", border: "none", cursor: "pointer", marginTop: 12 }}>
+          <Camera size={14} /> Edit Photo
+        </button>
         <p style={{ fontSize: 20, fontWeight: 700, color: "#0A1628", marginTop: 16 }}>
           {firstName || lastName ? `${firstName} ${lastName}`.trim() : email}
         </p>
@@ -833,8 +906,6 @@ function ProfileSection() {
             { label: "First Name", value: firstName, onChange: setFirstName },
             { label: "Last Name", value: lastName, onChange: setLastName },
             { label: "Email", value: email, onChange: () => {}, disabled: true },
-            { label: "Phone", value: phone, onChange: setPhone },
-            { label: "Company", value: company, onChange: setCompany },
           ].map(field => (
             <div key={field.label}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#0A1628", marginBottom: 6 }}>{field.label}</label>
@@ -842,9 +913,32 @@ function ProfileSection() {
                 style={{ width: "100%", height: 48, borderRadius: 10, border: "1px solid #E5E7EB", padding: "0 16px", fontSize: 15, color: "#111827", outline: "none", background: field.disabled ? "#F8F6F0" : "white", boxSizing: "border-box" }} />
             </div>
           ))}
+          <PhoneNumberField
+            value={phone}
+            verified={phoneVerified}
+            labelStyle={{ display: "block", fontSize: 13, fontWeight: 600, color: "#0A1628", marginBottom: 6 }}
+            inputStyle={{ width: "100%", height: 48, borderRadius: 10, border: "1px solid #E5E7EB", padding: "0 16px", fontSize: 15, color: "#111827", outline: "none", boxSizing: "border-box" }}
+            onVerified={(phoneNumber, isPhoneVerified) => {
+              setPhone(phoneNumber);
+              setPhoneVerified(isPhoneVerified);
+              updateStoredUser({ phoneNumber });
+            }}
+          />
         </div>
-        <button type="button" style={{ marginTop: 20, width: "100%", height: 48, borderRadius: 10, background: "#2E58EC", color: "white", border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
-          Save Changes
+
+        {saveError && (
+          <p style={{ color: "#EF4444", fontSize: 13, marginTop: 12 }}>{saveError}</p>
+        )}
+        {saveSuccess && (
+          <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: "#F0FDF4", border: "1px solid #86EFAC", color: "#16A34A", fontSize: 13, fontWeight: 600 }}>
+            Profile saved successfully!
+          </div>
+        )}
+
+        <button type="button" onClick={handleSave} disabled={saving}
+          style={{ marginTop: 20, width: "100%", height: 48, borderRadius: 10, background: saving ? "#9CA3AF" : "#2E58EC", color: "white", border: "none", fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          {saving && <Loader2 size={16} className="animate-spin" />}
+          {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </motion.div>
