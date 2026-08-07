@@ -2343,8 +2343,8 @@ export default function CreateSpace() {
             {step === 5 ? (
               <div>
                 <SectionHeader
-                  title="Features & Extras"
-                  subtitle="Tell guests what's included and add any optional extras they can add to their booking."
+                  title="Features & Add-ons"
+                  subtitle="Tell guests what's included and add any optional add-ons they can include in their booking."
                 />
 
                 <div className="space-y-6">
@@ -2493,7 +2493,7 @@ export default function CreateSpace() {
                       }}
                     >
                       <div>
-                        <p className="text-[15px] font-bold text-[#0A1628]">Extras</p>
+                        <p className="text-[15px] font-bold text-[#0A1628]">Add-ons</p>
                         <p className="text-[13px] text-[#6B7280]">
                           Optional add-ons guests can include in their booking
                         </p>
@@ -2514,7 +2514,7 @@ export default function CreateSpace() {
                           cursor: "pointer",
                         }}
                       >
-                        + Add Extra
+                        + Add Add-on
                       </button>
                     </div>
 
@@ -2529,7 +2529,7 @@ export default function CreateSpace() {
                           fontSize: "14px",
                         }}
                       >
-                        No extras added yet. Click "Add Extra" to add optional add-ons.
+                        No add-ons added yet. Click "Add Add-on" to add one.
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2540,7 +2540,7 @@ export default function CreateSpace() {
                           >
                             <input
                               type="text"
-                              placeholder="Extra name (e.g. Projector, Catering)"
+                              placeholder="Add-on name (e.g. Projector, Catering)"
                               value={extra.name}
                               onChange={(e) => {
                                 const updated = [...form.extras];
@@ -2587,7 +2587,7 @@ export default function CreateSpace() {
                             </div>
                             <button
                               type="button"
-                              aria-label="Remove extra"
+                              aria-label="Remove add-on"
                               onClick={() => {
                                 const updated = form.extras.filter((_, i) => i !== index);
                                 updateField("extras", updated);
