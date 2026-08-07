@@ -3283,6 +3283,7 @@ function BookingSidebar({
               placeholder={selectedDurationType === "hourly" ? "Select start date & time" : "Select check-in date"}
               openTime={property?.availability?.openTime || null}
               closeTime={property?.availability?.closeTime || null}
+              unavailableDates={unavailableDates}
             />
           </div>
           <div style={{ marginTop: "12px" }}>
@@ -3297,6 +3298,7 @@ function BookingSidebar({
               placeholder={selectedDurationType === "hourly" ? "Select end date & time" : "Select check-out date"}
               openTime={property?.availability?.openTime || null}
               closeTime={property?.availability?.closeTime || null}
+              unavailableDates={unavailableDates}
             />
           </div>
         </div>

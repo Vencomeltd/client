@@ -43,6 +43,7 @@ export default function CalendarPicker({
   placeholder = "Select date",
   openTime = null,
   closeTime = null,
+  unavailableDates = null,
 }) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
@@ -95,9 +96,12 @@ export default function CalendarPicker({
     return cells;
   };
 
+  const isDateUnavailable = (date) =>
+    unavailableDates ? unavailableDates.has(startOfDay(date).toDateString()) : false;
+
   const handleDateClick = (date) => {
     const day = startOfDay(date);
-    if (day < minDay) return;
+    if (day < minDay || isDateUnavailable(day)) return;
     setSelectedDate(day);
     if (isHourly) {
       setShowTimePicker(true);
@@ -220,6 +224,8 @@ export default function CalendarPicker({
                   if (!date) return <div key={`empty-${i}`} />;
                   const day = startOfDay(date);
                   const isPast = day < minDay;
+                  const isUnavailable = isDateUnavailable(day);
+                  const isDisabled = isPast || isUnavailable;
                   const isSelected = selectedDate && day.getTime() === selectedDate.getTime();
                   const isToday = day.getTime() === today.getTime();
 
@@ -227,28 +233,30 @@ export default function CalendarPicker({
                     <button
                       key={date.toISOString()}
                       type="button"
-                      onClick={() => !isPast && handleDateClick(date)}
-                      disabled={isPast}
+                      onClick={() => !isDisabled && handleDateClick(date)}
+                      disabled={isDisabled}
+                      title={isUnavailable ? "Not available" : undefined}
                       style={{
                         width: "100%",
                         aspectRatio: "1",
                         borderRadius: "50%",
                         border: isToday && !isSelected ? "2px solid #2E58EC" : "none",
-                        background: isSelected ? "#2E58EC" : "transparent",
-                        color: isSelected ? "#fff" : isPast ? "#D1D5DB" : "#111827",
+                        background: isSelected ? "#2E58EC" : isUnavailable ? "#F3F4F6" : "transparent",
+                        color: isSelected ? "#fff" : isDisabled ? "#D1D5DB" : "#111827",
                         fontSize: "13px",
                         fontWeight: isSelected ? "700" : "400",
-                        cursor: isPast ? "not-allowed" : "pointer",
+                        cursor: isDisabled ? "not-allowed" : "pointer",
+                        textDecoration: isUnavailable ? "line-through" : "none",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         transition: "all 0.1s ease",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isPast && !isSelected) e.currentTarget.style.background = "rgba(46,88,236,0.1)";
+                        if (!isDisabled && !isSelected) e.currentTarget.style.background = "rgba(46,88,236,0.1)";
                       }}
                       onMouseLeave={(e) => {
-                        if (!isPast && !isSelected) e.currentTarget.style.background = "transparent";
+                        if (!isDisabled && !isSelected) e.currentTarget.style.background = "transparent";
                       }}
                     >
                       {date.getDate()}

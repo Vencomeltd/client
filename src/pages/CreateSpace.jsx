@@ -1285,6 +1285,21 @@ export default function CreateSpace() {
   const saveDraftRef = useRef(saveDraft);
   saveDraftRef.current = saveDraft;
 
+  // Periodic autosave — the step-change autosave above only fires when the
+  // host advances/goes back a step, so lingering on one step for a while
+  // (e.g. writing a long description, uploading several photos) got no
+  // protection until they moved on. This covers that gap with a flat
+  // interval instead. Uses the ref (not `saveDraft` directly) so the
+  // interval always calls the latest closure with the latest form state,
+  // not whatever was current when the interval was set up.
+  useEffect(() => {
+    if (entryPhase !== "wizard" || step <= 1) return;
+    const interval = setInterval(() => {
+      saveDraftRef.current(true).catch((err) => console.error("Autosave failed:", err));
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [entryPhase, step]);
+
   useEffect(() => {
     if (entryPhase !== "wizard" || publishSuccess) {
       clearNavGuard();
