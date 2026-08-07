@@ -342,13 +342,14 @@ export default function EditSpace() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ imageUrls: [url] }),
       });
-      if (!response.ok) throw new Error("Failed to delete photo");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Failed to delete photo");
       setFormData((prev) => ({
         ...prev,
         photoUrls: prev.photoUrls.filter((u) => u !== url),
       }));
     } catch (err) {
-      setPhotoError("Failed to delete photo. Please try again.");
+      setPhotoError(err.message || "Failed to delete photo. Please try again.");
     } finally {
       setDeletingPhotoUrl(null);
     }

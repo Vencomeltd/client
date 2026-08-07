@@ -1032,6 +1032,15 @@ export default function CreateSpace() {
   };
 
   const handlePublish = async () => {
+    // Belt-and-suspenders with the same check the server now enforces --
+    // catches it instantly, without a round trip, for a host who reaches
+    // Publish without ever passing through the wizard's own step-4 gate
+    // (e.g. a resumed draft, or back/forward navigation).
+    if (!form.images || form.images.length === 0) {
+      setError("Please add at least one photo before publishing your listing.");
+      return;
+    }
+
     setIsLoading(true);
     setIsPublishing(true);
     setError("");
