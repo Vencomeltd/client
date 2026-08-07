@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
-import { Building2, Check, ChevronLeft, Loader2, Search } from "lucide-react";
+import { Building2, Check, ChevronLeft, Eye, EyeOff, Loader2, Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const COLORS = {
@@ -48,6 +48,8 @@ export default function LoginPage({ mode = "login" }) {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
@@ -537,29 +539,50 @@ export default function LoginPage({ mode = "login" }) {
 
                   {mode !== "signup" ? (
                     <div style={{ marginBottom: 16 }}>
-                      <input
-                        type="password"
-                        placeholder="Password (optional — leave blank to use a code)"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        style={{
-                          width: "100%",
-                          height: 52,
-                          border: "1.5px solid",
-                          borderColor: passwordError ? COLORS.error : COLORS.border,
-                          borderRadius: 10,
-                          padding: "0 16px",
-                          fontSize: 15,
-                          color: COLORS.navy,
-                          outline: "none",
-                          boxSizing: "border-box",
-                          fontFamily: "inherit",
-                        }}
-                        onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
-                        onBlur={(e) =>
-                          (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
-                        }
-                      />
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Password (optional — leave blank to use a code)"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={{
+                            width: "100%",
+                            height: 52,
+                            border: "1.5px solid",
+                            borderColor: passwordError ? COLORS.error : COLORS.border,
+                            borderRadius: 10,
+                            padding: "0 44px 0 16px",
+                            fontSize: 15,
+                            color: COLORS.navy,
+                            outline: "none",
+                            boxSizing: "border-box",
+                            fontFamily: "inherit",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                          onBlur={(e) =>
+                            (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          style={{
+                            position: "absolute",
+                            right: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            color: COLORS.grey,
+                            display: "flex",
+                          }}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
                       {passwordError ? (
                         <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
                           {passwordError}
@@ -597,29 +620,50 @@ export default function LoginPage({ mode = "login" }) {
                   ) : (
                     <>
                       <div style={{ marginBottom: 16 }}>
-                        <input
-                          type="password"
-                          placeholder="Create a password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          style={{
-                            width: "100%",
-                            height: 52,
-                            border: "1.5px solid",
-                            borderColor: passwordError ? COLORS.error : COLORS.border,
-                            borderRadius: 10,
-                            padding: "0 16px",
-                            fontSize: 15,
-                            color: COLORS.navy,
-                            outline: "none",
-                            boxSizing: "border-box",
-                            fontFamily: "inherit",
-                          }}
-                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
-                          onBlur={(e) =>
-                            (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
-                          }
-                        />
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Create a password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            style={{
+                              width: "100%",
+                              height: 52,
+                              border: "1.5px solid",
+                              borderColor: passwordError ? COLORS.error : COLORS.border,
+                              borderRadius: 10,
+                              padding: "0 44px 0 16px",
+                              fontSize: 15,
+                              color: COLORS.navy,
+                              outline: "none",
+                              boxSizing: "border-box",
+                              fontFamily: "inherit",
+                            }}
+                            onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                            onBlur={(e) =>
+                              (e.target.style.borderColor = passwordError ? COLORS.error : COLORS.border)
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            style={{
+                              position: "absolute",
+                              right: 14,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              cursor: "pointer",
+                              color: COLORS.grey,
+                              display: "flex",
+                            }}
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                         {passwordError ? (
                           <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
                             {passwordError}
@@ -632,32 +676,53 @@ export default function LoginPage({ mode = "login" }) {
                       </div>
 
                       <div style={{ marginBottom: 16 }}>
-                        <input
-                          type="password"
-                          placeholder="Confirm password"
-                          value={confirmPassword}
-                          onChange={(e) => {
-                            setConfirmPassword(e.target.value);
-                            setConfirmPasswordError("");
-                          }}
-                          style={{
-                            width: "100%",
-                            height: 52,
-                            border: "1.5px solid",
-                            borderColor: confirmPasswordError ? COLORS.error : COLORS.border,
-                            borderRadius: 10,
-                            padding: "0 16px",
-                            fontSize: 15,
-                            color: COLORS.navy,
-                            outline: "none",
-                            boxSizing: "border-box",
-                            fontFamily: "inherit",
-                          }}
-                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
-                          onBlur={(e) =>
-                            (e.target.style.borderColor = confirmPasswordError ? COLORS.error : COLORS.border)
-                          }
-                        />
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="Confirm password"
+                            value={confirmPassword}
+                            onChange={(e) => {
+                              setConfirmPassword(e.target.value);
+                              setConfirmPasswordError("");
+                            }}
+                            style={{
+                              width: "100%",
+                              height: 52,
+                              border: "1.5px solid",
+                              borderColor: confirmPasswordError ? COLORS.error : COLORS.border,
+                              borderRadius: 10,
+                              padding: "0 44px 0 16px",
+                              fontSize: 15,
+                              color: COLORS.navy,
+                              outline: "none",
+                              boxSizing: "border-box",
+                              fontFamily: "inherit",
+                            }}
+                            onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                            onBlur={(e) =>
+                              (e.target.style.borderColor = confirmPasswordError ? COLORS.error : COLORS.border)
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((v) => !v)}
+                            aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                            style={{
+                              position: "absolute",
+                              right: 14,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              cursor: "pointer",
+                              color: COLORS.grey,
+                              display: "flex",
+                            }}
+                          >
+                            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                         {confirmPasswordError ? (
                           <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
                             {confirmPasswordError}
