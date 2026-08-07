@@ -279,6 +279,12 @@ function HeroSection() {
 
 function CategoryStrip() {
   const [categories, setCategories] = useState([]);
+  const scrollRef = useRef(null);
+
+  const scrollByAmount = (direction) => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollBy({ left: direction * 260, behavior: "smooth" });
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -323,7 +329,19 @@ function CategoryStrip() {
         </p>
 
         <div className="relative mt-6">
-          <div className="no-scrollbar flex gap-3 overflow-x-auto pb-4 [scrollbar-width:none] md:gap-4">
+          <button
+            type="button"
+            onClick={() => scrollByAmount(-1)}
+            className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.15)] md:flex"
+            aria-label="Scroll categories left"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div
+            ref={scrollRef}
+            className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-4 [scrollbar-width:none] md:gap-4"
+          >
             {categories.map((category) => {
               const Icon = CATEGORY_ICON_MAP[category.name] || Sparkles;
               const isActive = category.hasListings;
@@ -336,7 +354,7 @@ function CategoryStrip() {
                 ? buildSearchHref({ category: category._id })
                 : `/category-coming-soon/${encodeURIComponent(category.name)}`;
               return (
-                <div key={category._id}>
+                <div key={category._id} style={{ scrollSnapAlign: "start" }}>
                 <Link to={linkTo} className={cardClasses}>
                   <span className={iconWrapClasses}>
                     <Icon size={24} />
@@ -347,6 +365,15 @@ function CategoryStrip() {
               );
             })}
           </div>
+
+          <button
+            type="button"
+            onClick={() => scrollByAmount(1)}
+            className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.15)] md:flex"
+            aria-label="Scroll categories right"
+          >
+            <ChevronRight size={18} />
+          </button>
 
           <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-white to-transparent" />
           <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white to-transparent" />
