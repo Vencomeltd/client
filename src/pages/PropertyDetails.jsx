@@ -1747,6 +1747,7 @@ export default function PropertyDetails() {
                 bookingMetrics={bookingMetrics}
                 bookingTotal={bookingTotal}
                 platformFee={platformFee}
+                unavailableDates={unavailableDates}
               />
             </motion.aside>
           </div>
@@ -3141,6 +3142,7 @@ function BookingSidebar({
   bookingMetrics,
   bookingTotal,
   platformFee,
+  unavailableDates,
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
