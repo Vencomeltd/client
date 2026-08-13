@@ -2,13 +2,18 @@ import { Meta, Links, Scripts, Outlet, ScrollRestoration } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { ChatProvider } from "./context/ChatContext.jsx";
+import "./index.css";
 
-// Same provider tree App.jsx used to set up around <Router>/<AppContent> --
-// the framework now provides routing itself, so only the providers move
-// here. Private-route pages (PrivateRoute/HostRoute/etc.) depend on
-// AuthProvider being an ancestor, same as before.
+// Same provider tree main.jsx/App.jsx used to set up around
+// <ReactDOM.createRoot>/<Router>/<AppContent> -- the framework now
+// provides routing and mounting itself, so only the providers (and the
+// global stylesheet import, previously pulled in by main.jsx) move here.
+// Private-route pages (PrivateRoute/HostRoute/etc.) depend on AuthProvider
+// being an ancestor, same as before.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false },
@@ -103,13 +108,17 @@ export function Layout({ children }) {
 
 export default function Root() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <QueryClientProvider client={queryClient}>
-          <ToastContainer position="top-right" autoClose={4000} />
-          <Outlet />
-        </QueryClientProvider>
-      </NotificationProvider>
-    </AuthProvider>
+    <ChatProvider>
+      <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+        <AuthProvider>
+          <NotificationProvider>
+            <QueryClientProvider client={queryClient}>
+              <ToastContainer position="top-right" autoClose={4000} />
+              <Outlet />
+            </QueryClientProvider>
+          </NotificationProvider>
+        </AuthProvider>
+      </GoogleOAuthProvider>
+    </ChatProvider>
   );
 }
