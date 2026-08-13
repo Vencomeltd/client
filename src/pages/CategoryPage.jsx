@@ -1,19 +1,39 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLoaderData } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import Card from "../components/EvenCard";
 import VencomeLoader from "../components/Loader";
 import TagList from "../components/TagList";
 import CategoryList from "../components/CategoryList";
 
+export async function loader({ params }) {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/${params.id}`);
+  if (!res.ok) return { category: null, properties: [] };
+  const data = await res.json();
+  return { category: data.category || null, properties: data.properties || [] };
+}
+
+export function meta({ data }) {
+  const category = data?.category;
+  if (!category) return [{ title: "Category | VenCome" }];
+  return [
+    { title: `${category.name} Spaces | VenCome` },
+    {
+      name: "description",
+      content: category.description || `Browse ${category.name} spaces available to book on VenCome.`,
+    },
+  ];
+}
+
 const CategoryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [category, setCategory] = useState(null);
-  const [subCategory, setSubCategory] = useState(null);
+  const loaderData = useLoaderData();
+  const [category, setCategory] = useState(loaderData?.category || null);
+  const [subCategory, setSubCategory] = useState(loaderData?.category?.subcategories || null);
   const [activeTags, setActiveTags] = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [properties, setProperties] = useState(loaderData?.properties || []);
+  const [loading, setLoading] = useState(!loaderData?.category);
   const [error, setError] = useState("");
 
   useEffect(() => {

@@ -1,9 +1,11 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
 
 // https://vite.dev/config/
 export default defineConfig({
   base: "/",
-  plugins: [react(), tailwindcss()],
+  // reactRouter() subsumes @vitejs/plugin-react (handles the React
+  // transform itself) and adds SSR/framework-mode build support.
+  plugins: [reactRouter(), tailwindcss()],
 });

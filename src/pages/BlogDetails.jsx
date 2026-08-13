@@ -1,15 +1,46 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLoaderData } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
+export async function loader({ params }) {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${params.slug}`);
+  if (!res.ok) return { blog: null };
+  const data = await res.json();
+  return { blog: data.blog || null };
+}
+
+export function meta({ data }) {
+  const b = data?.blog;
+  if (!b?.title) return [{ title: "Blog not found | VenCome" }];
+
+  const title = `${b.seoTitle || b.title} | VenCome Blog`;
+  const description = b.seoDescription || b.excerpt || "";
+  const image = b.ogImage || b.coverImage || "https://www.vencome.com/vencome-og.jpg";
+  const url = `https://www.vencome.com/blog/${b.slug}`;
+
+  return [
+    { title },
+    { name: "description", content: description },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:image", content: image },
+    { property: "og:url", content: url },
+    { property: "og:type", content: "article" },
+    { tagName: "link", rel: "canonical", href: url },
+    ...(b.tags || []).map((tag) => ({ property: "article:tag", content: tag })),
+  ];
+}
+
 export default function BlogDetails() {
   const { slug } = useParams();
-  const [blog, setBlog] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const loaderData = useLoaderData();
+  const [blog, setBlog] = useState(loaderData?.blog || null);
+  const [loading, setLoading] = useState(!loaderData);
+  const [notFound, setNotFound] = useState(loaderData ? !loaderData.blog : false);
   const [recentBlogs, setRecentBlogs] = useState([]);
   const [copied, setCopied] = useState(false);
+  const postUrl = blog ? `https://www.vencome.com/blog/${blog.slug}` : "";
 
   useEffect(() => {
     const fetchBlog = async () => {
@@ -17,36 +48,7 @@ export default function BlogDetails() {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${slug}`);
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
-        const b = data.blog;
-        setBlog(b);
-        if (b?.title) {
-          document.title = `${b.seoTitle || b.title} | VenCome Blog`;
-          const setMeta = (selector, attr, content) => {
-            let el = document.querySelector(selector);
-            if (!el) { el = document.createElement("meta"); document.head.appendChild(el); }
-            el.setAttribute(attr, content);
-          };
-          setMeta('meta[name="description"]', "content", b.seoDescription || b.excerpt || "");
-          setMeta('meta[property="og:title"]', "content", `${b.seoTitle || b.title} | VenCome Blog`);
-          setMeta('meta[property="og:description"]', "content", b.seoDescription || b.excerpt || "");
-          setMeta('meta[property="og:image"]', "content", b.ogImage || b.coverImage || "https://www.vencome.com/vencome-og.jpg");
-          setMeta('meta[property="og:url"]', "content", `https://www.vencome.com/blog/${b.slug}`);
-          setMeta('meta[property="og:type"]', "content", "article");
-          // article:tag needs one <meta> per tag (querySelector only grabs
-          // one element), so these can't go through setMeta -- clear any
-          // previously injected ones first (client-side nav between posts)
-          // then add fresh ones for this post's tags.
-          document.querySelectorAll('meta[property="article:tag"]').forEach((el) => el.remove());
-          (b.tags || []).forEach((tag) => {
-            const el = document.createElement("meta");
-            el.setAttribute("property", "article:tag");
-            el.setAttribute("content", tag);
-            document.head.appendChild(el);
-          });
-          let canonical = document.querySelector('link[rel="canonical"]');
-          if (!canonical) { canonical = document.createElement("link"); canonical.setAttribute("rel", "canonical"); document.head.appendChild(canonical); }
-          canonical.setAttribute("href", `https://www.vencome.com/blog/${b.slug}`);
-        }
+        setBlog(data.blog);
       } catch {
         setNotFound(true);
       } finally {
@@ -54,7 +56,6 @@ export default function BlogDetails() {
       }
     };
     fetchBlog();
-    return () => { document.title = "VenCome – Book & List Commercial Spaces | UK & Middle East"; };
   }, [slug]);
 
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function BlogDetails() {
           <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Share this article</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(blog.title)}&url=${encodeURIComponent(window.location.href)}`}
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(blog.title)}&url=${encodeURIComponent(postUrl)}`}
               target="_blank"
               rel="noreferrer"
               style={{ padding: "8px 16px", borderRadius: 8, background: "#000", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
@@ -155,7 +156,7 @@ export default function BlogDetails() {
               Share
             </a>
             <a
-              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`}
               target="_blank"
               rel="noreferrer"
               style={{ padding: "8px 16px", borderRadius: 8, background: "#1877F2", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
@@ -164,7 +165,7 @@ export default function BlogDetails() {
               Facebook
             </a>
             <a
-              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
+              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`}
               target="_blank"
               rel="noreferrer"
               style={{ padding: "8px 16px", borderRadius: 8, background: "#0077B5", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
@@ -173,7 +174,7 @@ export default function BlogDetails() {
               LinkedIn
             </a>
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(blog.title + " " + window.location.href)}`}
+              href={`https://wa.me/?text=${encodeURIComponent(blog.title + " " + postUrl)}`}
               target="_blank"
               rel="noreferrer"
               style={{ padding: "8px 16px", borderRadius: 8, background: "#25D366", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
@@ -182,7 +183,7 @@ export default function BlogDetails() {
               WhatsApp
             </a>
             <button
-              onClick={() => { navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              onClick={() => { navigator.clipboard.writeText(postUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
               style={{ padding: "8px 16px", borderRadius: 8, background: copied ? "#16A34A" : "#0A1628", color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useLoaderData } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Accessibility,
@@ -665,11 +665,73 @@ const parseBookingInputValue = (value, duration, boundary = "start") => {
   return new Date(`${value}T${boundary === "end" ? "23:59" : "00:00"}:00`);
 };
 
+export async function loader({ params }) {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
+  if (!res.ok) return { property: null };
+  const data = await res.json();
+  return { property: data.property || data };
+}
+
+export function meta({ data }) {
+  const prop = data?.property;
+  if (!prop) return [{ title: "Space not found | VenCome" }];
+
+  const title = `${prop.title} | VenCome`;
+  const location = [prop.location?.city, prop.location?.country].filter(Boolean).join(", ");
+  const price = prop.pricing?.hourly || prop.pricing?.daily || 0;
+  const priceUnit = prop.pricing?.hourly ? "hr" : "day";
+  const description = `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
+  const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
+  const url = `https://www.vencome.com/property/${prop._id}`;
+
+  return [
+    { title },
+    { name: "description", content: description },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:image", content: image },
+    { property: "og:url", content: url },
+    { name: "twitter:title", content: title },
+    { name: "twitter:description", content: description },
+    { name: "twitter:image", content: image },
+    { tagName: "link", rel: "canonical", href: url },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: prop.title,
+        description,
+        image,
+        url,
+        offers: {
+          "@type": "Offer",
+          price,
+          priceCurrency: "GBP",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price,
+            priceCurrency: "GBP",
+            unitText: priceUnit,
+          },
+          availability: "https://schema.org/InStock",
+          seller: { "@type": "Organization", name: "VenCome" },
+        },
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: prop.location?.city || "",
+          addressCountry: prop.location?.country || "GB",
+        },
+      },
+    },
+  ];
+}
+
 export default function PropertyDetails() {
   const { id } = useParams();
+  const loaderData = useLoaderData();
   const today = startOfDay(new Date());
-  const [property, setProperty] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [property, setProperty] = useState(loaderData?.property || null);
+  const [loading, setLoading] = useState(!loaderData?.property);
   const [error, setError] = useState(null);
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -837,81 +899,9 @@ export default function PropertyDetails() {
         const data = await propRes.json();
         const prop = data.property || data;
         setProperty(prop);
-
-        // Dynamic SEO meta tags
-        if (prop) {
-          const title = `${prop.title} | VenCome`;
-          const location = [prop.location?.city, prop.location?.country].filter(Boolean).join(", ");
-          const price = prop.pricing?.hourly || prop.pricing?.daily || 0;
-          const priceUnit = prop.pricing?.hourly ? "hr" : "day";
-          const description = `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
-          const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
-          const url = `https://www.vencome.com/property/${prop._id}`;
-
-          document.title = title;
-          const setMeta = (selector, content) => {
-            let el = document.querySelector(selector);
-            if (!el) {
-              el = document.createElement("meta");
-              document.head.appendChild(el);
-            }
-            el.setAttribute("content", content);
-          };
-          setMeta('meta[name="description"]', description);
-          setMeta('meta[property="og:title"]', title);
-          setMeta('meta[property="og:description"]', description);
-          setMeta('meta[property="og:image"]', image);
-          setMeta('meta[property="og:url"]', url);
-          setMeta('meta[name="twitter:title"]', title);
-          setMeta('meta[name="twitter:description"]', description);
-          setMeta('meta[name="twitter:image"]', image);
-
-          // Canonical
-          let canonical = document.querySelector('link[rel="canonical"]');
-          if (!canonical) {
-            canonical = document.createElement("link");
-            canonical.setAttribute("rel", "canonical");
-            document.head.appendChild(canonical);
-          }
-          canonical.setAttribute("href", url);
-
-          // Schema.org RealEstateListing JSON-LD
-          const existingLd = document.querySelector('script[data-property-ld]');
-          if (existingLd) existingLd.remove();
-          const ld = document.createElement("script");
-          ld.setAttribute("type", "application/ld+json");
-          ld.setAttribute("data-property-ld", "true");
-          ld.textContent = JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Product",
-            "name": prop.title,
-            "description": description,
-            "image": image,
-            "url": url,
-            "offers": {
-              "@type": "Offer",
-              "price": price,
-              "priceCurrency": "GBP",
-              "priceSpecification": {
-                "@type": "UnitPriceSpecification",
-                "price": price,
-                "priceCurrency": "GBP",
-                "unitText": priceUnit
-              },
-              "availability": "https://schema.org/InStock",
-              "seller": {
-                "@type": "Organization",
-                "name": "VenCome"
-              }
-            },
-            "address": {
-              "@type": "PostalAddress",
-              "addressLocality": prop.location?.city || "",
-              "addressCountry": prop.location?.country || "GB"
-            }
-          });
-          document.head.appendChild(ld);
-        }
+        // SEO meta tags (title/description/OG/canonical/JSON-LD) are now
+        // handled declaratively by this route's meta() export + the SSR
+        // loader above, instead of imperative DOM manipulation here.
 
         if (bookingsRes.ok) {
           const bookingData = await bookingsRes.json();
@@ -925,13 +915,6 @@ export default function PropertyDetails() {
     };
 
     if (id) fetchProperty();
-
-    // Restore default meta on unmount
-    return () => {
-      document.title = "VenCome – Book & List Commercial Spaces | UK & Middle East";
-      const ld = document.querySelector('script[data-property-ld]');
-      if (ld) ld.remove();
-    };
   }, [id]);
 
   useEffect(() => {

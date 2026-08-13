@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLoaderData } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Accessibility,
@@ -253,7 +253,38 @@ function PropertyMap({ listings }) {
   );
 }
 
+export async function loader({ request }) {
+  const url = new URL(request.url);
+  const query = url.searchParams.get("query") || url.searchParams.get("city") || url.searchParams.get("location") || "";
+  const category = url.searchParams.get("category") || "";
+  const checkIn = url.searchParams.get("checkIn") || "";
+  const checkOut = url.searchParams.get("checkOut") || "";
+
+  const queryParams = new URLSearchParams();
+  if (query) queryParams.set("query", query);
+  if (category) queryParams.set("category", category);
+  if (checkIn && checkOut) {
+    queryParams.set("checkIn", checkIn);
+    queryParams.set("checkOut", checkOut);
+  }
+  const apiUrl = queryParams.toString()
+    ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
+    : `${import.meta.env.VITE_API_URL}/properties?limit=20`;
+
+  const res = await fetch(apiUrl);
+  const data = await res.json();
+  return { listings: data.properties || [] };
+}
+
+export function meta() {
+  return [
+    { title: "Search Commercial Spaces | VenCome" },
+    { name: "description", content: "Search and browse beauty, wellness, and commercial spaces available to book on VenCome." },
+  ];
+}
+
 export default function SearchPage() {
+  const loaderData = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
   const resultsRef = useRef(null);
 
@@ -282,9 +313,9 @@ export default function SearchPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [savedIds, setSavedIds] = useState([]);
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [listings, setListings] = useState(loaderData?.listings || []);
+  const [loading, setLoading] = useState(!loaderData);
+  const [total, setTotal] = useState(loaderData?.listings?.length || 0);
 
   useEffect(() => {
     const fetchCategories = async () => {

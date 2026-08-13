@@ -1,13 +1,27 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLoaderData } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 const CATEGORIES = ["All", "News", "Guides", "Industry", "Tips", "Updates", "Case Studies"];
 
+export async function loader() {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/blog`);
+  const data = await res.json();
+  return { blogs: data.blogs || [] };
+}
+
+export function meta() {
+  return [
+    { title: "Blog | VenCome" },
+    { name: "description", content: "Insights, guides, and news from the world of commercial space rental." },
+  ];
+}
+
 export default function BlogList() {
-  const [blogs, setBlogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const loaderData = useLoaderData();
+  const [blogs, setBlogs] = useState(loaderData?.blogs || []);
+  const [loading, setLoading] = useState(!loaderData);
   const [activeCategory, setActiveCategory] = useState("All");
 
   useEffect(() => {

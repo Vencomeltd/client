@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLoaderData } from "react-router-dom";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import {
   Building2,
@@ -277,8 +277,42 @@ function HeroSection() {
   );
 }
 
+export async function loader() {
+  const API = import.meta.env.VITE_API_URL;
+  const [categoriesRes, propertiesRes, citiesRes, blogRes] = await Promise.all([
+    fetch(`${API}/categories/with-counts`),
+    fetch(`${API}/properties?limit=8`),
+    fetch(`${API}/properties/cities`),
+    fetch(`${API}/blog?limit=3`),
+  ]);
+  const [categoriesData, propertiesData, citiesData, blogData] = await Promise.all([
+    categoriesRes.json().catch(() => []),
+    propertiesRes.json().catch(() => ({})),
+    citiesRes.json().catch(() => ({})),
+    blogRes.json().catch(() => ({})),
+  ]);
+
+  // Pin Medical & Clinical and Beauty & Cosmetics to the front, matching
+  // CategoryStrip's existing client-side reorder logic.
+  const PINNED_NAMES = ["Medical & Clinical", "Beauty & Cosmetics"];
+  const categoryList = Array.isArray(categoriesData) ? categoriesData : [];
+  const pinned = PINNED_NAMES.map((name) => categoryList.find((c) => c.name === name)).filter(Boolean);
+  const rest = categoryList.filter((c) => !PINNED_NAMES.includes(c.name));
+
+  const properties = propertiesData.properties || [];
+
+  return {
+    categories: [...pinned, ...rest],
+    countries: Array.isArray(citiesData.countries) ? citiesData.countries : [],
+    featuredListings: properties.slice(0, 4),
+    popularListings: properties.slice(0, 8),
+    recentBlogs: blogData.blogs || [],
+  };
+}
+
 function CategoryStrip() {
-  const [categories, setCategories] = useState([]);
+  const loaderData = useLoaderData();
+  const [categories, setCategories] = useState(loaderData?.categories || []);
   const scrollRef = useRef(null);
 
   const scrollByAmount = (direction) => {
@@ -475,8 +509,9 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
 }
 
 function BrowseByCity() {
-  const [countries, setCountries] = useState([]);
-  const [loaded, setLoaded] = useState(false);
+  const loaderData = useLoaderData();
+  const [countries, setCountries] = useState(loaderData?.countries || []);
+  const [loaded, setLoaded] = useState(!!loaderData?.countries);
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -857,12 +892,13 @@ function FAQSection() {
 }
 
 export default function Homepage() {
+  const loaderData = useLoaderData();
   const [activeTab, setActiveTab] = useState("spaces");
-  const [featuredListings, setFeaturedListings] = useState([]);
-  const [popularListings, setPopularListings] = useState([]);
-  const [loadingListings, setLoadingListings] = useState(true);
-  const [recentBlogs, setRecentBlogs] = useState([]);
-  const [loadingBlogs, setLoadingBlogs] = useState(true);
+  const [featuredListings, setFeaturedListings] = useState(loaderData?.featuredListings || []);
+  const [popularListings, setPopularListings] = useState(loaderData?.popularListings || []);
+  const [loadingListings, setLoadingListings] = useState(!loaderData?.featuredListings);
+  const [recentBlogs, setRecentBlogs] = useState(loaderData?.recentBlogs || []);
+  const [loadingBlogs, setLoadingBlogs] = useState(!loaderData?.recentBlogs);
 
   useEffect(() => {
     const CACHE_KEY = "vencome_homepage_listings";
