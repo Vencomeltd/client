@@ -80,8 +80,8 @@ const getMainItems = (pendingCount, unreadCount, isHost) => [
         icon: CalendarDays,
         badge: pendingCount > 0 ? pendingCount : null,
         children: [
-          { label: "As Host", path: "/dashboard/bookings" },
-          { label: "As Guest", path: "/customer/bookings" },
+          { label: "Bookings for Your Space", path: "/dashboard/bookings" },
+          { label: "Bookings You Made", path: "/customer/bookings" },
         ],
       }
     : { label: "My Bookings", path: "/customer/bookings", icon: CalendarDays, badge: pendingCount > 0 ? pendingCount : null },
