@@ -161,7 +161,7 @@ export function AuthProvider({ children }) {
         updateUser,
       }}
     >
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }

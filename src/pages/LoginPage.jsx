@@ -40,7 +40,9 @@ function isValidEmail(value) {
 export default function LoginPage({ mode = "login" }) {
   const navigate = useNavigate();
   const { updateUser } = useAuth();
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 640
+  );
   const [step, setStep] = useState("role");
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState("");
@@ -334,7 +336,10 @@ export default function LoginPage({ mode = "login" }) {
   const title = mode === "signup" ? "Create your account" : "Log in or sign up";
   const googleButtonWidth = Math.min(
     400,
-    Math.max(220, window.innerWidth - (isMobile ? 88 : 128))
+    Math.max(
+      220,
+      (typeof window !== "undefined" ? window.innerWidth : 1024) - (isMobile ? 88 : 128)
+    )
   );
   const roleOptions =
     mode === "signup"

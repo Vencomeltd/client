@@ -160,13 +160,15 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const location_path = useLocation();
   const isHomePage = location_path.pathname === "/";
   const currentUser = (() => {
+    if (typeof window === "undefined") return null;
     try {
       return JSON.parse(localStorage.getItem("vencome_user") || "null");
     } catch {
       return null;
     }
   })();
-  const isLoggedIn = !!currentUser && !!localStorage.getItem("vencome_token");
+  const isLoggedIn =
+    !!currentUser && typeof window !== "undefined" && !!localStorage.getItem("vencome_token");
   const isHost = currentUser?.isHost === true;
   const userInitials = currentUser
     ? (

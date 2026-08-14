@@ -1,7 +1,9 @@
 const API = import.meta.env.VITE_API_URL;
 
-const getStoredValue = (primaryKey, fallbackKey) =>
-  localStorage.getItem(primaryKey) || localStorage.getItem(fallbackKey);
+const getStoredValue = (primaryKey, fallbackKey) => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(primaryKey) || localStorage.getItem(fallbackKey);
+};
 
 export const getToken = () => getStoredValue("vencome_token", "token");
 
