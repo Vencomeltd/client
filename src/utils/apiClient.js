@@ -2,7 +2,14 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 const refreshAccessToken = async () => {
   const refreshToken = localStorage.getItem("vencome_refresh");
-  if (!refreshToken) throw new Error("No refresh token");
+  if (!refreshToken) {
+    localStorage.removeItem("vencome_token");
+    localStorage.removeItem("vencome_refresh");
+    localStorage.removeItem("vencome_user");
+    localStorage.removeItem("vencome_login_time");
+    window.location.href = "/login";
+    throw new Error("Session expired");
+  }
 
   const response = await fetch(`${API_URL}/auth/refresh-token`, {
     method: "POST",
