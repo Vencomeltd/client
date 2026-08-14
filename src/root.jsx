@@ -20,6 +20,26 @@ const queryClient = new QueryClient({
   },
 });
 
+// Fetched once per request so Footer (rendered on every page) can list real
+// category/city links server-side, instead of a client-only fetch that
+// would defeat the point for crawlers. Same endpoints Homepage already uses.
+export async function loader() {
+  try {
+    const [categoriesRes, citiesRes] = await Promise.all([
+      fetch(`${import.meta.env.VITE_API_URL}/categories/with-counts`),
+      fetch(`${import.meta.env.VITE_API_URL}/properties/cities`),
+    ]);
+    const categories = categoriesRes.ok ? await categoriesRes.json() : [];
+    const citiesData = citiesRes.ok ? await citiesRes.json() : { countries: [] };
+    return {
+      footerCategories: Array.isArray(categories) ? categories.filter((c) => c.hasListings) : [],
+      footerCities: (citiesData.countries || []).flatMap((c) => c.cities || []),
+    };
+  } catch {
+    return { footerCategories: [], footerCities: [] };
+  }
+}
+
 // Site-wide default meta -- individual route modules (PropertyDetails,
 // BlogDetails, etc.) export their own `meta()` which overrides title/
 // description/OG here per React Router's route-hierarchy meta merging

@@ -1,7 +1,14 @@
-import { Link } from "react-router-dom";
+import { Link, useRouteLoaderData } from "react-router-dom";
 import { Facebook, Instagram, Linkedin } from "lucide-react";
 
+const buildSearchHref = (city) =>
+  `/search?${new URLSearchParams({ location: city }).toString()}`;
+
 export default function Footer() {
+  const rootData = useRouteLoaderData("root");
+  const categories = rootData?.footerCategories || [];
+  const cities = rootData?.footerCities || [];
+
   return (
     <footer className="bg-gray-50 py-8">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-wrap justify-between items-start">
@@ -109,6 +116,42 @@ export default function Footer() {
               </li>
             </ul>
           </div>
+
+          {categories.length > 0 && (
+            <div className="pr-20">
+              <div className="font-semibold mb-2">Popular Categories</div>
+              <ul className="text-gray-500 text-sm space-y-1">
+                {categories
+                  .slice()
+                  .sort((a, b) => (b.listingCount || 0) - (a.listingCount || 0))
+                  .slice(0, 10)
+                  .map((category) => (
+                    <li key={category._id}>
+                      <Link to={`/category/${category.slug || category._id}`}>
+                        {category.name}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
+          {cities.length > 0 && (
+            <div className="pr-20">
+              <div className="font-semibold mb-2">Browse by City</div>
+              <ul className="text-gray-500 text-sm space-y-1">
+                {cities
+                  .slice()
+                  .sort((a, b) => (b.count || 0) - (a.count || 0))
+                  .slice(0, 10)
+                  .map((city) => (
+                    <li key={city.name}>
+                      <Link to={buildSearchHref(city.name)}>{city.name}</Link>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
