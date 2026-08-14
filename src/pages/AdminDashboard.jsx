@@ -1475,6 +1475,94 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
   );
 }
 
+function CreateHostModal({ isOpen, onClose, onSubmit }) {
+  const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phoneNumber: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.email) {
+      setError("Email is required");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit(form);
+      setForm({ email: "", firstName: "", lastName: "", phoneNumber: "" });
+    } catch (err) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={() => !submitting && onClose()}>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Create Host Account</h3>
+      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+        Creates a verified host account with no OTP step needed, for onboarding hosts who want VenCome
+        staff to build their listing for them.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <input
+          type="email"
+          placeholder="Email address"
+          value={form.email}
+          onChange={set("email")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="text"
+          placeholder="First name — optional"
+          value={form.firstName}
+          onChange={set("firstName")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="text"
+          placeholder="Last name — optional"
+          value={form.lastName}
+          onChange={set("lastName")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="tel"
+          placeholder="Phone number — optional"
+          value={form.phoneNumber}
+          onChange={set("phoneNumber")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+      </div>
+      {error ? (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
+          {error}
+        </div>
+      ) : null}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer" }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}
+        >
+          {submitting ? "Creating..." : "Create Host Account"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function UsersSection({
   users,
   totalUsers,
@@ -1495,6 +1583,7 @@ function UsersSection({
   onDeleteUser,
   onImpersonateUser,
   onRequestAccessUser,
+  onOpenCreateHost,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1514,6 +1603,14 @@ function UsersSection({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenCreateHost}
+            className="h-10 rounded-lg bg-[#0A1628] px-4 text-[13px] font-semibold text-white hover:bg-[#0A1628]/90"
+          >
+            + Create Host Account
+          </button>
+
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
             <input
@@ -5398,6 +5495,26 @@ export default function AdminDashboard() {
     }
   };
 
+  const [showCreateHostModal, setShowCreateHostModal] = useState(false);
+  const [createdHostCreds, setCreatedHostCreds] = useState(null);
+
+  const handleCreateHost = async ({ email, firstName, lastName, phoneNumber }) => {
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/create-host`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ email, firstName, lastName, phoneNumber }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || "Couldn't create host account", "error");
+      return;
+    }
+    setCreatedHostCreds({ email: data.user.email, tempPassword: data.tempPassword });
+    setShowCreateHostModal(false);
+    showToast("Host account created", "success");
+  };
+
   const handleResetPasswordUser = async (userId) => {
     try {
       const token = localStorage.getItem("vencome_token");
@@ -5754,6 +5871,7 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "users") {
     sectionContent = (
+      <>
       <UsersSection
         users={filteredUsers}
         totalUsers={stats.totalUsers}
@@ -5774,7 +5892,44 @@ export default function AdminDashboard() {
         onDeleteUser={handleDeleteUser}
         onImpersonateUser={handleImpersonateUser}
         onRequestAccessUser={handleRequestAccess}
+        onOpenCreateHost={() => setShowCreateHostModal(true)}
       />
+
+      <CreateHostModal
+        isOpen={showCreateHostModal}
+        onClose={() => setShowCreateHostModal(false)}
+        onSubmit={handleCreateHost}
+      />
+
+      <Modal isOpen={!!createdHostCreds} onClose={() => setCreatedHostCreds(null)}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Host Account Created</h3>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+          This password is shown once. Log in with these credentials to set up the listing yourself,
+          or pass them on to the host.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 2 }}>Email</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#0A1628" }}>{createdHostCreds?.email}</div>
+          </div>
+          <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 2 }}>Temporary Password</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#0A1628", fontFamily: "monospace" }}>
+              {createdHostCreds?.tempPassword}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+          <button
+            type="button"
+            onClick={() => setCreatedHostCreds(null)}
+            style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+      </>
     );
   } else if (activeSection === "listings") {
     sectionContent = (
