@@ -81,7 +81,7 @@ const HostProfile = () => {
             <div
               key={prop._id}
               className="bg-white p-4 rounded-lg shadow cursor-pointer"
-              onClick={() => navigate(`/property/${prop._id}`)}
+              onClick={() => navigate(`/property/${prop.slug || prop._id}`)}
             >
               <img
                 src={prop.coverImage}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useLoaderData } from "react-router-dom";
+import { redirect } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Accessibility,
@@ -669,7 +670,13 @@ export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
   if (!res.ok) return { property: null };
   const data = await res.json();
-  return { property: data.property || data };
+  const property = data.property || data;
+  // Canonicalize old ObjectId links to the slug URL once one exists, so
+  // search engines index a single URL per listing instead of two.
+  if (property?.slug && params.id !== property.slug) {
+    return redirect(`/property/${property.slug}`, 301);
+  }
+  return { property };
 }
 
 export function meta({ data }) {
@@ -682,7 +689,7 @@ export function meta({ data }) {
   const priceUnit = prop.pricing?.hourly ? "hr" : "day";
   const description = `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
   const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
-  const url = `https://www.vencome.com/property/${prop._id}`;
+  const url = `https://www.vencome.com/property/${prop.slug || prop._id}`;
 
   return [
     { title },

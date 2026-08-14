@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLoaderData } from "react-router-dom";
+import { redirect } from "react-router";
 import { apiFetch } from "../utils/api";
 import Card from "../components/EvenCard";
 import VencomeLoader from "../components/Loader";
@@ -10,18 +11,29 @@ export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/${params.id}`);
   if (!res.ok) return { category: null, properties: [] };
   const data = await res.json();
-  return { category: data.category || null, properties: data.properties || [] };
+  const category = data.category || null;
+  // Canonicalize old ObjectId links to the slug URL once one exists, so
+  // search engines index a single URL per category instead of two.
+  if (category?.slug && params.id !== category.slug) {
+    return redirect(`/category/${category.slug}`, 301);
+  }
+  return { category, properties: data.properties || [] };
 }
 
 export function meta({ data }) {
   const category = data?.category;
   if (!category) return [{ title: "Category | VenCome" }];
+  const title = `${category.name} Spaces | VenCome`;
+  const description =
+    category.description || `Browse ${category.name} spaces available to book on VenCome.`;
+  const url = `https://www.vencome.com/category/${category.slug || category._id}`;
   return [
-    { title: `${category.name} Spaces | VenCome` },
-    {
-      name: "description",
-      content: category.description || `Browse ${category.name} spaces available to book on VenCome.`,
-    },
+    { title },
+    { name: "description", content: description },
+    { property: "og:title", content: title },
+    { property: "og:description", content: description },
+    { property: "og:url", content: url },
+    { tagName: "link", rel: "canonical", href: url },
   ];
 }
 

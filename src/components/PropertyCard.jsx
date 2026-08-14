@@ -78,6 +78,7 @@ const resolveListingData = ({
 
   return {
     id: id ?? source._id ?? source.id ?? "listing",
+    slug: source.slug ?? null,
     image:
       image ??
       source.image ??
@@ -225,7 +226,7 @@ export default function PropertyCard({
         className="group w-full"
       >
         <div className="overflow-hidden rounded-[18px] bg-white p-3 shadow-[0_1px_4px_rgba(0,0,0,0.08)] transition-shadow duration-200 ease-out group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.14)]">
-          <Link to={`/property/${listing.id}`} className="block">
+          <Link to={`/property/${listing.slug || listing.id}`} className="block">
             <div className="relative overflow-hidden rounded-[12px]">
               <div className="aspect-[4/3] w-full" />
 

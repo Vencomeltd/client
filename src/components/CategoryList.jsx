@@ -29,7 +29,7 @@ const CategoryList = ({ type = "category", categories = [], onSelect }) => {
           {categories.map((card) => (
             <SwiperSlide key={card._id}>
               <CategoryCard
-                id={card._id}
+                id={card.slug || card._id}
                 type={type}
                 imageUrl={card.image}
                 title={card.name}
