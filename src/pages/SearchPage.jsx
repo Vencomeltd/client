@@ -472,10 +472,15 @@ export default function SearchPage() {
     sortBy,
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredResults.length / 9));
+  // Matches the /properties?limit=20 fetch above -- pagination only kicks
+  // in once results genuinely exceed a full page, instead of splitting off
+  // a near-empty trailing page for the client's current, still-small
+  // inventory.
+  const RESULTS_PER_PAGE = 20;
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / RESULTS_PER_PAGE));
   const paginatedResults = filteredResults.slice(
-    (currentPage - 1) * 9,
-    currentPage * 9
+    (currentPage - 1) * RESULTS_PER_PAGE,
+    currentPage * RESULTS_PER_PAGE
   );
   const paginationItems = getPaginationItems(currentPage, totalPages);
 
