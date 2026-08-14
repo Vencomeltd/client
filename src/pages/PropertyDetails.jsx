@@ -35,6 +35,7 @@ import apiFetch from "../utils/apiClient";
 import { apiFetch as apiFetchJson } from "../utils/api";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
+import { getResponsiveImageProps } from "../utils/responsiveImage";
 
 const BRAND = {
   navy: "#0A1628",
@@ -2131,7 +2132,8 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
             className="block h-[260px] w-full"
           >
             <img
-              src={images[0]}
+              {...getResponsiveImageProps(images[0])}
+              sizes="100vw"
               alt="Property hero"
               className="h-full w-full object-cover"
             />
@@ -2146,7 +2148,8 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
             className="row-span-2 overflow-hidden"
           >
             <img
-              src={images[0]}
+              {...getResponsiveImageProps(images[0])}
+              sizes="50vw"
               alt="Property view 1"
               className="h-full w-full object-cover"
             />
@@ -2163,7 +2166,8 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
               } ${index === 3 ? "rounded-br-[12px]" : ""}`}
             >
               <img
-                src={image}
+                {...getResponsiveImageProps(image)}
+                sizes="25vw"
                 alt={`Property view ${index + 2}`}
                 className="h-full w-full object-cover"
               />

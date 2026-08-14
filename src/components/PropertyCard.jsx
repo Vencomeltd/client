@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
+import { getResponsiveImageProps } from "../utils/responsiveImage";
 
 const BADGE_STYLES = {
   Featured: "bg-[#305CDE] text-white",
@@ -231,7 +232,8 @@ export default function PropertyCard({
               <div className="aspect-[4/3] w-full" />
 
               <img
-                src={listing.image}
+                {...getResponsiveImageProps(listing.image)}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                 alt={listing.title}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.05]"
               />
