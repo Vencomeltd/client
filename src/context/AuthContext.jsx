@@ -32,6 +32,10 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("token");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("user");
+    localStorage.removeItem("vencome_token");
+    localStorage.removeItem("vencome_refresh");
+    localStorage.removeItem("vencome_user");
+    localStorage.removeItem("vencome_login_time");
     setUser(null);
   }, []);
 

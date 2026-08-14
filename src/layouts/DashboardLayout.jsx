@@ -108,6 +108,10 @@ function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, on
     localStorage.removeItem("vencome_token");
     localStorage.removeItem("vencome_refresh");
     localStorage.removeItem("vencome_user");
+    localStorage.removeItem("vencome_login_time");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("user");
     window.location.href = "/";
   };
 

@@ -938,8 +938,12 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
               type="button"
               onClick={() => {
                 localStorage.removeItem("vencome_token");
-                localStorage.removeItem("vencome_refresh_token");
+                localStorage.removeItem("vencome_refresh");
                 localStorage.removeItem("vencome_user");
+                localStorage.removeItem("vencome_login_time");
+                localStorage.removeItem("token");
+                localStorage.removeItem("refreshToken");
+                localStorage.removeItem("user");
                 window.location.href = "/admin/login";
               }}
               className="mt-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] text-white/50 transition hover:bg-white/8 hover:text-white"

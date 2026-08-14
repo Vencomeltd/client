@@ -905,6 +905,9 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                         localStorage.removeItem("vencome_refresh");
                         localStorage.removeItem("vencome_user");
                         localStorage.removeItem("vencome_login_time");
+                        localStorage.removeItem("token");
+                        localStorage.removeItem("refreshToken");
+                        localStorage.removeItem("user");
                         setMenuOpen(false);
                         window.location.href = "/";
                       }}
@@ -939,6 +942,9 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                         localStorage.removeItem("vencome_refresh");
                         localStorage.removeItem("vencome_user");
                         localStorage.removeItem("vencome_login_time");
+                        localStorage.removeItem("token");
+                        localStorage.removeItem("refreshToken");
+                        localStorage.removeItem("user");
                         setMenuOpen(false);
                         window.location.href = "/";
                       }}
@@ -1178,6 +1184,9 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                         localStorage.removeItem("vencome_refresh");
                         localStorage.removeItem("vencome_user");
                         localStorage.removeItem("vencome_login_time");
+                        localStorage.removeItem("token");
+                        localStorage.removeItem("refreshToken");
+                        localStorage.removeItem("user");
                         setMenuOpen(false);
                         window.location.href = "/";
                       }}
