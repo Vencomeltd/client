@@ -218,7 +218,7 @@ export default function BlogDetails() {
 
         <div style={{ marginTop: 48, padding: 32, background: "#0A1628", borderRadius: 20, textAlign: "center" }}>
           <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Find your perfect commercial space</h3>
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.7)", marginBottom: 20 }}>Browse offices, studios, meeting rooms and more across the UK and Middle East.</p>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.7)", marginBottom: 20 }}>Browse offices, studios, meeting rooms and more across the UK.</p>
           <Link to="/search" style={{ display: "inline-block", padding: "14px 32px", background: "#305CDE", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: 15 }}>
             Browse Spaces
           </Link>

@@ -45,7 +45,7 @@ export default function Partners() {
 
         <Card title="Interested in partnering with us?">
           <p style={{ margin: 0 }}>
-            We're open to partnerships with property groups, coworking operators, brokers, and complementary platforms serving businesses across the UK and Middle East. If that's you, email{" "}
+            We're open to partnerships with property groups, coworking operators, brokers, and complementary platforms serving businesses across the UK. If that's you, email{" "}
             <a href="mailto:support@vencome.com" style={linkStyle}>support@vencome.com</a>{" "}
             with a bit about what you have in mind.
           </p>

@@ -356,7 +356,7 @@ function OverviewSection({ displayName, bookings, savedListings, stats, loading 
           {getGreeting()}, {displayName}
         </p>
         <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", marginTop: 4 }}>
-          Find your next commercial space across the UK and Middle East.
+          Find your next commercial space across the UK.
         </p>
         <DashboardSearch />
       </div>

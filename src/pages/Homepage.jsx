@@ -770,7 +770,7 @@ function FAQSection() {
   const faqs = [
     {
       q: "What is VenCome?",
-      a: "VenCome is a B2B commercial space rental marketplace that connects businesses with professional spaces across the UK and Middle East. Whether you need an office for a day, a meeting room for an hour, or a studio for a week — VenCome makes it simple to find, book, and pay."
+      a: "VenCome is a B2B commercial space rental marketplace that connects businesses with professional spaces across the UK. Whether you need an office for a day, a meeting room for an hour, or a studio for a week — VenCome makes it simple to find, book, and pay."
     },
     {
       q: "How do I book a space?",
@@ -791,10 +791,6 @@ function FAQSection() {
     {
       q: "How do I list my space on VenCome?",
       a: "Click 'Publish your space' in the top navigation. You'll be guided through a simple step-by-step wizard to add your space details, photos, pricing, and availability. Your listing will be live once reviewed."
-    },
-    {
-      q: "Is VenCome available in the Middle East?",
-      a: "Yes. VenCome operates across the UK and the Middle East, with Saudi Arabia as a priority market. More cities and regions are being added regularly."
     },
     {
       q: "How does VenCome make money?",

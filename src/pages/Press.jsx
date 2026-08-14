@@ -39,7 +39,7 @@ export default function Press() {
       <div style={{ display: "grid", gap: "24px" }}>
         <Card title="About VenCome">
           <p style={{ margin: 0 }}>
-            VenCome is a B2B commercial property rental marketplace connecting business hosts with professional tenants across short-term and long-term rentals, serving the UK and Middle East. Hosts list offices, co-working space, meeting rooms, event venues, retail, industrial, and studio space; tenants search, book, and pay securely, with funds held in escrow until after the booking is complete.
+            VenCome is a B2B commercial property rental marketplace connecting business hosts with professional tenants across short-term and long-term rentals, serving the UK. Hosts list offices, co-working space, meeting rooms, event venues, retail, industrial, and studio space; tenants search, book, and pay securely, with funds held in escrow until after the booking is complete.
           </p>
         </Card>
 

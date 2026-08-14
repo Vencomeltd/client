@@ -60,7 +60,7 @@ export default function ReferHost() {
     {
       icon: Users,
       title: "Grow the Community",
-      desc: "Help build the UK and Middle East's leading commercial space marketplace.",
+      desc: "Help build the UK's leading commercial space marketplace.",
     },
     {
       icon: CheckCircle,

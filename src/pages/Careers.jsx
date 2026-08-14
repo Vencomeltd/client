@@ -39,7 +39,7 @@ export default function Careers() {
       <div style={{ display: "grid", gap: "24px" }}>
         <Card title="What we're building">
           <p style={{ margin: 0 }}>
-            VenCome connects business hosts with professional tenants across the UK and Middle East — think of it as the commercial-space equivalent of finding the right home, but for offices, studios, meeting rooms, and event venues. We're early, and there's a lot still to build.
+            VenCome connects business hosts with professional tenants across the UK — think of it as the commercial-space equivalent of finding the right home, but for offices, studios, meeting rooms, and event venues. We're early, and there's a lot still to build.
           </p>
         </Card>
 
