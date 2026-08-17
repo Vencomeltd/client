@@ -418,21 +418,11 @@ function CategoryStrip() {
 }
 
 function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) {
-  const scrollRef = useRef(null);
   const listingsToRender = popularListings.length > 0 ? popularListings : featuredListings;
 
   if (!loadingListings && listingsToRender.length === 0) {
     return null;
   }
-
-  const scrollByAmount = (direction) => {
-    if (!scrollRef.current) return;
-
-    scrollRef.current.scrollBy({
-      left: direction * 340,
-      behavior: "smooth",
-    });
-  };
 
   return (
     <motion.section
@@ -452,56 +442,26 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
           </Link>
         </div>
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => scrollByAmount(-1)}
-            className="absolute left-0 top-1/2 z-10 hidden h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.15)] md:flex"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          <div
-            ref={scrollRef}
-            className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:none]"
-          >
-            {(loadingListings
-              ? Array.from({ length: 4 }, (_, index) => ({
-                  id: `skeleton-${index}`,
-                  isLoading: true,
-                }))
-              : listingsToRender
-            ).map((listing) => (
-              (
-                <div
-                  key={listing.id || listing._id}
-                  className="w-[260px] shrink-0 md:w-[300px]"
-                  style={{ scrollSnapAlign: "start" }}
-                >
-                  <PropertyCard
-                    id={listing._id}
-                    image={listing.coverImage}
-                    title={listing.title}
-                    location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
-                    category={listing.category?.name || ""}
-                    isLoading={listing.isLoading}
-                    property={listing}
-                    variant="homepage"
-                  />
-                </div>
-              )
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => scrollByAmount(1)}
-            className="absolute right-0 top-1/2 z-10 hidden h-11 w-11 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.15)] md:flex"
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={18} />
-          </button>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {(loadingListings
+            ? Array.from({ length: 4 }, (_, index) => ({
+                id: `skeleton-${index}`,
+                isLoading: true,
+              }))
+            : listingsToRender
+          ).map((listing) => (
+            <PropertyCard
+              key={listing.id || listing._id}
+              id={listing._id}
+              image={listing.coverImage}
+              title={listing.title}
+              location={`${listing.location?.city || ""}, ${listing.location?.country || ""}`}
+              category={listing.category?.name || ""}
+              isLoading={listing.isLoading}
+              property={listing}
+              variant="homepage"
+            />
+          ))}
         </div>
       </div>
     </motion.section>
