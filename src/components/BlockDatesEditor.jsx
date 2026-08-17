@@ -15,6 +15,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
   const [blockMode, setBlockMode] = useState("block");
   const [quickBlockFrom, setQuickBlockFrom] = useState("");
   const [quickBlockTo, setQuickBlockTo] = useState("");
+  const [blockIndefinitely, setBlockIndefinitely] = useState(false);
   const [recurringDay, setRecurringDay] = useState("");
   const [recurringFrom, setRecurringFrom] = useState("");
   const [recurringTo, setRecurringTo] = useState("");
@@ -138,17 +139,36 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
             <label style={{ fontSize: "12px", color: "#6B7280", display: "block", marginBottom: "4px" }}>To</label>
             <input
               type="date"
-              style={{ height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px" }}
+              disabled={blockIndefinitely}
+              style={{
+                height: "36px", border: "1.5px solid #E5E7EB", borderRadius: "8px", padding: "0 10px", fontSize: "13px",
+                background: blockIndefinitely ? "#F3F4F6" : "#fff", color: blockIndefinitely ? "#9CA3AF" : "#0A1628",
+              }}
               value={quickBlockTo}
               onChange={(e) => setQuickBlockTo(e.target.value)}
             />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#0A1628", cursor: "pointer", height: "36px" }}>
+            <input
+              type="checkbox"
+              checked={blockIndefinitely}
+              onChange={(e) => setBlockIndefinitely(e.target.checked)}
+            />
+            Block indefinitely
+          </label>
           <button
             type="button"
             onClick={() => {
-              if (!quickBlockFrom || !quickBlockTo) return;
+              if (!quickBlockFrom || (!blockIndefinitely && !quickBlockTo)) return;
               const from = new Date(quickBlockFrom);
-              const to = new Date(quickBlockTo);
+              // "Indefinitely" isn't stored as a true open-ended range --
+              // blockedDates.end is required everywhere it's read (overlap
+              // checks in bookings.js/availability.js/search.js all assume
+              // a real end date), so a far-future date gets the same
+              // practical effect without touching that shared logic.
+              const to = blockIndefinitely
+                ? new Date(from.getFullYear() + 5, from.getMonth(), from.getDate())
+                : new Date(quickBlockTo);
               if (to < from) return;
               const newBlocks = [];
               const cursor = new Date(from);
@@ -168,6 +188,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
               onChange([...(blockedDates || []), ...newBlocks]);
               setQuickBlockFrom("");
               setQuickBlockTo("");
+              setBlockIndefinitely(false);
             }}
             style={{
               height: "36px", padding: "0 16px", borderRadius: "8px",
