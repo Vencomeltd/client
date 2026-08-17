@@ -224,10 +224,10 @@ export default function PropertyCard({
       <motion.div
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="group w-full"
+        className="group h-full w-full"
       >
-        <div className="overflow-hidden rounded-[18px] bg-white p-3 shadow-[0_1px_4px_rgba(0,0,0,0.08)] transition-shadow duration-200 ease-out group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.14)]">
-          <Link to={`/property/${listing.slug || listing.id}`} className="block">
+        <div className="flex h-full flex-col overflow-hidden rounded-[18px] bg-white p-3 shadow-[0_1px_4px_rgba(0,0,0,0.08)] transition-shadow duration-200 ease-out group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.14)]">
+          <Link to={`/property/${listing.slug || listing.id}`} className="flex flex-1 flex-col">
             <div className="relative overflow-hidden rounded-[12px]">
               <div className="aspect-[4/3] w-full" />
 
@@ -282,7 +282,7 @@ export default function PropertyCard({
               </motion.button>
             </div>
 
-            <div className="px-2 pb-1 pt-3 sm:px-1">
+            <div className="flex flex-1 flex-col px-2 pb-1 pt-3 sm:px-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[#6B7280]">
                   <MapPin size={12} />
@@ -309,7 +309,7 @@ export default function PropertyCard({
                 {listing.title}
               </h3>
 
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-1 flex-wrap content-start gap-1.5">
                 {listing.categories.length > 0 ? (
                   listing.categories.map((catName) => (
                     <span
