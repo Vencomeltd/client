@@ -47,9 +47,9 @@ export async function loader() {
 // "script:ld+json" entries across matched routes all render, so this
 // Organization/WebSite schema coexists with a route's own Product schema).
 export function meta() {
-  const title = "VenCome – Book & List Beauty & Wellness Spaces | UK";
+  const title = "VenCome – Book & List Commercial Spaces | UK";
   const description =
-    "VenCome is the UK's B2B marketplace for beauty and wellness spaces — book chairs, treatment rooms, and salon or clinic space by the hour, day, or month.";
+    "VenCome is the UK's B2B marketplace for commercial spaces — book offices, studios, treatment rooms, meeting rooms, and event venues by the hour, day, or month.";
   return [
     { title },
     { name: "description", content: description },
@@ -71,7 +71,7 @@ export function meta() {
         url: "https://www.vencome.com",
         logo: "https://www.vencome.com/VenCome.jpg",
         description:
-          "B2B marketplace for beauty and wellness spaces connecting business hosts with professional tenants across the UK.",
+          "B2B marketplace for commercial spaces connecting business hosts with professional tenants across the UK.",
         address: { "@type": "PostalAddress", addressCountry: "GB" },
         sameAs: ["https://vencome.com"],
       },
