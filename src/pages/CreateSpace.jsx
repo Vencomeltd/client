@@ -220,6 +220,9 @@ const defaultState = {
   availabilityDays: [],
   startTime: "",
   endTime: "",
+  is24Hours: false,
+  hoursMode: "same",
+  dayHours: {},
   instantBook: false,
   houseRules: "",
   listingTerms: "",
@@ -798,6 +801,16 @@ export default function CreateSpace() {
     }));
   };
 
+  const updateDayHours = (day, patch) => {
+    setForm((current) => ({
+      ...current,
+      dayHours: {
+        ...current.dayHours,
+        [day]: { openTime: "", closeTime: "", is24Hours: false, ...current.dayHours[day], ...patch },
+      },
+    }));
+  };
+
   const handleBufferSelect = (type, optionValue) => {
     if (type === "before") {
       setBeforeSelection(optionValue);
@@ -1004,7 +1017,16 @@ export default function CreateSpace() {
         setValidationError("Please select at least one available day before continuing.");
         return;
       }
-      if (!form.startTime || !form.endTime) {
+      if (form.hoursMode === "custom") {
+        const missingDay = form.availabilityDays.find((day) => {
+          const hours = form.dayHours[day];
+          return !hours?.is24Hours && (!hours?.openTime || !hours?.closeTime);
+        });
+        if (missingDay) {
+          setValidationError(`Please set hours for ${missingDay} before continuing.`);
+          return;
+        }
+      } else if (!form.is24Hours && (!form.startTime || !form.endTime)) {
         setValidationError("Please set your open and close times before continuing.");
         return;
       }
@@ -1124,6 +1146,12 @@ export default function CreateSpace() {
           openTime: form.startTime || "",
           closeTime: form.endTime || "",
           minNotice: form.minNotice || "24hours",
+          is24Hours: form.hoursMode === "same" ? !!form.is24Hours : false,
+          hoursMode: form.hoursMode || "same",
+          dayHours:
+            form.hoursMode === "custom"
+              ? Object.entries(form.dayHours || {}).map(([day, hours]) => ({ day, ...hours }))
+              : [],
         })
       );
       formData.append("coverImageIndex", form.coverImageIndex ?? 0);
@@ -2961,29 +2989,119 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
-                        Start time
-                      </label>
-                      <input
-                        type="time"
-                        className={inputClassName}
-                        value={form.startTime}
-                        onChange={(event) => updateField("startTime", event.target.value)}
-                      />
+                  <div>
+                    <h3 className={sectionTitleClassName}>Opening Hours</h3>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {[
+                        { value: "same", label: "Same hours every day" },
+                        { value: "custom", label: "Different hours per day" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateField("hoursMode", option.value)}
+                          className={`rounded-xl border-[1.5px] px-4 py-3 text-[14px] transition ${
+                            form.hoursMode === option.value
+                              ? "border-[#0A1628] bg-[rgba(10,22,40,0.03)] font-semibold text-[#0A1628]"
+                              : "border-[#E5E7EB] bg-white text-[#111827] hover:border-[#305CDE]"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
-                    <div>
-                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
-                        End time
-                      </label>
-                      <input
-                        type="time"
-                        className={inputClassName}
-                        value={form.endTime}
-                        onChange={(event) => updateField("endTime", event.target.value)}
-                      />
-                    </div>
+
+                    {form.hoursMode === "same" ? (
+                      <div className="mt-4">
+                        <label className="mb-3 flex items-center gap-2 text-[14px] font-medium text-[#0A1628]">
+                          <input
+                            type="checkbox"
+                            checked={form.is24Hours}
+                            onChange={(event) => updateField("is24Hours", event.target.checked)}
+                          />
+                          Open 24 hours
+                        </label>
+                        {!form.is24Hours && (
+                          <div className="grid gap-5 md:grid-cols-2">
+                            <div>
+                              <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                                Start time
+                              </label>
+                              <input
+                                type="time"
+                                className={inputClassName}
+                                value={form.startTime}
+                                onChange={(event) => updateField("startTime", event.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                                End time
+                              </label>
+                              <input
+                                type="time"
+                                className={inputClassName}
+                                value={form.endTime}
+                                onChange={(event) => updateField("endTime", event.target.value)}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        {form.availabilityDays.length === 0 ? (
+                          <p className="text-[13px] text-[#6B7280]">
+                            Select at least one open day above to set its hours.
+                          </p>
+                        ) : (
+                          form.availabilityDays.map((day) => {
+                            const hours = form.dayHours[day] || { openTime: "", closeTime: "", is24Hours: false };
+                            return (
+                              <div key={day} className="rounded-xl border-[1.5px] border-[#E5E7EB] p-4">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <p className="text-[14px] font-bold text-[#0A1628]">{day}</p>
+                                  <label className="flex items-center gap-2 text-[13px] font-medium text-[#0A1628]">
+                                    <input
+                                      type="checkbox"
+                                      checked={hours.is24Hours}
+                                      onChange={(event) => updateDayHours(day, { is24Hours: event.target.checked })}
+                                    />
+                                    Open 24 hours
+                                  </label>
+                                </div>
+                                {!hours.is24Hours && (
+                                  <div className="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                                        Start time
+                                      </label>
+                                      <input
+                                        type="time"
+                                        className={inputClassName}
+                                        value={hours.openTime}
+                                        onChange={(event) => updateDayHours(day, { openTime: event.target.value })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                                        End time
+                                      </label>
+                                      <input
+                                        type="time"
+                                        className={inputClassName}
+                                        value={hours.closeTime}
+                                        onChange={(event) => updateDayHours(day, { closeTime: event.target.value })}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: "24px" }}>
@@ -3889,7 +4007,11 @@ export default function CreateSpace() {
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <Clock3 size={14} />
-                          {form.startTime} - {form.endTime}
+                          {form.hoursMode === "custom"
+                            ? "Varies by day"
+                            : form.is24Hours
+                            ? "Open 24 hours"
+                            : `${form.startTime} - ${form.endTime}`}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays size={14} />

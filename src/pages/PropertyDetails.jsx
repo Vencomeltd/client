@@ -422,8 +422,13 @@ const normalizePropertyData = (property) => {
         "Location details will be shared after your booking is confirmed.",
     },
     availabilityLabel: formatOpenDays(openDays),
-    availabilityHours:
-      openTime && closeTime ? `${openTime} - ${closeTime}` : "Hours available on request",
+    availabilityHours: property.availability?.is24Hours
+      ? "Open 24 hours"
+      : property.availability?.hoursMode === "custom"
+      ? "Varies by day"
+      : openTime && closeTime
+      ? `${openTime} - ${closeTime}`
+      : "Hours available on request",
     bookingTypeLabel: property.bookingSettings?.instantBook
       ? "Instant Book"
       : "Request to Book",
