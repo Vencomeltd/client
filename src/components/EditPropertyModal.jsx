@@ -838,6 +838,7 @@ const EditPropertyModal = ({ property, onClose, onUpdate }) => {
                     className={`mt-1 p-2 w-full border rounded-lg focus:ring-primary focus:border-primary ${
                       errors.latitude ? "border-red-500" : "border-gray-300"
                     }`}
+                    onWheel={(event) => event.target.blur()}
                   />
                 </div>
                 <div className="mb-4">
@@ -851,6 +852,7 @@ const EditPropertyModal = ({ property, onClose, onUpdate }) => {
                     className={`mt-1 p-2 w-full border rounded-lg focus:ring-primary focus:border-primary ${
                       errors.longitude ? "border-red-500" : "border-gray-300"
                     }`}
+                    onWheel={(event) => event.target.blur()}
                   />
                 </div>
               </div>

@@ -2038,6 +2038,7 @@ export default function CreateSpace() {
                         className={inputClassName}
                         value={form.capacity}
                         onChange={(event) => updateField("capacity", event.target.value)}
+                        onWheel={(event) => event.target.blur()}
                       />
                     </div>
                   </div>
@@ -2476,6 +2477,7 @@ export default function CreateSpace() {
                         value={form.sizeSQM || ""}
                         onChange={(e) => updateField("sizeSQM", e.target.value)}
                         placeholder="e.g. 45"
+                        onWheel={(event) => event.target.blur()}
                       />
                     </div>
                     <div>
@@ -2488,6 +2490,7 @@ export default function CreateSpace() {
                         value={form.seatCapacity || ""}
                         onChange={(e) => updateField("seatCapacity", e.target.value)}
                         placeholder="e.g. 12"
+                        onWheel={(event) => event.target.blur()}
                       />
                     </div>
                   </div>
@@ -2584,6 +2587,7 @@ export default function CreateSpace() {
                                   updated[index] = { ...updated[index], price: e.target.value };
                                   updateField("extras", updated);
                                 }}
+                                onWheel={(event) => event.target.blur()}
                                 style={{
                                   width: "100px",
                                   padding: "10px 14px",
@@ -2826,6 +2830,7 @@ export default function CreateSpace() {
                                     },
                                   }))
                                 }
+                                onWheel={(event) => event.target.blur()}
                                 style={{
                                   flex: 1,
                                   padding: "10px 14px",
@@ -3074,6 +3079,7 @@ export default function CreateSpace() {
                           className="h-11 w-20 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-center text-[15px] outline-none focus:border-[#0A1628]"
                           value={customBefore}
                           onChange={(event) => setCustomBefore(event.target.value)}
+                          onWheel={(event) => event.target.blur()}
                         />
                         <select
                           className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[15px] outline-none focus:border-[#0A1628]"
@@ -3117,6 +3123,7 @@ export default function CreateSpace() {
                           className="h-11 w-20 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-center text-[15px] outline-none focus:border-[#0A1628]"
                           value={customAfter}
                           onChange={(event) => setCustomAfter(event.target.value)}
+                          onWheel={(event) => event.target.blur()}
                         />
                         <select
                           className="h-11 rounded-lg border-[1.5px] border-[#E5E7EB] px-3 text-[15px] outline-none focus:border-[#0A1628]"
@@ -3297,6 +3304,7 @@ export default function CreateSpace() {
                             extendedHours: e.target.value === "" ? 0 : Number(e.target.value),
                           })
                         }
+                        onWheel={(event) => event.target.blur()}
                         placeholder="0"
                         style={{
                           width: "64px",

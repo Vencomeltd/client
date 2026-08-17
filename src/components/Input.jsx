@@ -29,6 +29,7 @@ const Input = ({
             ${shake ? "animate-shake" : ""}
             ${disabled ? "bg-gray-200" : ""}
           `}
+          onWheel={type === "number" ? (event) => event.target.blur() : undefined}
           {...props}
         />
       </div>
