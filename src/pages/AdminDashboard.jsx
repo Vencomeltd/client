@@ -1584,6 +1584,9 @@ function UsersSection({
   onImpersonateUser,
   onRequestAccessUser,
   onOpenCreateHost,
+  usersPage,
+  usersTotalPages,
+  onUsersPageChange,
 }) {
   const tabs = [
     { key: "all", label: `All (${users.length})` },
@@ -1845,20 +1848,25 @@ function UsersSection({
 
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <p className="text-[13px] text-[#6B7280]">
-            Showing {users.length ? `1–${Math.min(users.length, 10)}` : "0"} of {formatNumber(totalUsers)} users
+            Page {usersPage} of {usersTotalPages} — {formatNumber(totalUsers)} users total
           </p>
           <div className="flex items-center gap-2">
-            {["1", "2", "3"].map((page, index) => (
-              <button
-                key={page}
-                type="button"
-                className={`h-10 w-10 rounded-lg text-[14px] ${
-                  index === 0 ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
+            <button
+              type="button"
+              disabled={usersPage <= 1}
+              onClick={() => onUsersPageChange(usersPage - 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={usersPage >= usersTotalPages}
+              onClick={() => onUsersPageChange(usersPage + 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -1878,6 +1886,9 @@ function ListingsSection({
   rejectionState,
   setRejectionState,
   onToast,
+  listingsPage,
+  listingsTotalPages,
+  onListingsPageChange,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const filteredQueue = moderationQueue.filter((listing) => {
@@ -2117,7 +2128,7 @@ function ListingsSection({
                   </td>
                 </tr>
               ) : (
-                listings.slice(0, 10).map((listing, index) => (
+                listings.map((listing, index) => (
                 <motion.tr
                   key={listing._id}
                   initial={{ opacity: 0 }}
@@ -2200,6 +2211,30 @@ function ListingsSection({
               </motion.div>
             ))
           )}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-[13px] text-[#6B7280]">
+            Page {listingsPage} of {listingsTotalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={listingsPage <= 1}
+              onClick={() => onListingsPageChange(listingsPage - 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={listingsPage >= listingsTotalPages}
+              onClick={() => onListingsPageChange(listingsPage + 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
       {selectedListing && (
@@ -5425,7 +5460,11 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
   const [users, setUsers] = useState([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
   const [listings, setListings] = useState([]);
+  const [listingsPage, setListingsPage] = useState(1);
+  const [listingsTotalPages, setListingsTotalPages] = useState(1);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -5716,6 +5755,70 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchUsers = useCallback(async (page) => {
+    try {
+      const authToken = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users?page=${page}&limit=20`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const allUsers = data.users || [];
+        setUsers(allUsers);
+        setUsersPage(data.page || page);
+        setUsersTotalPages(data.pages || 1);
+        setStats((prev) => ({
+          ...prev,
+          totalUsers: data.total || allUsers.length,
+          activeUsers: allUsers.filter((user) => !user.isBanned).length,
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    }
+  }, []);
+
+  const fetchListings = useCallback(async (page) => {
+    try {
+      const authToken = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties?page=${page}&limit=50`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const allListings = data.properties || [];
+        setListings(allListings);
+        setListingsPage(data.page || page);
+        setListingsTotalPages(data.pages || 1);
+        setStats((prev) => ({
+          ...prev,
+          totalListings: data.total || allListings.length,
+          pendingListings: allListings.filter((listing) => !listing.isActive).length,
+        }));
+        setModerationQueue(
+          allListings
+            .filter((listing) => !listing.isActive)
+            .slice(0, 10)
+            .map((listing) => ({
+              id: listing._id,
+              title: listing.title,
+              host: getListingHostName(listing),
+              category: listing.category?.name || "",
+              location: listing.location?.city || "",
+              price: listing.pricing?.hourly || listing.pricing?.daily || 0,
+              priceUnit: listing.pricing?.hourly ? "hour" : "day",
+              submittedAt: formatDate(listing.createdAt),
+              status: "pending_review",
+              image: listing.coverImage,
+              flags: [],
+            }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch listings:", err);
+    }
+  }, []);
+
   const fetchBlogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("vencome_token");
@@ -5736,53 +5839,11 @@ export default function AdminDashboard() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [usersRes, listingsRes, bookingsRes, analyticsRes, reportsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/admin/users`, { headers }),
-          fetch(`${import.meta.env.VITE_API_URL}/admin/properties?limit=100`, { headers }),
+        const [bookingsRes, analyticsRes, reportsRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=all&limit=100`, { headers }),
         ]);
-
-        if (usersRes.ok) {
-          const usersData = await usersRes.json();
-          const allUsers = usersData.users || [];
-          setUsers(allUsers);
-          setStats((prev) => ({
-            ...prev,
-            totalUsers: usersData.total || allUsers.length,
-            activeUsers: allUsers.filter((user) => !user.isBanned).length,
-          }));
-        }
-
-        if (listingsRes.ok) {
-          const listingsData = await listingsRes.json();
-          const allListings = listingsData.properties || [];
-          setListings(allListings);
-          setStats((prev) => ({
-            ...prev,
-            totalListings: listingsData.total || allListings.length,
-            pendingListings: allListings.filter((listing) => !listing.isActive).length,
-          }));
-          setModerationQueue(
-            allListings
-              .filter((listing) => !listing.isActive)
-              .slice(0, 10)
-              .map((listing) => ({
-                id: listing._id,
-                title: listing.title,
-                host: getListingHostName(listing),
-                category: listing.category?.name || "",
-                location: listing.location?.city || "",
-                price: listing.pricing?.hourly || listing.pricing?.daily || 0,
-                priceUnit: listing.pricing?.hourly ? "hour" : "day",
-                submittedAt: formatDate(listing.createdAt),
-                status: "pending_review",
-                image: listing.coverImage,
-                flags: [],
-              }))
-          );
-        }
 
         if (bookingsRes.ok) {
           const bookingsData = await bookingsRes.json();
@@ -5826,6 +5887,16 @@ export default function AdminDashboard() {
 
     fetchAdminData();
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchUsers(usersPage);
+  }, [token, usersPage, fetchUsers]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchListings(listingsPage);
+  }, [token, listingsPage, fetchListings]);
 
   const showToast = (message) => {
     setToastMessage(message);
@@ -5893,6 +5964,9 @@ export default function AdminDashboard() {
         onImpersonateUser={handleImpersonateUser}
         onRequestAccessUser={handleRequestAccess}
         onOpenCreateHost={() => setShowCreateHostModal(true)}
+        usersPage={usersPage}
+        usersTotalPages={usersTotalPages}
+        onUsersPageChange={setUsersPage}
       />
 
       <CreateHostModal
@@ -5945,6 +6019,9 @@ export default function AdminDashboard() {
         rejectionState={rejectionState}
         setRejectionState={setRejectionState}
         onToast={showToast}
+        listingsPage={listingsPage}
+        listingsTotalPages={listingsTotalPages}
+        onListingsPageChange={setListingsPage}
       />
     );
   } else if (activeSection === "bookings") {
