@@ -6,6 +6,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { ChatProvider } from "./context/ChatContext.jsx";
+import SupportChatWidget from "./components/SupportChatWidget.jsx";
 import "./index.css";
 
 // Same provider tree main.jsx/App.jsx used to set up around
@@ -135,6 +136,7 @@ export default function Root() {
             <QueryClientProvider client={queryClient}>
               <ToastContainer position="top-right" autoClose={4000} />
               <Outlet />
+              <SupportChatWidget />
             </QueryClientProvider>
           </NotificationProvider>
         </AuthProvider>

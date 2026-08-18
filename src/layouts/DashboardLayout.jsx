@@ -13,6 +13,7 @@ import {
   Heart,
   HelpCircle,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   MessageSquare,
@@ -334,6 +335,22 @@ function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, on
 
       <div className="mt-auto px-5 pt-6">
         <div className="border-t border-white/10 pt-4">
+          <Link
+            to="/support/tickets"
+            onClick={(e) => {
+              if (isNavGuardActive()) {
+                e.preventDefault();
+                requestNavConfirm();
+                return;
+              }
+              onNavigate?.();
+            }}
+            title={collapsed ? "Support" : undefined}
+            className={`mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[11px] text-[14px] font-medium text-white/50 transition hover:bg-white/5 hover:text-white ${collapsed ? "justify-center" : ""}`}
+          >
+            <LifeBuoy size={18} />
+            {collapsed ? null : <span>Support</span>}
+          </Link>
           <Link
             to="/help-support"
             onClick={(e) => {

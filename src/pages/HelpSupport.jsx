@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   ChevronDown,
@@ -9,9 +10,9 @@ import {
 } from "lucide-react";
 import Button from "../components/Button";
 import Footer from "../components/Footer";
-import ContactForm from "../components/ContactForm";
 
 const HelpSupport = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [openArticle, setOpenArticle] = useState(null);
 
@@ -256,7 +257,10 @@ const HelpSupport = () => {
             <MessageCircle className="h-10 w-10 text-primary mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Live Chat</h3>
             <p className="text-gray-600 mb-4">Talk to us right now</p>
-            <button className="bg-primary text-white px-6 py-2 rounded-full">
+            <button
+              onClick={() => navigate("/support/tickets")}
+              className="bg-primary text-white px-6 py-2 rounded-full"
+            >
               Start Chat
             </button>
           </div>
@@ -353,8 +357,23 @@ const HelpSupport = () => {
           </div>
 
           <div className="grid md:grid-cols-2 gap-10">
-            {/* Contact Form */}
-            <ContactForm />
+            {/* Start a conversation */}
+            <div className="bg-white rounded-2xl shadow-xl p-8 md:p-10 border border-gray-100">
+              <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                Start a Conversation
+              </h3>
+              <p className="text-gray-600 mb-8">
+                Open a support ticket and chat with our team in real time —
+                we'll keep you updated every step of the way.
+              </p>
+              <button
+                onClick={() => navigate("/support/tickets")}
+                className="w-full bg-primary text-white py-3.5 rounded-xl font-medium transition flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="h-5 w-5" />
+                Start a Conversation
+              </button>
+            </div>
 
             {/* Live Chat & Other Options */}
             <div className="space-y-8">

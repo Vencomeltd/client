@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
+import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
   ArrowRight,
@@ -19,12 +20,14 @@ import {
   Key,
   LayoutDashboard,
   LayoutGrid,
+  LifeBuoy,
   LogIn,
   LogOut,
   MapPin,
   Megaphone,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Pencil,
   Plus,
   PoundSterling,
@@ -380,6 +383,12 @@ const NAV_ITEMS = [
     icon: AlertTriangle,
   },
   {
+    label: "Support",
+    section: "support",
+    group: "MANAGEMENT",
+    icon: LifeBuoy,
+  },
+  {
     label: "Invoices",
     section: "invoices",
     group: "MANAGEMENT",
@@ -454,7 +463,7 @@ const ADMIN_ROLES = [
 // unknown/loading role) sees everything; team + settings stay full_admin-only.
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
-  support: ["overview", "analytics", "users", "listings", "bookings", "disputes"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support"],
   content: ["overview", "analytics", "markets", "categories", "broadcast", "content"],
 };
 
@@ -470,6 +479,7 @@ const SECTION_TITLES = {
   bookings: "Bookings",
   payments: "Payments",
   disputes: "Disputes",
+  support: "Support",
   invoices: "Invoices",
   analytics: "Analytics",
   commission: "Commission",
@@ -808,6 +818,28 @@ function StatusPill({ status, type = "generic" }) {
     return (
       <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-semibold ${classes}`}>
         <StatusIcon size={12} />
+        {label}
+      </span>
+    );
+  }
+
+  if (type === "ticket") {
+    const classes =
+      status === "resolved"
+        ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
+        : status === "closed"
+        ? "border-[rgba(107,114,128,0.2)] bg-[rgba(107,114,128,0.1)] text-[#6B7280]"
+        : status === "in_progress"
+        ? "border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.1)] text-[#D97706]"
+        : status === "waiting_on_user"
+        ? "border-[rgba(124,58,237,0.2)] bg-[rgba(124,58,237,0.1)] text-[#7C3AED]"
+        : "border-[rgba(48,92,222,0.2)] bg-[rgba(48,92,222,0.1)] text-[#305CDE]";
+    const label = status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+    return (
+      <span className={`rounded-full border px-3 py-1 text-[12px] font-semibold ${classes}`}>
         {label}
       </span>
     );
@@ -4988,6 +5020,457 @@ function DisputesSection({ disputes, setDisputes, disputesFilter, setDisputesFil
   );
 }
 
+const TICKET_STATUS_OPTIONS = ["open", "in_progress", "waiting_on_user", "resolved", "closed"];
+const TICKET_PRIORITY_OPTIONS = ["low", "normal", "high", "urgent"];
+const TICKET_CATEGORY_LABELS = {
+  booking_payments: "Booking & Payments",
+  hosting_listings: "Hosting & Listings",
+  account_security: "Account & Security",
+  trust_safety: "Trust & Safety",
+  technical: "Technical Issue",
+  other: "Other",
+};
+
+function ticketStatusLabel(status) {
+  return (status || "")
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+// Detail/reply view for one ticket, opened from a SupportTicketsSection row.
+// Reuses the ticket data/message shape from the customer-facing
+// SupportTicketThread.jsx but is its own Tailwind-styled Modal (rather than
+// importing that page directly) so it can carry the admin-only status/
+// priority/assignment controls that don't belong on the customer page.
+function SupportTicketDetailModal({ ticketId, isOpen, onClose, onToast, myAdmin, onStatusChange }) {
+  const [ticket, setTicket] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [replyText, setReplyText] = useState("");
+  const [replyFile, setReplyFile] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const fileInputRef = useRef(null);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !ticketId) return;
+    setLoading(true);
+    const token = localStorage.getItem("vencome_token");
+    fetch(`${import.meta.env.VITE_API_URL}/support/tickets/${ticketId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTicket(data);
+        setMessages(data.messages || []);
+      })
+      .catch((err) => console.error("Failed to load ticket:", err))
+      .finally(() => setLoading(false));
+  }, [isOpen, ticketId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Same live-append pattern as SupportTicketThread.jsx: join the ticket's
+  // room and append messages only via the socket event (the server
+  // broadcasts to the whole room including the sender), so the reply sent
+  // below isn't appended twice.
+  useEffect(() => {
+    if (!isOpen || !ticketId) return undefined;
+    const token = localStorage.getItem("vencome_token");
+    const socket = initSocket(token);
+    socket.emit("joinTicket", ticketId);
+
+    const handleMessage = (payload) => {
+      if (String(payload.ticketId) !== String(ticketId)) return;
+      setMessages((prev) =>
+        prev.some((m) => m._id === payload.message._id) ? prev : [...prev, payload.message]
+      );
+      if (payload.status) setTicket((prev) => (prev ? { ...prev, status: payload.status } : prev));
+    };
+    const handleStatusChanged = (payload) => {
+      setTicket((prev) => (prev ? { ...prev, status: payload.status } : prev));
+    };
+
+    socket.on("ticket_message", handleMessage);
+    socket.on("ticket_status_changed", handleStatusChanged);
+    return () => {
+      socket.off("ticket_message", handleMessage);
+      socket.off("ticket_status_changed", handleStatusChanged);
+    };
+  }, [isOpen, ticketId]);
+
+  const patchTicket = async (updates) => {
+    setUpdating(true);
+    const prevTicket = ticket;
+    setTicket((current) => (current ? { ...current, ...updates } : current));
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/support-tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      const data = await res.json();
+      setTicket(data);
+      if (updates.status) onStatusChange?.(ticketId, data.status);
+      onToast("Ticket updated");
+    } catch {
+      setTicket(prevTicket);
+      onToast("Failed to update ticket — try again");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!replyText.trim() || sending) return;
+    setSending(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const formData = new FormData();
+      formData.append("body", replyText.trim());
+      if (replyFile) formData.append("attachment", replyFile);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/support/tickets/${ticketId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send reply");
+      setReplyText("");
+      setReplyFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      console.error("Failed to send reply:", err);
+      onToast("Failed to send reply");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const isAssignedToMe = ticket?.assignedAdmin?._id === myAdmin?._id || ticket?.assignedAdmin === myAdmin?._id;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="w-full">
+        {loading || !ticket ? (
+          <div className="py-10 text-center text-[14px] text-[#6B7280]">Loading ticket...</div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[12px] font-bold text-[#6B7280]">{ticket.ticketNumber}</p>
+                <h3 className="mt-1 text-[18px] font-bold text-[#0A1628]">{ticket.subject}</h3>
+                <p className="text-[13px] text-[#6B7280]">
+                  {getUserDisplayName(ticket.user)} · {TICKET_CATEGORY_LABELS[ticket.category] || ticket.category}
+                </p>
+              </div>
+              <StatusPill status={ticket.status} type="ticket" />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                value={ticket.status}
+                disabled={updating}
+                onChange={(event) => patchTicket({ status: event.target.value })}
+                className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-[13px] text-[#111827] outline-none disabled:opacity-50"
+              >
+                {TICKET_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {ticketStatusLabel(status)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={ticket.priority}
+                disabled={updating}
+                onChange={(event) => patchTicket({ priority: event.target.value })}
+                className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-2 text-[13px] text-[#111827] outline-none disabled:opacity-50"
+              >
+                {TICKET_PRIORITY_OPTIONS.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                  </option>
+                ))}
+              </select>
+              {isAssignedToMe ? (
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => patchTicket({ assignedAdmin: null })}
+                  className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] font-medium text-[#111827] disabled:opacity-50"
+                >
+                  Unassign from me
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => patchTicket({ assignedAdmin: myAdmin?._id })}
+                  className="h-9 rounded-lg bg-[#305CDE] px-3 text-[13px] font-semibold text-white disabled:opacity-50"
+                >
+                  Assign to me
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4 flex max-h-[360px] flex-col gap-3 overflow-y-auto rounded-xl border border-[#E5E7EB] bg-[#F8F6F0] p-4">
+              {messages.length === 0 ? (
+                <p className="text-center text-[13px] text-[#6B7280]">No messages yet.</p>
+              ) : (
+                messages.map((msg, index) => {
+                  const isCustomer = msg.senderRole === "customer";
+                  return (
+                    <div key={msg._id || index} className={`flex ${isCustomer ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-[13px] leading-6 ${
+                          isCustomer ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
+                        }`}
+                      >
+                        {msg.body}
+                        {msg.attachments?.length > 0 &&
+                          msg.attachments.map((url, i) => (
+                            <img key={i} src={url} alt="Attachment" className="mt-2 max-w-full rounded-lg" />
+                          ))}
+                        <div className={`mt-1 text-[10px] ${isCustomer ? "text-white/60" : "text-[#9CA3AF]"}`}>
+                          {timeAgo(msg.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            <div className="mt-3 flex items-end gap-2">
+              <textarea
+                value={replyText}
+                onChange={(event) => setReplyText(event.target.value)}
+                placeholder="Reply to this ticket..."
+                rows={2}
+                className="flex-1 resize-none rounded-lg border border-[#E5E7EB] px-3 py-2 text-[13px] outline-none focus:border-[#0A1628]"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => setReplyFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-10 w-10 shrink-0 rounded-lg border border-[#E5E7EB] bg-white text-[#6B7280]"
+              >
+                <Paperclip size={16} className="mx-auto" />
+              </button>
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!replyText.trim() || sending}
+                className="h-10 shrink-0 rounded-lg bg-[#305CDE] px-4 text-[13px] font-semibold text-white disabled:opacity-50"
+              >
+                {sending ? "Sending..." : "Send"}
+              </button>
+            </div>
+            {replyFile ? <p className="mt-1 text-[11px] text-[#6B7280]">Attached: {replyFile.name}</p> : null}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function SupportTicketsSection({ onToast, myAdmin }) {
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [assignedToMe, setAssignedToMe] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
+
+  const fetchTickets = useCallback(
+    async (pageNum) => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const params = new URLSearchParams({ page: String(pageNum), limit: "20" });
+        if (statusFilter) params.set("status", statusFilter);
+        if (categoryFilter) params.set("category", categoryFilter);
+        if (priorityFilter) params.set("priority", priorityFilter);
+        if (assignedToMe) params.set("assignedToMe", "true");
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/support-tickets?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTickets(data.tickets || []);
+          setPage(data.page || pageNum);
+          setTotalPages(data.pages || 1);
+          setTotal(data.total || 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch support tickets:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [statusFilter, categoryFilter, priorityFilter, assignedToMe]
+  );
+
+  useEffect(() => {
+    fetchTickets(1);
+  }, [fetchTickets]);
+
+  const handleStatusChange = (ticketId, newStatus) => {
+    setTickets((current) => current.map((t) => (t._id === ticketId ? { ...t, status: newStatus } : t)));
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Support Tickets</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} tickets</p>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="">All Statuses</option>
+          {TICKET_STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {ticketStatusLabel(status)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={categoryFilter}
+          onChange={(event) => setCategoryFilter(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="">All Categories</option>
+          {Object.entries(TICKET_CATEGORY_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={priorityFilter}
+          onChange={(event) => setPriorityFilter(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="">All Priorities</option>
+          {TICKET_PRIORITY_OPTIONS.map((priority) => (
+            <option key={priority} value={priority}>
+              {priority.charAt(0).toUpperCase() + priority.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={() => setAssignedToMe((current) => !current)}
+          className={`h-10 rounded-full border px-4 text-[13px] font-medium transition ${
+            assignedToMe ? "border-[#0A1628] bg-[#0A1628] text-white" : "border-[#E5E7EB] bg-white text-[#111827]"
+          }`}
+        >
+          Assigned to me
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+        {loading ? (
+          <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading tickets...</div>
+        ) : tickets.length === 0 ? (
+          <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No tickets in this view</div>
+        ) : (
+          <div className="flex flex-col">
+            {tickets.map((ticket) => (
+              <button
+                key={ticket._id}
+                type="button"
+                onClick={() => setSelectedTicketId(ticket._id)}
+                className="flex flex-col gap-2 border-b border-[#F3F4F6] px-4 py-4 text-left transition last:border-b-0 hover:bg-[#FAFAFA] md:flex-row md:items-center md:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold text-[#6B7280]">{ticket.ticketNumber}</span>
+                    {ticket.priority === "urgent" || ticket.priority === "high" ? (
+                      <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-[#DC2626]">
+                        {ticket.priority}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-[14px] font-semibold text-[#0A1628]">{ticket.subject}</p>
+                  <p className="mt-0.5 text-[12px] text-[#6B7280]">
+                    {getUserDisplayName(ticket.user)} · {TICKET_CATEGORY_LABELS[ticket.category] || ticket.category}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-[12px] text-[#6B7280]">{timeAgo(ticket.lastMessageAt || ticket.updatedAt)}</span>
+                  <StatusPill status={ticket.status} type="ticket" />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-[13px] text-[#6B7280]">
+            Page {page} of {totalPages} — {formatNumber(total)} tickets total
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => fetchTickets(page - 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => fetchTickets(page + 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <SupportTicketDetailModal
+        ticketId={selectedTicketId}
+        isOpen={!!selectedTicketId}
+        onClose={() => setSelectedTicketId(null)}
+        onToast={onToast}
+        myAdmin={myAdmin}
+        onStatusChange={handleStatusChange}
+      />
+    </>
+  );
+}
+
 function CommissionSection({ onToast }) {
   const [loading, setLoading] = useState(true);
   const [defaultRate, setDefaultRate] = useState(10);
@@ -6088,6 +6571,8 @@ export default function AdminDashboard() {
         onToast={showToast}
       />
     );
+  } else if (activeSection === "support") {
+    sectionContent = <SupportTicketsSection onToast={showToast} myAdmin={myAdmin} />;
   } else if (activeSection === "invoices") {
     sectionContent = <InvoicesSection onToast={showToast} />;
   } else if (activeSection === "commission") {

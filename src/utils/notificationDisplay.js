@@ -3,8 +3,10 @@ import {
   CircleSlash,
   CreditCard,
   FileText,
+  LifeBuoy,
   MessageSquare,
   Megaphone,
+  RefreshCw,
   ShieldCheck,
   Star,
   Wallet,
@@ -22,6 +24,9 @@ export const TYPE_CONFIG = {
   payout_sent: { icon: Wallet, color: "#10b981", label: "Payout sent" },
   verification_update: { icon: ShieldCheck, color: "#6366f1", label: "Verification update" },
   admin_message: { icon: Megaphone, color: "#64748b", label: "From Vencome" },
+  ticket_created: { icon: LifeBuoy, color: "#6366f1", label: "Support ticket opened" },
+  ticket_reply: { icon: MessageSquare, color: "#6366f1", label: "Support reply" },
+  ticket_status_changed: { icon: RefreshCw, color: "#f59e0b", label: "Ticket status updated" },
 };
 
 export function timeAgo(dateStr) {

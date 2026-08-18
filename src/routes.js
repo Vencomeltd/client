@@ -67,6 +67,8 @@ export default [
     route("chat", "pages/ChatPage.jsx", { id: "chat-root" }),
     route("chat/:conversationId", "pages/Conversation.jsx"),
     route("notifications", "pages/Notifications.jsx"),
+    route("support/tickets", "pages/MySupportTickets.jsx"),
+    route("support/tickets/:id", "pages/SupportTicketThread.jsx"),
     route("host/create", "pages/CreateSpace.jsx", { id: "host-create-private" }),
   ]),
 
