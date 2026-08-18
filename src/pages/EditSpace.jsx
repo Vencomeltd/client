@@ -61,6 +61,7 @@ export default function EditSpace() {
     },
     bufferTime: { before: "", after: "" },
     capacity: "",
+    unitsCount: "1",
     amenities: [],
     rules: "",
     listingTerms: "",
@@ -141,6 +142,7 @@ export default function EditSpace() {
             p.features?.capacity?.toString() ||
             p.features?.seatCapacity?.toString() ||
             "",
+          unitsCount: (p.unitsCount || 1).toString(),
           amenities: p.features?.amenities || [],
           rules:
             p.features?.houseRules ||
@@ -264,6 +266,7 @@ export default function EditSpace() {
           houseRules: formData.rules || "",
         })
       );
+      payload.append("unitsCount", formData.unitsCount || "1");
       payload.append(
         "bookingSettings",
         JSON.stringify({
@@ -1251,6 +1254,7 @@ export default function EditSpace() {
           <BlockDatesEditor
             blockedDates={formData.blockedDates}
             onChange={(next) => setFormData((prev) => ({ ...prev, blockedDates: next }))}
+            unitsCount={Number(formData.unitsCount) || 1}
           />
         </div>
 
@@ -1375,6 +1379,40 @@ export default function EditSpace() {
               type="number"
               value={formData.capacity}
               onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
+              onWheel={(e) => e.target.blur()}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Number of identical units
+            </label>
+            <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "8px" }}>
+              If you have several identical setups (e.g. 5 identical chairs), guests can book any one
+              of them independently — up to this many bookings can overlap at once.
+            </p>
+            <input
+              type="number"
+              min="1"
+              value={formData.unitsCount}
+              onChange={(e) => setFormData((prev) => ({ ...prev, unitsCount: e.target.value }))}
+              onWheel={(e) => e.target.blur()}
               style={{
                 width: "100%",
                 padding: "10px 14px",

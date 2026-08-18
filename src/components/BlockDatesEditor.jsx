@@ -5,7 +5,7 @@ const DAYS_SHORT = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 // Shared between CreateSpace.jsx and EditSpace.jsx so the block/unblock
 // calendar logic (and its date-math bug fixes) live in exactly one place.
-export default function BlockDatesEditor({ blockedDates, onChange }) {
+export default function BlockDatesEditor({ blockedDates, onChange, unitsCount = 1 }) {
   const [blockViewDate, setBlockViewDate] = useState(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -13,6 +13,9 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
   });
   const [blockStart, setBlockStart] = useState(null);
   const [blockMode, setBlockMode] = useState("block");
+  // null = "All units" (blocks/unblocks every unit, today's single-unit
+  // behavior). A number 1..unitsCount targets just that specific unit.
+  const [selectedUnit, setSelectedUnit] = useState(null);
   const [quickBlockFrom, setQuickBlockFrom] = useState("");
   const [quickBlockTo, setQuickBlockTo] = useState("");
   const [blockIndefinitely, setBlockIndefinitely] = useState(false);
@@ -64,7 +67,13 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
       // single blocked calendar day) -- using <= here treated the day
       // *after* every blocked day as blocked too (e.g. "Block All
       // Wednesdays" also shaded every Thursday).
-      return current >= start && current < end;
+      const overlaps = current >= start && current < end;
+      if (!overlaps) return false;
+      // Viewing "All units": show blocked if any unit is blocked at all.
+      // Viewing a specific unit: show blocked only if that unit is
+      // affected (an "all units" entry always affects it too).
+      if (selectedUnit == null) return true;
+      return blocked.unitIndex == null || blocked.unitIndex === selectedUnit;
     });
   };
 
@@ -94,7 +103,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
       const existing = blockedDates || [];
       onChange([
         ...existing,
-        { start: start.toISOString(), end: end.toISOString(), reason: "personal" },
+        { start: start.toISOString(), end: end.toISOString(), reason: "personal", unitIndex: selectedUnit },
       ]);
     } else {
       const updated = (blockedDates || []).filter((blocked) => {
@@ -102,7 +111,12 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
         const blockedEnd = new Date(blocked.end);
         blockedStart.setHours(0, 0, 0, 0);
         blockedEnd.setHours(0, 0, 0, 0);
-        return !(blockedStart >= start && blockedEnd <= end);
+        const inRange = blockedStart >= start && blockedEnd <= end;
+        if (!inRange) return true;
+        // Only remove entries this unit-view governs -- unblocking while
+        // viewing "Chair 2" shouldn't touch a block on Chair 3.
+        const matchesUnit = selectedUnit == null || blocked.unitIndex === selectedUnit;
+        return !matchesUnit;
       });
       onChange(updated);
     }
@@ -181,7 +195,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
                   return bs.toDateString() === d.toDateString();
                 });
                 if (!alreadyBlocked) {
-                  newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal" });
+                  newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal", unitIndex: selectedUnit });
                 }
                 cursor.setDate(cursor.getDate() + 1);
               }
@@ -252,7 +266,7 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
                     return bs.toDateString() === d.toDateString();
                   });
                   if (!alreadyBlocked) {
-                    newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal" });
+                    newBlocks.push({ start: d.toISOString(), end: new Date(d.getTime() + 86400000).toISOString(), reason: "personal", unitIndex: selectedUnit });
                   }
                 }
                 cursor.setDate(cursor.getDate() + 1);
@@ -299,6 +313,43 @@ export default function BlockDatesEditor({ blockedDates, onChange }) {
           Unblock dates
         </button>
       </div>
+
+      {unitsCount > 1 && (
+        <div style={{ marginBottom: "20px" }}>
+          <p style={{ fontSize: "13px", fontWeight: "700", color: "#0A1628", marginBottom: "8px" }}>
+            Which unit?
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => setSelectedUnit(null)}
+              style={{
+                padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                background: selectedUnit === null ? "#0A1628" : "#fff",
+                color: selectedUnit === null ? "#fff" : "#0A1628",
+                border: `1.5px solid ${selectedUnit === null ? "#0A1628" : "#E5E7EB"}`,
+              }}
+            >
+              All units
+            </button>
+            {Array.from({ length: unitsCount }, (_, i) => i + 1).map((unit) => (
+              <button
+                key={unit}
+                type="button"
+                onClick={() => setSelectedUnit(unit)}
+                style={{
+                  padding: "8px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: "600", cursor: "pointer",
+                  background: selectedUnit === unit ? "#0A1628" : "#fff",
+                  color: selectedUnit === unit ? "#fff" : "#0A1628",
+                  border: `1.5px solid ${selectedUnit === unit ? "#0A1628" : "#E5E7EB"}`,
+                }}
+              >
+                Unit {unit}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
         <button

@@ -195,6 +195,7 @@ const defaultState = {
   description: "",
   whatsIncluded: "",
   capacity: "",
+  unitsCount: "1",
   photos: [],
   images: [],
   photoUrls: [],
@@ -1159,6 +1160,7 @@ export default function CreateSpace() {
       formData.append("restrooms", form.restrooms || 0);
       formData.append("sizeSQM", form.sizeSQM || "");
       formData.append("seatCapacity", form.seatCapacity || "");
+      formData.append("unitsCount", form.unitsCount || "1");
       formData.append("extras", JSON.stringify(form.extras || []));
       formData.append("discounts", JSON.stringify(form.discounts || {}));
       formData.append("blockedDates", JSON.stringify(form.blockedDates || []));
@@ -2069,6 +2071,24 @@ export default function CreateSpace() {
                         onWheel={(event) => event.target.blur()}
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Number of identical units
+                    </label>
+                    <p className="mb-2 text-[13px] text-[#6B7280]">
+                      If you have several identical setups (e.g. 5 identical chairs), guests can book
+                      any one of them independently — up to this many bookings can overlap at once.
+                    </p>
+                    <input
+                      type="number"
+                      min="1"
+                      className={inputClassName}
+                      value={form.unitsCount}
+                      onChange={(event) => updateField("unitsCount", event.target.value)}
+                      onWheel={(event) => event.target.blur()}
+                    />
                   </div>
 
                   <div>
@@ -3572,6 +3592,7 @@ export default function CreateSpace() {
                 <BlockDatesEditor
                   blockedDates={form.blockedDates}
                   onChange={(next) => updateField("blockedDates", next)}
+                  unitsCount={Number(form.unitsCount) || 1}
                 />
               </div>
             ) : null}
