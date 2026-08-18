@@ -20,6 +20,14 @@ export async function loader({ params }) {
   return { category, properties: data.properties || [] };
 }
 
+// Skip refetching when returning to the *same* category (e.g. navigating
+// back after briefly leaving) -- still fetches fresh data whenever the id
+// actually changes, i.e. a real switch to a different category.
+export function shouldRevalidate({ currentParams, nextParams, defaultShouldRevalidate }) {
+  if (currentParams.id === nextParams.id) return false;
+  return defaultShouldRevalidate;
+}
+
 export function meta({ data }) {
   const category = data?.category;
   if (!category) return [{ title: "Category | VenCome" }];

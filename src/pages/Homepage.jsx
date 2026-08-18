@@ -310,6 +310,17 @@ export async function loader() {
   };
 }
 
+// The loader above does 4 parallel API calls and React Router blocks
+// rendering until it resolves -- necessary for a fresh/first visit (this is
+// what makes the homepage server-rendered for crawlers), but re-running it
+// on every plain back/forward return to "/" is what was making "back" feel
+// slow. Skip revalidation for that specific case; real navigations elsewhere
+// (or a forced reload) still get fresh data via defaultShouldRevalidate.
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }) {
+  if (currentUrl.pathname === "/" && nextUrl.pathname === "/") return false;
+  return defaultShouldRevalidate;
+}
+
 function CategoryStrip() {
   const loaderData = useLoaderData();
   const [categories, setCategories] = useState(loaderData?.categories || []);
