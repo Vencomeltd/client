@@ -435,6 +435,22 @@ const normalizePropertyData = (property) => {
   };
 };
 
+// Offsets a real lat/lng by 200-400m in a direction deterministically
+// derived from `seed` (typically the property id), so the public map
+// shows a consistent approximate vicinity rather than the exact building.
+const jitterCoordinates = (lat, lng, seed, minMeters = 200, maxMeters = 400) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const angle = (Math.abs(hash) % 360) * (Math.PI / 180);
+  const distance = minMeters + (Math.abs(hash >> 8) % (maxMeters - minMeters));
+  const dLat = (distance * Math.cos(angle)) / 111320;
+  const dLng = (distance * Math.sin(angle)) / (111320 * Math.cos((lat * Math.PI) / 180));
+  return { lat: lat + dLat, lng: lng + dLng };
+};
+
 const startOfDay = (date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
@@ -953,11 +969,14 @@ export default function PropertyDetails() {
     const lat = property?.coordinates?.lat || property?.coordinates?.latitude;
     const lng = property?.coordinates?.lng || property?.coordinates?.longitude;
 
-    const address = [property?.location?.address, property?.location?.city, property?.location?.country]
+    // Exact street address is intentionally withheld from unauthenticated
+    // visitors (see BookingDetails.jsx for the real address, shown only
+    // after a booking is confirmed). Only city/country feed the map here.
+    const cityCountry = [property?.location?.city, property?.location?.country]
       .filter(Boolean)
       .join(", ");
 
-    if (!lat && !lng && !address) return;
+    if (!lat && !lng && !cityCountry) return;
 
     let cancelled = false;
 
@@ -971,14 +990,16 @@ export default function PropertyDetails() {
       const initMap = () => {
         if (cancelled) return;
         try {
-          const center =
-            lat && lng
-              ? { lat: parseFloat(lat), lng: parseFloat(lng) }
-              : { lat: 51.5074, lng: -0.1278 };
+          const exactCenter =
+            lat && lng ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null;
+          const seed = String(property?._id || property?.id || cityCountry || "vencome-property");
+          const fuzzyCenter = exactCenter
+            ? jitterCoordinates(exactCenter.lat, exactCenter.lng, seed)
+            : { lat: 51.5074, lng: -0.1278 };
 
           const map = new window.google.maps.Map(mapDiv, {
-            center,
-            zoom: 15,
+            center: fuzzyCenter,
+            zoom: 14,
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: false,
@@ -986,22 +1007,32 @@ export default function PropertyDetails() {
 
           setTimeout(() => {
             window.google.maps.event.trigger(map, "resize");
-            map.setCenter(center);
+            map.setCenter(fuzzyCenter);
           }, 100);
 
-          if (lat && lng) {
-            new window.google.maps.Marker({
-              position: center,
+          const drawVicinityCircle = (center) => {
+            new window.google.maps.Circle({
               map,
-              title: property?.title || "Property",
+              center,
+              radius: 350,
+              strokeColor: "#305CDE",
+              strokeOpacity: 0.6,
+              strokeWeight: 1,
+              fillColor: "#305CDE",
+              fillOpacity: 0.15,
             });
+          };
+
+          if (exactCenter) {
+            drawVicinityCircle(fuzzyCenter);
           } else {
             const geocoder = new window.google.maps.Geocoder();
-            geocoder.geocode({ address }, (results, status) => {
+            geocoder.geocode({ address: cityCountry }, (results, status) => {
               if (status === "OK" && results[0]) {
                 const loc = results[0].geometry.location;
-                map.setCenter(loc);
-                new window.google.maps.Marker({ position: loc, map });
+                const geoCenter = jitterCoordinates(loc.lat(), loc.lng(), seed);
+                map.setCenter(geoCenter);
+                drawVicinityCircle(geoCenter);
               }
             });
           }
@@ -2478,8 +2509,8 @@ function HostSection({ property }) {
             </span>
           )}
         </div>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0, overflowWrap: "break-word" }}>
             {hostName}
           </p>
           <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>
