@@ -281,7 +281,7 @@ export async function loader() {
   const API = import.meta.env.VITE_API_URL;
   const [categoriesRes, propertiesRes, citiesRes, blogRes] = await Promise.all([
     fetch(`${API}/categories/with-counts`),
-    fetch(`${API}/properties?limit=8`),
+    fetch(`${API}/properties?limit=100`),
     fetch(`${API}/properties/cities`),
     fetch(`${API}/blog?limit=3`),
   ]);
@@ -304,8 +304,8 @@ export async function loader() {
   return {
     categories: [...pinned, ...rest],
     countries: Array.isArray(citiesData.countries) ? citiesData.countries : [],
-    featuredListings: properties.slice(0, 4),
-    popularListings: properties.slice(0, 8),
+    featuredListings: properties,
+    popularListings: properties,
     recentBlogs: blogData.blogs || [],
   };
 }
@@ -868,8 +868,8 @@ export default function Homepage() {
           try {
             const { data, timestamp } = JSON.parse(cached);
             if (Date.now() - timestamp < CACHE_TTL) {
-              setFeaturedListings(data.slice(0, 4));
-              setPopularListings(data.slice(0, 8));
+              setFeaturedListings(data);
+              setPopularListings(data);
               setLoadingListings(false);
               // Still fetch fresh data in background
             }
@@ -877,11 +877,11 @@ export default function Homepage() {
         }
 
         // Fetch fresh data
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/properties?limit=8`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/properties?limit=100`);
         const data = await response.json();
         const properties = data.properties || [];
-        setFeaturedListings(properties.slice(0, 4));
-        setPopularListings(properties.slice(0, 8));
+        setFeaturedListings(properties);
+        setPopularListings(properties);
 
         // Save to cache
         localStorage.setItem(
