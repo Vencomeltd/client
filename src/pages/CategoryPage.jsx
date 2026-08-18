@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, useLoaderData } from "react-router-dom";
+import { useParams, useNavigate, useLoaderData, Link } from "react-router-dom";
 import { redirect } from "react-router";
+import { Sparkles, Building2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
-import Card from "../components/EvenCard";
+import PropertyCard from "../components/PropertyCard";
 import VencomeLoader from "../components/Loader";
 import TagList from "../components/TagList";
 import CategoryList from "../components/CategoryList";
@@ -68,7 +69,11 @@ const CategoryPage = () => {
   }, [id]);
 
   const handleCategorySelect = (categoryId) => {
-    setSelectedCategory(categoryId); // Filter properties by category
+    setActiveTags((current) =>
+      current.includes(categoryId)
+        ? current.filter((tag) => tag !== categoryId)
+        : [...current, categoryId]
+    );
   };
 
   const filteredProperties =
@@ -83,13 +88,31 @@ const CategoryPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
+      {category.image && (
+        <div className="relative h-[220px] w-full overflow-hidden sm:h-[280px] lg:h-[340px]">
+          <img
+            src={category.image}
+            alt={category.name}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 mx-auto max-w-7xl px-4 pb-6 sm:px-6 sm:pb-8 lg:px-8">
+            <h1 className="text-3xl font-bold text-white sm:text-4xl">
+              {category.name}
+            </h1>
+          </div>
+        </div>
+      )}
+
       <div className="container w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Category Header */}
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">
-            {category.name}
-          </h1>
+          {!category.image && (
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">
+              {category.name}
+            </h1>
+          )}
           {category.description && (
             <p className="text-lg text-gray-600 max-w-3xl">
               {category.description}
@@ -110,21 +133,41 @@ const CategoryPage = () => {
 
         {/* Properties Grid */}
         {properties.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg mb-4">
-              No spaces listed in this category yet.
+          <div className="mx-auto flex max-w-lg flex-col items-center py-16 text-center">
+            <span className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#F4F7FF] text-[#305CDE]">
+              <Sparkles size={28} />
+            </span>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#305CDE]">
+              Coming Soon
             </p>
-            <button
-              onClick={() => navigate("/create-space")}
-              className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/80"
+            <h2 className="mb-4 text-[clamp(22px,4vw,30px)] font-extrabold text-[#0A1628]">
+              {category.name} is launching soon
+            </h2>
+            <p className="mb-8 text-[15px] leading-7 text-[#6B7280]">
+              We're onboarding hosts in this category right now. Browsing and
+              booking will open shortly — but you can list your space today
+              and be ready the moment it goes live.
+            </p>
+            <Link
+              to="/create-space"
+              className="inline-flex items-center gap-2 rounded-full bg-[#305CDE] px-8 py-4 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(48,92,222,0.35)] transition hover:bg-[#254FC7]"
             >
-              Be the First to List
-            </button>
+              <Building2 size={18} />
+              Start Listing Your Space
+            </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProperties.map((property) => (
-              <Card key={property._id} id={property._id} data={property} />
+              <PropertyCard
+                key={property._id}
+                id={property._id}
+                image={property.coverImage}
+                title={property.title}
+                location={`${property.location?.city || ""}, ${property.location?.country || ""}`}
+                category={property.category?.name || category.name}
+                property={property}
+              />
             ))}
           </div>
         )}

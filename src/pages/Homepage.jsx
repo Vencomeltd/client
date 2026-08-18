@@ -378,15 +378,15 @@ function CategoryStrip() {
           >
             {categories.map((category) => {
               const Icon = CATEGORY_ICON_MAP[category.name] || Sparkles;
-              const isActive = category.hasListings;
               const cardClasses =
                 "flex min-w-[90px] flex-col items-center gap-2.5 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 text-center transition duration-200 hover:border-[#305CDE] hover:shadow-[0_4px_16px_rgba(48,92,222,0.15)] cursor-pointer md:min-w-[120px] md:px-5";
               const iconWrapClasses =
                 "flex h-11 w-11 items-center justify-center rounded-full bg-[#F4F7FF] text-[#305CDE]";
               const labelClasses = "text-[13px] font-semibold text-[#111827]";
-              const linkTo = isActive
-                ? buildSearchHref({ category: category._id })
-                : `/category-coming-soon/${encodeURIComponent(category.name)}`;
+              // CategoryPage.jsx shows its own "Coming Soon" state when a
+              // category has zero live listings, so every category links
+              // there now instead of splitting off to a separate route.
+              const linkTo = `/category/${category.slug || category._id}`;
               return (
                 <div key={category._id} style={{ scrollSnapAlign: "start" }}>
                 <Link to={linkTo} className={cardClasses}>
