@@ -6,7 +6,6 @@ import { apiFetch } from "../utils/api";
 import PropertyCard from "../components/PropertyCard";
 import VencomeLoader from "../components/Loader";
 import TagList from "../components/TagList";
-import CategoryList from "../components/CategoryList";
 
 export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/${params.id}`);
@@ -43,19 +42,23 @@ const CategoryPage = () => {
   const navigate = useNavigate();
   const loaderData = useLoaderData();
   const [category, setCategory] = useState(loaderData?.category || null);
-  const [subCategory, setSubCategory] = useState(loaderData?.category?.subcategories || null);
-  const [activeTags, setActiveTags] = useState([]);
   const [properties, setProperties] = useState(loaderData?.properties || []);
   const [loading, setLoading] = useState(!loaderData?.category);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // The SSR loader already fetched this exact category server-side --
+    // refetching it again here on mount was forcing loading back to true
+    // and flashing the spinner even though the data was already correct,
+    // adding a whole redundant network round-trip before the page felt
+    // usable. Only hit the API here as a fallback when the loader didn't
+    // provide a category (e.g. it failed).
+    if (loaderData?.category) return;
     const fetchData = async () => {
       try {
         setLoading(true);
         const catData = await apiFetch({ endpoint: `/categories/${id}` });
         setCategory(catData.category);
-        setSubCategory(catData.category.subcategories);
         setProperties(catData.properties);
         setError("");
       } catch (err) {
@@ -66,22 +69,7 @@ const CategoryPage = () => {
       }
     };
     fetchData();
-  }, [id]);
-
-  const handleCategorySelect = (categoryId) => {
-    setActiveTags((current) =>
-      current.includes(categoryId)
-        ? current.filter((tag) => tag !== categoryId)
-        : [...current, categoryId]
-    );
-  };
-
-  const filteredProperties =
-    activeTags.length === 0
-      ? properties
-      : properties.filter((property) =>
-          activeTags.includes(property.subcategory)
-        );
+  }, [id, loaderData]);
 
   if (loading) {
     return <VencomeLoader />;
@@ -118,17 +106,6 @@ const CategoryPage = () => {
               {category.description}
             </p>
           )}
-          {subCategory?.length > 0 && (
-            <div className="container flex gap-3 items-center mt-4">
-              {subCategory?.length > 0 && (
-                <CategoryList
-                  type="subcategory"
-                  categories={subCategory}
-                  onSelect={handleCategorySelect}
-                />
-              )}
-            </div>
-          )}
         </div>
 
         {/* Properties Grid */}
@@ -158,7 +135,7 @@ const CategoryPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProperties.map((property) => (
+            {properties.map((property) => (
               <PropertyCard
                 key={property._id}
                 id={property._id}

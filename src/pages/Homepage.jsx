@@ -341,7 +341,12 @@ function CategoryStrip() {
       }
     };
 
-    fetchCategories();
+    // The loader already fetched+ordered categories for the initial mount --
+    // skip the redundant network call here. Still needed as a fallback when
+    // there's no loader data, and for the bfcache-restore case below.
+    if (!loaderData?.categories?.length) {
+      fetchCategories();
+    }
 
     // Re-fetch when the page is restored from the browser's
     // back-forward cache (bfcache), since useEffect won't re-run
