@@ -34,6 +34,7 @@ export default function EditSpace() {
     city: "",
     country: "",
     postcode: "",
+    neighborhood: "",
     lat: null,
     lng: null,
     photos: [],
@@ -109,6 +110,7 @@ export default function EditSpace() {
           city: p.location?.city || "",
           country: p.location?.country || "",
           postcode: p.location?.postcode || "",
+          neighborhood: p.location?.neighborhood || "",
           lat: p.coordinates?.lat || p.coordinates?.latitude || null,
           lng: p.coordinates?.lng || p.coordinates?.longitude || null,
           photos: [],
@@ -249,6 +251,7 @@ export default function EditSpace() {
           city: formData.city,
           country: formData.country,
           postcode: formData.postcode,
+          neighborhood: formData.neighborhood || "",
         })
       );
       payload.append(

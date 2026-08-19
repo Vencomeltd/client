@@ -14,6 +14,12 @@ export default [
   // routes/layouts/public-navbar.jsx.
   layout("routes/layouts/public-navbar.jsx", [
     route("category/:id", "pages/CategoryPage.jsx"),
+    // Service+location landing pages, e.g. /nail-studio/islington -- two
+    // dynamic segments, both required. React Router's route ranking always
+    // prefers a route with a static segment (e.g. settings/*) over this
+    // fully-dynamic one for the same URL shape, so this can't shadow any
+    // existing route regardless of array order.
+    route(":subcategorySlug/:locationSlug", "pages/ServiceLocationPage.jsx"),
     route("host/:id", "pages/HostProfile.jsx"),
     route("help-support", "pages/HelpSupport.jsx"),
   ]),

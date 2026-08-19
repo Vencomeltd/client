@@ -189,6 +189,7 @@ const defaultState = {
   city: "",
   country: "",
   postcode: "",
+  neighborhood: "",
   latitude: null,
   longitude: null,
   title: "",
@@ -1094,6 +1095,7 @@ export default function CreateSpace() {
           address: form.address,
           city: form.city,
           country: form.country,
+          neighborhood: form.neighborhood || "",
         })
       );
       formData.append(
@@ -1974,6 +1976,22 @@ export default function CreateSpace() {
                       onChange={(e) => updateField("country", e.target.value)}
                       placeholder="Country"
                     />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                      Neighborhood / Area
+                      <span className="ml-1 font-normal text-[#6B7280]">(optional)</span>
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={form.neighborhood}
+                      onChange={(e) => updateField("neighborhood", e.target.value)}
+                      placeholder="e.g. Islington, Paddington"
+                    />
+                    <p className="mt-1.5 text-[12px] text-[#6B7280]">
+                      Helps your space show up on location-specific search pages.
+                    </p>
                   </div>
 
                   <div
