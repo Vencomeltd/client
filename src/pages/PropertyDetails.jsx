@@ -799,6 +799,7 @@ export default function PropertyDetails() {
   const [similarSpaces, setSimilarSpaces] = useState([]);
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
   const [bookedDates, setBookedDates] = useState([]);
+  const [unitAvailability, setUnitAvailability] = useState(null);
   const [enquiryMessage, setEnquiryMessage] = useState("");
   const [enquiryLoading, setEnquiryLoading] = useState(false);
   const [enquiryError, setEnquiryError] = useState(null);
@@ -945,6 +946,37 @@ export default function PropertyDetails() {
 
     if (id) fetchProperty();
   }, [id]);
+
+  // Guest-facing visibility into Property.unitsCount (e.g. "3 of 5 available
+  // for these dates") -- only meaningful once both dates are picked, and
+  // only for listings with more than one identical bookable unit. Purely
+  // informational: the actual conflict enforcement still happens via the
+  // existing 409 handling on submit.
+  useEffect(() => {
+    if (!property || !(property.unitsCount > 1) || !checkIn || !checkOut) {
+      setUnitAvailability(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchUnitAvailability = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/bookings/property/${id}/unit-availability?checkIn=${encodeURIComponent(
+            checkIn
+          )}&checkOut=${encodeURIComponent(checkOut)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setUnitAvailability(data);
+      } catch (err) {
+        console.error("Failed to fetch unit availability:", err);
+      }
+    };
+    fetchUnitAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [property, checkIn, checkOut, id]);
 
   useEffect(() => {
     const intent = localStorage.getItem("vencome_booking_intent");
@@ -1775,6 +1807,7 @@ export default function PropertyDetails() {
                 bookingTotal={bookingTotal}
                 platformFee={platformFee}
                 unavailableDates={unavailableDates}
+                unitAvailability={unitAvailability}
               />
             </motion.aside>
           </div>
@@ -3173,6 +3206,7 @@ function BookingSidebar({
   bookingTotal,
   platformFee,
   unavailableDates,
+  unitAvailability,
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
@@ -3651,6 +3685,28 @@ function BookingSidebar({
           </p>
         ) : null}
       </div>
+
+      {property?.unitsCount > 1 && unitAvailability ? (
+        <div
+          style={{
+            marginBottom: "14px",
+            padding: "10px 14px",
+            borderRadius: "10px",
+            fontSize: "13px",
+            fontWeight: "600",
+            textAlign: "center",
+            background: unitAvailability.unitsAvailable > 0 ? "#F0FDF4" : "#FEF2F2",
+            color: unitAvailability.unitsAvailable > 0 ? "#16A34A" : "#DC2626",
+            border: `1.5px solid ${
+              unitAvailability.unitsAvailable > 0 ? "#86EFAC" : "#FECACA"
+            }`,
+          }}
+        >
+          {unitAvailability.unitsAvailable > 0
+            ? `${unitAvailability.unitsAvailable} of ${unitAvailability.unitsCount} available for these dates`
+            : "Fully booked for these dates"}
+        </div>
+      ) : null}
 
       {bookingMetrics?.subtotal > 0 && (
         <div style={{ background: "#F8F6F0", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>

@@ -437,6 +437,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
+import SignaturePad from "../components/SignaturePad";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -593,13 +594,23 @@ function LeaseSignModal({
   bookingId,
   leaseUrl,
   leaseSignedAt,
+  signedIp,
   onLeaseSign,
   onLeaseUpload,
 }) {
   const [signed, setSigned] = useState(false);
+  const [signatureValue, setSignatureValue] = useState({
+    type: "drawn",
+    dataUrl: null,
+    typedName: null,
+  });
   const [printingOrDownloading, setPrintingOrDownloading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [leaseFile, setLeaseFile] = useState(null);
+
+  const signatureProvided =
+    (signatureValue.type === "drawn" && Boolean(signatureValue.dataUrl)) ||
+    (signatureValue.type === "typed" && Boolean(signatureValue.typedName?.trim()));
 
   const handleDownloadLease = useCallback(async () => {
     if (!leaseUrl) {
@@ -663,12 +674,12 @@ function LeaseSignModal({
   );
 
   const handleSignConfirm = useCallback(async () => {
-    if (!signed) return;
+    if (!signed || !signatureProvided) return;
     if (onLeaseSign) {
-      await onLeaseSign();
+      await onLeaseSign(signatureValue);
     }
     setSigned(false);
-  }, [signed, onLeaseSign]);
+  }, [signed, signatureProvided, signatureValue, onLeaseSign]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
@@ -818,6 +829,11 @@ function LeaseSignModal({
                 {/* E-Signature Section - Only show if NOT already signed */}
                 {!leaseSignedAt ? (
                   <>
+                    {/* Signature Capture */}
+                    <div className="mb-6">
+                      <SignaturePad onChange={setSignatureValue} />
+                    </div>
+
                     {/* E-Signature Checkbox */}
                     <div className="mb-6 flex items-start gap-3">
                       <input
@@ -847,9 +863,9 @@ function LeaseSignModal({
                       </button>
                       <button
                         onClick={handleSignConfirm}
-                        disabled={!signed || loading}
+                        disabled={!signed || !signatureProvided || loading}
                         className={`flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition disabled:opacity-50 cursor-pointer ${
-                          signed
+                          signed && signatureProvided
                             ? "bg-emerald-600 hover:bg-emerald-700"
                             : "bg-slate-300 cursor-not-allowed"
                         }`}
@@ -868,6 +884,10 @@ function LeaseSignModal({
                     </p>
                     <p className="text-xs text-emerald-600">
                       You can still download or print the agreement above.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-2">
+                      Signed {new Date(leaseSignedAt).toLocaleString()}
+                      {signedIp ? ` from IP ${signedIp}` : ""}
                     </p>
                     <button
                       onClick={onClose}
@@ -910,6 +930,7 @@ export default function BookingDetails() {
   const [toast, setToast] = useState(null);
   const [leaseUrl, setLeaseUrl] = useState(null);
   const [leaseSignedAt, setLeaseSignedAt] = useState(null);
+  const [signedIp, setSignedIp] = useState(null);
   const [hostContact, setHostContact] = useState(null);
 
   // Determine if current user is the host
@@ -944,6 +965,7 @@ export default function BookingDetails() {
         setBooking(data);
         setLeaseUrl(data.leaseUrl || null);
         setLeaseSignedAt(data.leaseSignedAt || null);
+        setSignedIp(data.signedIp || null);
 
         // Both property and guest are raw ObjectId strings — fetch in parallel
         const propertyId =
@@ -1051,15 +1073,20 @@ export default function BookingDetails() {
     }
   }, [id, isHost, navigate]);
 
-  const handleLeaseSign = useCallback(async () => {
+  const handleLeaseSign = useCallback(async (signature) => {
     setActionLoading(true);
     try {
-      await apiFetch({
+      const data = await apiFetch({
         endpoint: `/bookings/${id}/sign-lease`,
         method: "PUT",
-        body: { leaseSignedAt: new Date().toISOString() },
+        body: {
+          signatureType: signature?.type,
+          signatureDataUrl: signature?.dataUrl,
+          typedName: signature?.typedName,
+        },
       });
-      setLeaseSignedAt(new Date().toISOString());
+      setLeaseSignedAt(data.leaseSignedAt || new Date().toISOString());
+      setSignedIp(data.signedIp || null);
       setModal(null);
       showToast("Lease agreement signed successfully.");
     } catch {
@@ -1179,6 +1206,7 @@ export default function BookingDetails() {
           bookingId={id}
           leaseUrl={leaseUrl}
           leaseSignedAt={leaseSignedAt}
+          signedIp={signedIp}
           onLeaseSign={handleLeaseSign}
           onLeaseUpload={handleLeaseUpload}
         />
