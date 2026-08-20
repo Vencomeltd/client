@@ -1,6 +1,6 @@
-import LoginPage from "./LoginPage";
+import AuthPage from "./AuthPage";
 
 export default function SignupPage() {
-  return <LoginPage mode="signup" />;
+  return <AuthPage mode="signup" />;
 }
 

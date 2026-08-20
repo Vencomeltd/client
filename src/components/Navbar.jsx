@@ -977,7 +977,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       );
                     })}
                     <div style={{ height: 1, background: COLORS.border, margin: "8px 6px" }} />
-                    <Link to="/login" onClick={() => setMenuOpen(false)}
+                    <Link to="/signup" onClick={() => setMenuOpen(false)}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", borderRadius: 10, textDecoration: "none", color: "#111827", fontWeight: 600 }}
                       onMouseEnter={e => { e.currentTarget.style.background = COLORS.background; }}
                       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
@@ -1215,7 +1215,7 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       );
                     })}
                     <div style={{ height: 1, background: COLORS.border, margin: "12px 0" }} />
-                    <Link to="/login" onClick={() => setMenuOpen(false)}
+                    <Link to="/signup" onClick={() => setMenuOpen(false)}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 10px", borderRadius: 14, textDecoration: "none", color: COLORS.navy, fontWeight: 700 }}>
                       <LogIn size={18} />
                       <span style={{ fontSize: 16 }}>Log in or sign up</span>

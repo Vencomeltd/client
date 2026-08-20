@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
-import { BG_IMAGES } from "./LoginPage";
+import { BG_IMAGES } from "./AuthPage";
 
 const COLORS = {
   blue: "#2E58EC",
