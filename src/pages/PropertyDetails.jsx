@@ -15,6 +15,7 @@ import {
   Flag,
   Grid,
   Heart,
+  Lock,
   Map,
   MapPin,
   Monitor,
@@ -1708,6 +1709,16 @@ export default function PropertyDetails() {
                 <AmenitiesSection property={property} />
               </motion.section>
 
+              {property?.unitsCount > 1 && (
+                <motion.section {...sectionProps(0.18)}>
+                  <UnitsAvailableSection
+                    unitsCount={property.unitsCount}
+                    unitAvailability={unitAvailability}
+                    hasDatesSelected={Boolean(checkIn && checkOut)}
+                  />
+                </motion.section>
+              )}
+
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
@@ -2690,6 +2701,84 @@ function AmenitiesSection({ property }) {
             Details provided on request
           </p>
         )}
+      </div>
+    </div>
+  );
+}
+
+// One card per identical bookable unit (Property.unitsCount, e.g. "5
+// identical chairs" on one listing). Before dates are picked, every card
+// just shows as a normal unit. Once unitAvailability has loaded for a real
+// date range, cards whose number appears in takenUnits gray out with a
+// "Booked" lock -- so a guest can see at a glance exactly which units are
+// free for the dates they're considering, not just an aggregate count.
+function UnitsAvailableSection({ unitsCount, unitAvailability, hasDatesSelected }) {
+  if (!unitsCount || unitsCount <= 1) return null;
+
+  const takenUnits = new Set(unitAvailability?.takenUnits || []);
+
+  return (
+    <div className="border-b border-[#E5E7EB] py-6">
+      <h2 className="text-[20px] font-bold text-[#0A1628]">Units Available</h2>
+      <p className="mt-1 text-[13px] text-[#6B7280]">
+        This space has {unitsCount} identical units. {hasDatesSelected ? "Availability shown for your selected dates." : "Pick your dates to see which are free."}
+      </p>
+
+      <div
+        style={{
+          marginTop: "16px",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))",
+          gap: "10px",
+        }}
+      >
+        {Array.from({ length: unitsCount }, (_, i) => i + 1).map((unitNumber) => {
+          const isTaken = hasDatesSelected && takenUnits.has(unitNumber);
+          return (
+            <div
+              key={unitNumber}
+              style={{
+                borderRadius: "12px",
+                border: `1.5px solid ${isTaken ? "#E5E7EB" : "#BFDBFE"}`,
+                background: isTaken ? "#F9FAFB" : "#F0F6FF",
+                padding: "14px 10px",
+                textAlign: "center",
+                opacity: isTaken ? 0.5 : 1,
+                filter: isTaken ? "grayscale(0.6)" : "none",
+                transition: "opacity 0.2s, filter 0.2s",
+              }}
+            >
+              <div
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  margin: "0 auto 8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: isTaken ? "#E5E7EB" : "#DBEAFE",
+                  color: isTaken ? "#9CA3AF" : "#2563EB",
+                }}
+              >
+                {isTaken ? <Lock size={15} /> : <Users size={15} />}
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: isTaken ? "#9CA3AF" : "#0A1628" }}>
+                Unit {unitNumber}
+              </div>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  marginTop: "2px",
+                  color: isTaken ? "#9CA3AF" : "#16A34A",
+                }}
+              >
+                {isTaken ? "Booked" : "Available"}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
