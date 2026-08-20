@@ -422,10 +422,17 @@ const HelpSupport = () => {
                     <div>
                       <p className="font-medium">Phone</p>
                       <a
-                        href="tel:+442071234567"
+                        href="tel:+447878427090"
                         className="text-primary hover:underline"
                       >
-                        +441 50 123 4567
+                        +44 7878 427090
+                      </a>
+                      <br />
+                      <a
+                        href="tel:+447956035657"
+                        className="text-primary hover:underline"
+                      >
+                        +44 7956 035657
                       </a>
                       <p className="text-sm text-gray-500 mt-1">
                         Mon–Fri, 9 AM – 6 PM GMT
