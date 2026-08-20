@@ -1364,6 +1364,144 @@ export default function EditSpace() {
               marginBottom: "16px",
             }}
           >
+            Location
+          </h3>
+          <div style={{ marginBottom: "16px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Address
+            </label>
+            <input
+              type="text"
+              value={formData.address}
+              onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
+              placeholder="Full address"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+            <div>
+              <label
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "#374151",
+                  display: "block",
+                  marginBottom: "6px",
+                }}
+              >
+                City
+              </label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                placeholder="City"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1.5px solid #E5E7EB",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "#374151",
+                  display: "block",
+                  marginBottom: "6px",
+                }}
+              >
+                Country
+              </label>
+              <input
+                type="text"
+                value={formData.country}
+                onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
+                placeholder="Country"
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1.5px solid #E5E7EB",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Neighborhood / Area <span style={{ fontWeight: 400, color: "#6B7280" }}>(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={formData.neighborhood}
+              onChange={(e) => setFormData((prev) => ({ ...prev, neighborhood: e.target.value }))}
+              placeholder="e.g. Islington, Paddington"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
+              Helps your space show up on location-specific search pages.
+            </p>
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: "700",
+              color: "#0A1628",
+              marginBottom: "16px",
+            }}
+          >
             Space Details
           </h3>
           <div style={{ marginBottom: "16px" }}>
