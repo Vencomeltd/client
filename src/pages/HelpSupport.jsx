@@ -20,7 +20,7 @@ const HelpSupport = () => {
     // Load Tawk.to script only on this page
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://embed.tawk.to/69aebdf320c1d71c37343446/1jj99c05n"; // ← replace with your real ID
+    script.src = "https://embed.tawk.to/69aebdf320c1d71c37343446/1jj99c05n";
     script.charset = "UTF-8";
     script.setAttribute("crossorigin", "*");
 
