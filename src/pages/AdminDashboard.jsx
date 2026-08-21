@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
-import EditSpace from "./EditSpace";
 import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
@@ -1696,6 +1695,299 @@ function EditUserModal({ isOpen, user, onClose, onSubmit }) {
   );
 }
 
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// Dedicated admin listing editor -- deliberately NOT a reuse of the host's
+// EditSpace.jsx page (tried that first; it pulled in DashboardLayout's own
+// host/customer sidebar chrome even in "embedded" mode, showing the wrong
+// account's nav inside the admin modal -- not worth chasing further when a
+// purpose-built form is faster and has no such baggage). Covers the fields
+// that matter most for admin corrections and SEO backfill; photo upload,
+// block-dates calendar, lease upload, and calendar sync stay host-only.
+function AdminEditListingModal({ listingId, onClose, onSaved }) {
+  const empty = {
+    title: "", description: "", whatsIncluded: "", subcategory: "",
+    address: "", city: "", country: "", neighborhood: "",
+    capacity: "", unitsCount: "1",
+    pricing: { hourly: "", daily: "", weekly: "", monthly: "", annual: "" },
+    discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: "" },
+    availability: { openDays: [], openTime: "", closeTime: "" },
+    instantBook: false,
+    rules: "", listingTerms: "",
+  };
+  const [form, setForm] = useState(empty);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!listingId) return;
+    setLoading(true);
+    setError("");
+    fetch(`${import.meta.env.VITE_API_URL}/properties/${listingId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Listing not found");
+        return res.json();
+      })
+      .then((data) => {
+        const p = data.property || data;
+        setForm({
+          title: p.title || "",
+          description: p.description || "",
+          whatsIncluded: p.whatsIncluded || "",
+          subcategory: p.subcategory || "",
+          address: p.location?.address || "",
+          city: p.location?.city || "",
+          country: p.location?.country || "",
+          neighborhood: p.location?.neighborhood || "",
+          capacity: (p.features?.capacity || "").toString(),
+          unitsCount: (p.unitsCount || 1).toString(),
+          pricing: {
+            hourly: (p.pricing?.hourly || "").toString(),
+            daily: (p.pricing?.daily || "").toString(),
+            weekly: (p.pricing?.weekly || "").toString(),
+            monthly: (p.pricing?.monthly || "").toString(),
+            annual: (p.pricing?.annual || "").toString(),
+          },
+          discounts: {
+            newListing: p.pricing?.discounts?.newListing || false,
+            lastMinute: p.pricing?.discounts?.lastMinute || false,
+            weekly: p.pricing?.discounts?.weekly || false,
+            monthly: p.pricing?.discounts?.monthly || false,
+            extendedHours: (p.pricing?.discounts?.extendedHours || "").toString(),
+          },
+          availability: {
+            openDays: p.availability?.openDays || [],
+            openTime: p.availability?.openTime || "",
+            closeTime: p.availability?.closeTime || "",
+          },
+          instantBook: p.bookingSettings?.instantBook || false,
+          rules: p.features?.houseRules || "",
+          listingTerms: p.listingTerms || "",
+        });
+      })
+      .catch((err) => setError(err.message || "Failed to load listing"))
+      .finally(() => setLoading(false));
+  }, [listingId]);
+
+  if (!listingId) return null;
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const setNested = (group, key) => (e) =>
+    setForm((f) => ({ ...f, [group]: { ...f[group], [key]: e.target.value } }));
+  const toggleDiscount = (key) => setForm((f) => ({ ...f, discounts: { ...f.discounts, [key]: !f.discounts[key] } }));
+  const toggleDay = (day) =>
+    setForm((f) => ({
+      ...f,
+      availability: {
+        ...f.availability,
+        openDays: f.availability.openDays.includes(day)
+          ? f.availability.openDays.filter((d) => d !== day)
+          : [...f.availability.openDays, day],
+      },
+    }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/${listingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save listing");
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to save listing");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const label = { fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 4, display: "block" };
+  const field = { border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14, width: "100%", boxSizing: "border-box" };
+  const section = { fontSize: 15, fontWeight: 700, color: "#0A1628", margin: "20px 0 12px" };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8">
+      <div className="relative mx-4 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628" }}>Edit Listing</h3>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: "#6B7280" }}>×</button>
+        </div>
+
+        {loading ? (
+          <p style={{ color: "#6B7280", padding: "40px 0", textAlign: "center" }}>Loading...</p>
+        ) : error && !form.title ? (
+          <p style={{ color: "#DC2626", padding: "40px 0", textAlign: "center" }}>{error}</p>
+        ) : (
+          <>
+            <div style={section}>Basic Details</div>
+            <label style={label}>Title</label>
+            <input type="text" value={form.title} onChange={set("title")} style={{ ...field, marginBottom: 12 }} />
+            <label style={label}>Description</label>
+            <textarea value={form.description} onChange={set("description")} rows={3} style={{ ...field, marginBottom: 12 }} />
+            <label style={label}>What's Included (comma-separated)</label>
+            <input type="text" value={form.whatsIncluded} onChange={set("whatsIncluded")} style={field} />
+
+            <div style={section}>Location</div>
+            <label style={label}>Address</label>
+            <input type="text" value={form.address} onChange={set("address")} style={{ ...field, marginBottom: 12 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={label}>City</label>
+                <input type="text" value={form.city} onChange={set("city")} style={field} />
+              </div>
+              <div>
+                <label style={label}>Country</label>
+                <input type="text" value={form.country} onChange={set("country")} style={field} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={label}>Neighborhood / Area</label>
+                <input type="text" value={form.neighborhood} onChange={set("neighborhood")} placeholder="e.g. Islington" style={field} />
+              </div>
+              <div>
+                <label style={label}>Subcategory</label>
+                <input type="text" value={form.subcategory} onChange={set("subcategory")} placeholder="e.g. Nail Studio" style={field} />
+              </div>
+            </div>
+
+            <div style={section}>Pricing (blank = not offered)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+              {["hourly", "daily", "weekly", "monthly", "annual"].map((tier) => (
+                <div key={tier}>
+                  <label style={label}>{tier[0].toUpperCase() + tier.slice(1)}</label>
+                  <input
+                    type="number"
+                    value={form.pricing[tier]}
+                    onChange={setNested("pricing", tier)}
+                    onWheel={(e) => e.target.blur()}
+                    style={field}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={section}>Space Details</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={label}>Capacity</label>
+                <input type="number" value={form.capacity} onChange={set("capacity")} onWheel={(e) => e.target.blur()} style={field} />
+              </div>
+              <div>
+                <label style={label}>Number of identical units</label>
+                <input type="number" min="1" value={form.unitsCount} onChange={set("unitsCount")} onWheel={(e) => e.target.blur()} style={field} />
+              </div>
+            </div>
+
+            <div style={section}>Availability</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {DAYS_OF_WEEK.map((day) => {
+                const active = form.availability.openDays.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(day)}
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: active ? "1.5px solid #0A1628" : "1.5px solid #E5E7EB",
+                      background: active ? "#0A1628" : "#fff",
+                      color: active ? "#fff" : "#374151",
+                    }}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={label}>Open Time</label>
+                <input type="time" value={form.availability.openTime} onChange={setNested("availability", "openTime")} style={field} />
+              </div>
+              <div>
+                <label style={label}>Close Time</label>
+                <input type="time" value={form.availability.closeTime} onChange={setNested("availability", "closeTime")} style={field} />
+              </div>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={form.instantBook}
+                onChange={(e) => setForm((f) => ({ ...f, instantBook: e.target.checked }))}
+              />
+              Enable Instant Book
+            </label>
+
+            <div style={section}>Discounts</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {[
+                { key: "newListing", label: "New Listing Promotion" },
+                { key: "lastMinute", label: "Last Minute Discount" },
+                { key: "weekly", label: "Weekly Discount" },
+                { key: "monthly", label: "Monthly Discount" },
+              ].map(({ key, label: discLabel }) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#374151", cursor: "pointer" }}>
+                  <input type="checkbox" checked={form.discounts[key]} onChange={() => toggleDiscount(key)} />
+                  {discLabel}
+                </label>
+              ))}
+            </div>
+            <label style={label}>Extended Hours Discount (%, 0 = disabled)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={form.discounts.extendedHours}
+              onChange={setNested("discounts", "extendedHours")}
+              onWheel={(e) => e.target.blur()}
+              style={field}
+            />
+
+            <div style={section}>Rules & Terms</div>
+            <label style={label}>Space Rules</label>
+            <textarea value={form.rules} onChange={set("rules")} rows={2} style={{ ...field, marginBottom: 12 }} />
+            <label style={label}>Listing Terms</label>
+            <textarea value={form.listingTerms} onChange={set("listingTerms")} rows={2} style={field} />
+
+            {error && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 16 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function UsersSection({
   users,
   totalUsers,
@@ -2024,6 +2316,7 @@ function ListingsSection({
   listingsPage,
   listingsTotalPages,
   onListingsPageChange,
+  onRefresh,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
@@ -2467,17 +2760,14 @@ function ListingsSection({
         </div>
       )}
 
-      {editingListingId && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8">
-          <div className="relative mx-4 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
-            <EditSpace
-              embedded
-              idOverride={editingListingId}
-              onClose={() => setEditingListingId(null)}
-            />
-          </div>
-        </div>
-      )}
+      <AdminEditListingModal
+        listingId={editingListingId}
+        onClose={() => setEditingListingId(null)}
+        onSaved={() => {
+          onToast("Listing updated");
+          onRefresh?.();
+        }}
+      />
     </>
   );
 }
@@ -6670,6 +6960,7 @@ export default function AdminDashboard() {
         listingsPage={listingsPage}
         listingsTotalPages={listingsTotalPages}
         onListingsPageChange={setListingsPage}
+        onRefresh={() => fetchListings(listingsPage)}
       />
     );
   } else if (activeSection === "bookings") {
