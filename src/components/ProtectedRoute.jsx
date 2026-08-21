@@ -11,7 +11,9 @@ export function HostRoute({ children }) {
   const token = getToken();
   const user = getUser();
   if (!token) return <Navigate to="/login" replace />;
-  if (!user?.isHost) return <Navigate to="/customer/dashboard" replace />;
+  // Admin also needs into host-only pages like EditSpace.jsx, since that's
+  // reused as admin's full listing editor rather than duplicated.
+  if (!user?.isHost && !user?.isAdmin) return <Navigate to="/customer/dashboard" replace />;
   return children;
 }
 
