@@ -1180,7 +1180,7 @@ function MetricCard({ icon: Icon, label, value, growth, iconClasses, positive, i
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit }) {
   // Support-access status now lives in its own request/response lifecycle
   // (see routes/admin.js support-access/status), not a flag on the user —
   // fetched lazily here, only when the admin actually opens this menu.
@@ -1242,6 +1242,11 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
         icon={Key}
         label="Reset Password"
         onClick={() => { onResetPassword(user._id); onClose(); }}
+      />
+      <UserMenuItem
+        icon={Pencil}
+        label="Edit Details"
+        onClick={() => { onEdit(user); onClose(); }}
       />
       {user.isHost ? (
         <UserMenuItem
@@ -1595,6 +1600,199 @@ function CreateHostModal({ isOpen, onClose, onSubmit }) {
   );
 }
 
+function EditUserModal({ isOpen, user, onClose, onSubmit }) {
+  const [form, setForm] = useState({ firstName: "", lastName: "", displayName: "", email: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        displayName: user.displayName || "",
+        email: user.email || "",
+      });
+      setError("");
+    }
+  }, [user]);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.email.trim()) {
+      setError("Email is required");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit(user._id, form);
+    } catch (err) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={() => !submitting && onClose()}>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Edit Account Details</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <input
+          type="text"
+          placeholder="First name"
+          value={form.firstName}
+          onChange={set("firstName")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="text"
+          placeholder="Last name"
+          value={form.lastName}
+          onChange={set("lastName")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="text"
+          placeholder="Display name"
+          value={form.displayName}
+          onChange={set("displayName")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+        <input
+          type="email"
+          placeholder="Email address"
+          value={form.email}
+          onChange={set("email")}
+          style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+        />
+      </div>
+      {error ? (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
+          {error}
+        </div>
+      ) : null}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer" }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}
+        >
+          {submitting ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function EditListingModal({ isOpen, listing, onClose, onSubmit }) {
+  const [form, setForm] = useState({ title: "", subcategory: "", address: "", city: "", country: "", neighborhood: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (listing) {
+      setForm({
+        title: listing.title || "",
+        subcategory: listing.subcategory || "",
+        address: listing.location?.address || "",
+        city: listing.location?.city || "",
+        country: listing.location?.country || "",
+        neighborhood: listing.location?.neighborhood || "",
+      });
+      setError("");
+    }
+  }, [listing]);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit(listing._id, form);
+    } catch (err) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fieldStyle = { border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 };
+  const labelStyle = { fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 4, display: "block" };
+
+  return (
+    <Modal isOpen={isOpen} onClose={() => !submitting && onClose()}>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 4 }}>Edit Listing</h3>
+      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+        Fixing a typo or backfilling neighborhood/subcategory so this listing can appear on
+        service+location pages doesn't require the host to make the change themselves.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div>
+          <label style={labelStyle}>Title</label>
+          <input type="text" value={form.title} onChange={set("title")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+        </div>
+        <div>
+          <label style={labelStyle}>Subcategory</label>
+          <input type="text" value={form.subcategory} onChange={set("subcategory")} placeholder="e.g. Nail Studio, Hair Chair" style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+        </div>
+        <div>
+          <label style={labelStyle}>Address</label>
+          <input type="text" value={form.address} onChange={set("address")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>City</label>
+            <input type="text" value={form.city} onChange={set("city")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Country</label>
+            <input type="text" value={form.country} onChange={set("country")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Neighborhood / Area</label>
+          <input type="text" value={form.neighborhood} onChange={set("neighborhood")} placeholder="e.g. Islington, Paddington" style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
+        </div>
+      </div>
+      {error ? (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
+          {error}
+        </div>
+      ) : null}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer" }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}
+        >
+          {submitting ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function UsersSection({
   users,
   totalUsers,
@@ -1616,6 +1814,7 @@ function UsersSection({
   onImpersonateUser,
   onRequestAccessUser,
   onOpenCreateHost,
+  onEditUser,
   usersPage,
   usersTotalPages,
   onUsersPageChange,
@@ -1797,6 +1996,7 @@ function UsersSection({
                           onDelete={onDeleteUser}
                           onImpersonate={onImpersonateUser}
                           onRequestAccess={onRequestAccessUser}
+                          onEdit={onEditUser}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -1923,6 +2123,15 @@ function ListingsSection({
   onListingsPageChange,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
+  const [editingListing, setEditingListing] = useState(null);
+
+  const handleSubmitEditListing = async (id, form) => {
+    await patchProperty(id, form);
+    setSelectedListing((prev) => (prev && prev._id === id ? { ...prev, ...form, location: { ...prev.location, ...form } } : prev));
+    setEditingListing(null);
+    onToast("Listing updated");
+  };
+
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
     if (listingQueueFilter === "new_host") return listing.flags.includes("new_host");
@@ -2331,11 +2540,19 @@ function ListingsSection({
             </div>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <button onClick={() => setSelectedListing(null)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
+              <button onClick={() => setEditingListing(selectedListing)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Edit</button>
               <a href={`/property/${selectedListing.slug || selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#0A1628", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>View Public Page</a>
             </div>
           </div>
         </div>
       )}
+
+      <EditListingModal
+        isOpen={!!editingListing}
+        listing={editingListing}
+        onClose={() => setEditingListing(null)}
+        onSubmit={handleSubmitEditListing}
+      />
     </>
   );
 }
@@ -6020,6 +6237,21 @@ export default function AdminDashboard() {
   const [showCreateHostModal, setShowCreateHostModal] = useState(false);
   const [createdHostCreds, setCreatedHostCreds] = useState(null);
 
+  const [editingUser, setEditingUser] = useState(null);
+  const handleSubmitEditUser = async (userId, form) => {
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Couldn't save changes");
+    setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, ...data.user } : u)));
+    setEditingUser(null);
+    showToast("User details updated");
+  };
+
   const handleCreateHost = async ({ email, firstName, lastName, phoneNumber }) => {
     const token = localStorage.getItem("vencome_token");
     const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/create-host`, {
@@ -6447,6 +6679,7 @@ export default function AdminDashboard() {
         onImpersonateUser={handleImpersonateUser}
         onRequestAccessUser={handleRequestAccess}
         onOpenCreateHost={() => setShowCreateHostModal(true)}
+        onEditUser={setEditingUser}
         usersPage={usersPage}
         usersTotalPages={usersTotalPages}
         onUsersPageChange={setUsersPage}
@@ -6456,6 +6689,13 @@ export default function AdminDashboard() {
         isOpen={showCreateHostModal}
         onClose={() => setShowCreateHostModal(false)}
         onSubmit={handleCreateHost}
+      />
+
+      <EditUserModal
+        isOpen={!!editingUser}
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onSubmit={handleSubmitEditUser}
       />
 
       <Modal isOpen={!!createdHostCreds} onClose={() => setCreatedHostCreds(null)}>
