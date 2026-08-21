@@ -123,7 +123,7 @@ export default function SavedSpaces() {
               }}
             >
               <div style={{ position: "relative" }}>
-                <Link to={`/property/${property._id}`}>
+                <Link to={`/property/${property.slug || property._id}`}>
                   <img
                     src={
                       property.coverImage ||
@@ -163,7 +163,7 @@ export default function SavedSpaces() {
               </div>
               <div style={{ padding: "14px 16px" }}>
                 <Link
-                  to={`/property/${property._id}`}
+                  to={`/property/${property.slug || property._id}`}
                   style={{ textDecoration: "none" }}
                 >
                   <p

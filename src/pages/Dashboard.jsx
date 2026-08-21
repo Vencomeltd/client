@@ -522,7 +522,7 @@ export default function Dashboard() {
                 key={listing._id}
                 className="w-[220px] shrink-0 overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white sm:w-[260px]"
               >
-                <Link to={`/property/${listing._id}`} className="block">
+                <Link to={`/property/${listing.slug || listing._id}`} className="block">
                   <div className="relative">
                     <img
                       src={listing.coverImage}

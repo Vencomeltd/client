@@ -764,7 +764,7 @@ function SavedSection({ savedListings, loading }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
           {savedListings.slice(0, 4).map((listing) => (
-            <Link key={listing._id} to={`/property/${listing._id}`} style={{ textDecoration: "none" }}>
+            <Link key={listing._id} to={`/property/${listing.slug || listing._id}`} style={{ textDecoration: "none" }}>
               <PropertyCard {...getListingCardProps(listing)} />
             </Link>
           ))}

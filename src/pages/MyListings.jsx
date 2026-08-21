@@ -172,7 +172,7 @@ export default function MyListings() {
                         Edit
                       </a>
                       <a
-                        href={`/property/${listing._id}`}
+                        href={`/property/${listing.slug || listing._id}`}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#0A1628] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-[#13243f]"
                       >
                         <Eye size={14} />
