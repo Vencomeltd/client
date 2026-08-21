@@ -1695,104 +1695,6 @@ function EditUserModal({ isOpen, user, onClose, onSubmit }) {
   );
 }
 
-function EditListingModal({ isOpen, listing, onClose, onSubmit }) {
-  const [form, setForm] = useState({ title: "", subcategory: "", address: "", city: "", country: "", neighborhood: "" });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (listing) {
-      setForm({
-        title: listing.title || "",
-        subcategory: listing.subcategory || "",
-        address: listing.location?.address || "",
-        city: listing.location?.city || "",
-        country: listing.location?.country || "",
-        neighborhood: listing.location?.neighborhood || "",
-      });
-      setError("");
-    }
-  }, [listing]);
-
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
-
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    setError("");
-    try {
-      await onSubmit(listing._id, form);
-    } catch (err) {
-      setError(err.message || "Something went wrong");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const fieldStyle = { border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 };
-  const labelStyle = { fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 4, display: "block" };
-
-  return (
-    <Modal isOpen={isOpen} onClose={() => !submitting && onClose()}>
-      <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 4 }}>Edit Listing</h3>
-      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
-        Fixing a typo or backfilling neighborhood/subcategory so this listing can appear on
-        service+location pages doesn't require the host to make the change themselves.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div>
-          <label style={labelStyle}>Title</label>
-          <input type="text" value={form.title} onChange={set("title")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-        </div>
-        <div>
-          <label style={labelStyle}>Subcategory</label>
-          <input type="text" value={form.subcategory} onChange={set("subcategory")} placeholder="e.g. Nail Studio, Hair Chair" style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-        </div>
-        <div>
-          <label style={labelStyle}>Address</label>
-          <input type="text" value={form.address} onChange={set("address")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div>
-            <label style={labelStyle}>City</label>
-            <input type="text" value={form.city} onChange={set("city")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-          </div>
-          <div>
-            <label style={labelStyle}>Country</label>
-            <input type="text" value={form.country} onChange={set("country")} style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-          </div>
-        </div>
-        <div>
-          <label style={labelStyle}>Neighborhood / Area</label>
-          <input type="text" value={form.neighborhood} onChange={set("neighborhood")} placeholder="e.g. Islington, Paddington" style={{ ...fieldStyle, width: "100%", boxSizing: "border-box" }} />
-        </div>
-      </div>
-      {error ? (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 12 }}>
-          {error}
-        </div>
-      ) : null}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={submitting}
-          style={{ border: "1px solid #E5E7EB", color: "#111827", background: "white", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer" }}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{ border: "none", color: "white", background: "#0A1628", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}
-        >
-          {submitting ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 function UsersSection({
   users,
   totalUsers,
@@ -2123,14 +2025,6 @@ function ListingsSection({
   onListingsPageChange,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
-  const [editingListing, setEditingListing] = useState(null);
-
-  const handleSubmitEditListing = async (id, form) => {
-    await patchProperty(id, form);
-    setSelectedListing((prev) => (prev && prev._id === id ? { ...prev, ...form, location: { ...prev.location, ...form } } : prev));
-    setEditingListing(null);
-    onToast("Listing updated");
-  };
 
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
@@ -2269,6 +2163,15 @@ function ListingsSection({
                     <Eye size={14} />
                     Preview
                   </button>
+                  <a
+                    href={`/edit-space/${listing.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827]"
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </a>
                   <button
                     type="button"
                     onClick={() => handleApprove(listing.id)}
@@ -2394,13 +2297,23 @@ function ListingsSection({
                   <td className="px-4 py-3.5 text-[13px] text-[#6B7280]">{formatDate(listing.createdAt)}</td>
                   <td className="px-4 py-3.5 text-[13px] font-semibold text-[#305CDE]">{getListingPriceLabel(listing)}</td>
                   <td className="px-4 py-3.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedListing(listing)}
-                      className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
-                    >
-                      View
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedListing(listing)}
+                        className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
+                      >
+                        View
+                      </button>
+                      <a
+                        href={`/edit-space/${listing.slug || listing._id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                      >
+                        Edit
+                      </a>
+                    </div>
                   </td>
                 </motion.tr>
               ))
@@ -2440,7 +2353,7 @@ function ListingsSection({
                 </div>
                 <p className="mt-3 text-[12px] text-[#374151]">{getListingHostName(listing)}</p>
                 <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2">
                   <button
                     type="button"
                     onClick={() => setSelectedListing(listing)}
@@ -2448,6 +2361,14 @@ function ListingsSection({
                   >
                     View
                   </button>
+                  <a
+                    href={`/edit-space/${listing.slug || listing._id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                  >
+                    Edit
+                  </a>
                 </div>
               </motion.div>
             ))
@@ -2540,19 +2461,12 @@ function ListingsSection({
             </div>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <button onClick={() => setSelectedListing(null)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
-              <button onClick={() => setEditingListing(selectedListing)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Edit</button>
+              <a href={`/edit-space/${selectedListing.slug || selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>Edit</a>
               <a href={`/property/${selectedListing.slug || selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#0A1628", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>View Public Page</a>
             </div>
           </div>
         </div>
       )}
-
-      <EditListingModal
-        isOpen={!!editingListing}
-        listing={editingListing}
-        onClose={() => setEditingListing(null)}
-        onSubmit={handleSubmitEditListing}
-      />
     </>
   );
 }

@@ -35,6 +35,7 @@ export default function EditSpace() {
     country: "",
     postcode: "",
     neighborhood: "",
+    subcategory: "",
     lat: null,
     lng: null,
     photos: [],
@@ -111,6 +112,7 @@ export default function EditSpace() {
           country: p.location?.country || "",
           postcode: p.location?.postcode || "",
           neighborhood: p.location?.neighborhood || "",
+          subcategory: p.subcategory || "",
           lat: p.coordinates?.lat || p.coordinates?.latitude || null,
           lng: p.coordinates?.lng || p.coordinates?.longitude || null,
           photos: [],
@@ -254,6 +256,7 @@ export default function EditSpace() {
           neighborhood: formData.neighborhood || "",
         })
       );
+      payload.append("subcategory", formData.subcategory || "");
       payload.append(
         "coordinates",
         JSON.stringify({
@@ -1481,6 +1484,37 @@ export default function EditSpace() {
             />
             <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
               Helps your space show up on location-specific search pages.
+            </p>
+          </div>
+          <div style={{ marginTop: "16px" }}>
+            <label
+              style={{
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#374151",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              Subcategory <span style={{ fontWeight: 400, color: "#6B7280" }}>(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={formData.subcategory}
+              onChange={(e) => setFormData((prev) => ({ ...prev, subcategory: e.target.value }))}
+              placeholder="e.g. Nail Studio, Hair Chair"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                border: "1.5px solid #E5E7EB",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
+              Also helps your space show up on location-specific search pages, alongside neighborhood.
             </p>
           </div>
         </div>
