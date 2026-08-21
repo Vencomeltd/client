@@ -1719,18 +1719,27 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [propertyDbId, setPropertyDbId] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(null);
 
-  useEffect(() => {
+  const reloadListing = () => {
     if (!listingId) return;
     setLoading(true);
     setError("");
-    fetch(`${import.meta.env.VITE_API_URL}/properties/${listingId}`)
+    const token = localStorage.getItem("vencome_token");
+    fetch(`${import.meta.env.VITE_API_URL}/properties/${listingId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then((res) => {
         if (!res.ok) throw new Error("Listing not found");
         return res.json();
       })
       .then((data) => {
         const p = data.property || data;
+        setPropertyDbId(p._id);
+        setPhotos(p.images || []);
         setForm({
           title: p.title || "",
           description: p.description || "",
@@ -1768,9 +1777,60 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
       })
       .catch((err) => setError(err.message || "Failed to load listing"))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    reloadListing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingId]);
 
   if (!listingId) return null;
+
+  const handleUploadPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !propertyDbId) return;
+    setUploadingPhoto(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const body = new FormData();
+      body.append("images", file);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${propertyDbId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to upload photo");
+      setPhotos(data.property?.images || data.images || []);
+    } catch (err) {
+      setError(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (url) => {
+    if (!propertyDbId) return;
+    setDeletingPhoto(url);
+    setError("");
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${propertyDbId}/images`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ imageUrls: [url] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to delete photo");
+      setPhotos((prev) => prev.filter((p) => p !== url));
+    } catch (err) {
+      setError(err.message || "Failed to delete photo");
+    } finally {
+      setDeletingPhoto(null);
+    }
+  };
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const setNested = (group, key) => (e) =>
@@ -1833,6 +1893,38 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
             <textarea value={form.description} onChange={set("description")} rows={3} style={{ ...field, marginBottom: 12 }} />
             <label style={label}>What's Included (comma-separated)</label>
             <input type="text" value={form.whatsIncluded} onChange={set("whatsIncluded")} style={field} />
+
+            <div style={section}>Photos</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+              {photos.map((url) => (
+                <div key={url} style={{ position: "relative", width: 90, height: 90 }}>
+                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB" }} />
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePhoto(url)}
+                    disabled={deletingPhoto === url}
+                    aria-label="Delete photo"
+                    style={{
+                      position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%",
+                      border: "none", background: deletingPhoto === url ? "#9CA3AF" : "#DC2626", color: "#fff",
+                      fontSize: 13, lineHeight: 1, cursor: deletingPhoto === url ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <label
+                style={{
+                  width: 90, height: 90, borderRadius: 8, border: "1.5px dashed #E5E7EB",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, color: "#6B7280", cursor: uploadingPhoto ? "not-allowed" : "pointer", textAlign: "center",
+                }}
+              >
+                {uploadingPhoto ? "Uploading..." : "+ Add photo"}
+                <input type="file" accept="image/*" onChange={handleUploadPhoto} disabled={uploadingPhoto} style={{ display: "none" }} />
+              </label>
+            </div>
 
             <div style={section}>Location</div>
             <label style={label}>Address</label>
