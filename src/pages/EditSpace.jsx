@@ -4,9 +4,14 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
 
-export default function EditSpace() {
-  const { id } = useParams();
+export default function EditSpace({ embedded = false, idOverride, onClose } = {}) {
+  const { id: routeId } = useParams();
+  const id = idOverride || routeId;
   const navigate = useNavigate();
+  // Same "go back to the listings list" action either way -- just a
+  // different list depending on whether this is the host's own page or
+  // admin's embedded editor.
+  const goBack = () => (embedded ? onClose?.() : navigate("/host/listings"));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -377,32 +382,48 @@ export default function EditSpace() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || "Failed to delete listing");
       }
-      navigate("/host/listings");
+      goBack();
     } catch (err) {
       setDeleteError(err.message || "Failed to delete listing. Please try again.");
       setDeleting(false);
     }
   };
 
-  if (loading)
-    return (
-      <DashboardLayout title="Edit Space">
-        <div style={{ textAlign: "center", padding: "60px", color: "#6B7280" }}>
-          Loading property...
-        </div>
-      </DashboardLayout>
+  if (loading) {
+    const loadingContent = (
+      <div style={{ textAlign: "center", padding: "60px", color: "#6B7280" }}>
+        Loading property...
+      </div>
     );
+    return embedded ? loadingContent : <DashboardLayout title="Edit Space">{loadingContent}</DashboardLayout>;
+  }
 
-  if (error)
-    return (
-      <DashboardLayout title="Edit Space">
-        <div style={{ textAlign: "center", padding: "60px", color: "#EF4444" }}>{error}</div>
-      </DashboardLayout>
+  if (error) {
+    const errorContent = (
+      <div style={{ textAlign: "center", padding: "60px", color: "#EF4444" }}>{error}</div>
     );
+    return embedded ? errorContent : <DashboardLayout title="Edit Space">{errorContent}</DashboardLayout>;
+  }
 
-  return (
-    <DashboardLayout title="Edit Space">
+  const editSpaceBody = (
       <div style={{ maxWidth: "760px", margin: "0 auto" }}>
+        {embedded && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+            <button
+              onClick={goBack}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#6B7280",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              ✕ Close
+            </button>
+          </div>
+        )}
         <div
           style={{
             display: "flex",
@@ -1751,7 +1772,7 @@ export default function EditSpace() {
 
           <div style={{ display: "flex", gap: "12px" }}>
             <button
-              onClick={() => navigate("/host/listings")}
+              onClick={goBack}
               style={{
                 background: "#fff",
                 color: "#0A1628",
@@ -1901,7 +1922,7 @@ export default function EditSpace() {
               </p>
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                 <button
-                  onClick={() => navigate("/host/listings")}
+                  onClick={goBack}
                   style={{
                     background: "#0A1628",
                     color: "#fff",
@@ -1935,6 +1956,7 @@ export default function EditSpace() {
           </div>
         )}
       </div>
-    </DashboardLayout>
   );
+
+  return embedded ? editSpaceBody : <DashboardLayout title="Edit Space">{editSpaceBody}</DashboardLayout>;
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
+import EditSpace from "./EditSpace";
 import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
@@ -2025,6 +2026,7 @@ function ListingsSection({
   onListingsPageChange,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
+  const [editingListingId, setEditingListingId] = useState(null);
 
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
@@ -2163,15 +2165,14 @@ function ListingsSection({
                     <Eye size={14} />
                     Preview
                   </button>
-                  <a
-                    href={`/edit-space/${listing.id}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setEditingListingId(listing.id)}
                     className="inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-[#E5E7EB] bg-white px-3.5 py-2 text-[13px] font-medium text-[#111827]"
                   >
                     <Pencil size={14} />
                     Edit
-                  </a>
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleApprove(listing.id)}
@@ -2305,14 +2306,13 @@ function ListingsSection({
                       >
                         View
                       </button>
-                      <a
-                        href={`/edit-space/${listing.slug || listing._id}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => setEditingListingId(listing.slug || listing._id)}
                         className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
                       >
                         Edit
-                      </a>
+                      </button>
                     </div>
                   </td>
                 </motion.tr>
@@ -2361,14 +2361,13 @@ function ListingsSection({
                   >
                     View
                   </button>
-                  <a
-                    href={`/edit-space/${listing.slug || listing._id}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => setEditingListingId(listing.slug || listing._id)}
                     className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
                   >
                     Edit
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             ))
@@ -2461,9 +2460,21 @@ function ListingsSection({
             </div>
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <button onClick={() => setSelectedListing(null)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Close</button>
-              <a href={`/edit-space/${selectedListing.slug || selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>Edit</a>
+              <button onClick={() => setEditingListingId(selectedListing.slug || selectedListing._id)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", color: "#0A1628", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Edit</button>
               <a href={`/property/${selectedListing.slug || selectedListing._id}`} target="_blank" rel="noreferrer" style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#0A1628", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>View Public Page</a>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editingListingId && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8">
+          <div className="relative mx-4 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
+            <EditSpace
+              embedded
+              idOverride={editingListingId}
+              onClose={() => setEditingListingId(null)}
+            />
           </div>
         </div>
       )}
