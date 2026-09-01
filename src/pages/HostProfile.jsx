@@ -1,101 +1,115 @@
 // client/src/pages/HostProfile.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import VerifiedName from "../components/VerifiedName";
-import { getLowestWeeklyRate } from "../utils/dayPricing";
+import PropertyCard from "../components/PropertyCard";
 
 const HostProfile = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [host, setHost] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchHost = async () => {
-      const [hostData, listingData] = await Promise.all([
-        apiFetch({ endpoint: `/hosts/${id}` }),
-        apiFetch({ endpoint: `/properties` }),
-      ]);
-      setHost(hostData);
-      setListings(listingData.properties);
-      setLoading(false);
+      setLoading(true);
+      setError(false);
+      try {
+        const [hostData, listingData] = await Promise.all([
+          apiFetch({ endpoint: `/hosts/${id}` }),
+          // Filtered server-side -- fetching the general /properties list and
+          // matching client-side only ever showed a host's listings that
+          // happened to land on page 1 of the newest-20 platform-wide.
+          apiFetch({ endpoint: `/properties?host=${id}&limit=50` }),
+        ]);
+        if (cancelled) return;
+        setHost(hostData);
+        setListings(listingData.properties || []);
+      } catch (err) {
+        if (!cancelled) setError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
+
     fetchHost();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
-
-  // const joinDate = new Date(host.createdAt).toLocaleDateString("en-US", {
-  //   year: "numeric",
-  //   month: "long",
-  // });
-
-  const hostProperties = listings.filter((p) => p.host._id === host._id);
 
   if (loading) return <VencomeLoader />;
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        {host && (
-          <>
-            <div className="flex items-center space-x-4 mb-4">
-              <img
-                src={host.profileImage || "https://via.placeholder.com/80"}
-                alt={host.displayName}
-                className="w-16 h-16 rounded-full object-cover"
-              />
-              <div>
-                <VerifiedName name={host.displayName} />
-              </div>
-            </div>
-            {host.bio && <p className="text-gray-700 mb-4">{host.bio}</p>}
-
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-semibold">{host.totalListings}</p>
-                <p className="text-gray-500">Listings</p>
-              </div>
-              <div>
-                {host.avgRating ? (
-                  <>
-                    <p className="font-semibold flex items-center">
-                      {host.avgRating} stars
-                    </p>
-                    <p className="text-gray-500">{host.totalReviews} reviews</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-semibold">—</p>
-                    <p className="text-gray-500">No reviews yet</p>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-        <h2 className="text-2xl font-bold mt-8 mb-4">Their Listings</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {hostProperties.map((prop) => (
-            <div
-              key={prop._id}
-              className="bg-white p-4 rounded-lg shadow cursor-pointer"
-              onClick={() => navigate(`/property/${prop.slug || prop._id}`)}
-            >
-              <img
-                src={prop.coverImage}
-                alt=""
-                className="w-full h-40 object-cover rounded"
-              />
-              <h3 className="font-semibold mt-2">{prop.title}</h3>
-              <p className="text-primary">
-                {(prop.pricing?.customDayPricing?.length || 0) > 0 ? "From " : ""}$
-                {getLowestWeeklyRate(prop.pricing.weekdayPrice, prop.pricing?.customDayPricing)}/day
-              </p>
-            </div>
-          ))}
+  if (error || !host) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-gray-700 font-medium mb-2">Host not found</p>
+          <Link to="/" className="text-primary underline">
+            Back to homepage
+          </Link>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 px-4 py-6 sm:p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex flex-col items-center text-center gap-3 sm:flex-row sm:items-center sm:text-left sm:gap-5 mb-5">
+          <img
+            src={host.profileImage || "https://via.placeholder.com/96"}
+            alt={host.displayName}
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover flex-shrink-0"
+          />
+          <VerifiedName
+            name={host.displayName}
+            isVerified={host.businessVerified}
+            className="text-lg sm:text-xl"
+          />
+        </div>
+
+        {host.bio && (
+          <p className="text-gray-700 mb-6 text-center sm:text-left leading-relaxed max-w-2xl mx-auto sm:mx-0">
+            {host.bio}
+          </p>
+        )}
+
+        <div className="flex justify-center sm:justify-start gap-8 sm:gap-10 text-sm border-t border-b border-gray-200 py-4 mb-8">
+          <div className="text-center sm:text-left">
+            <p className="font-semibold">{host.totalListings}</p>
+            <p className="text-gray-500">Listings</p>
+          </div>
+          <div className="text-center sm:text-left">
+            {host.avgRating ? (
+              <>
+                <p className="font-semibold">{host.avgRating} stars</p>
+                <p className="text-gray-500">{host.totalReviews} reviews</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold">—</p>
+                <p className="text-gray-500">No reviews yet</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Their Listings</h2>
+        {listings.length === 0 ? (
+          <p className="text-gray-500">This host hasn't published any listings yet.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+            {listings.map((property) => (
+              <PropertyCard key={property._id} property={property} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
