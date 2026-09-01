@@ -119,36 +119,61 @@ export default function AuthPage({ mode = "login" }) {
         setStep("otp");
         setResendTimer(30);
       } else {
-        const signupRes = await fetch(`${API}/auth/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            password: `Vc_${Math.random().toString(36).slice(2)}!A1`,
-            isHost: role === "host",
-            newsletterOptIn,
-          }),
-        });
-        const signupData = await signupRes.json();
-
-        if (!signupRes.ok && signupRes.status !== 409) {
-          setEmailError(signupData.error || "Something went wrong");
-          setIsLoading(false);
-          return;
-        }
-
-        await fetch(`${API}/auth/resend-otp`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-
-        setIsNewAccount(true);
-        setStep("otp");
-        setResendTimer(30);
+        // No account for this email yet -- collect a first name before
+        // creating one, instead of silently signing up with no name (which
+        // used to make the public display name fall back to the email
+        // prefix, e.g. "urbanmusesalon" from urbanmusesalon@gmail.com).
+        setStep("name");
       }
     } catch (err) {
       setEmailError("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Completes the signup handleContinue deferred to the "name" step -- same
+  // random-password auto-signup this flow always used, just now with a
+  // real name attached.
+  const handleNameContinue = async () => {
+    if (!firstName.trim()) {
+      setFirstNameError("Please enter your first name");
+      return;
+    }
+    setFirstNameError("");
+    setIsLoading(true);
+
+    try {
+      const signupRes = await fetch(`${API}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password: `Vc_${Math.random().toString(36).slice(2)}!A1`,
+          firstName: firstName.trim(),
+          isHost: role === "host",
+          newsletterOptIn,
+        }),
+      });
+      const signupData = await signupRes.json();
+
+      if (!signupRes.ok && signupRes.status !== 409) {
+        setFirstNameError(signupData.error || "Something went wrong");
+        setIsLoading(false);
+        return;
+      }
+
+      await fetch(`${API}/auth/resend-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      setIsNewAccount(true);
+      setStep("otp");
+      setResendTimer(30);
+    } catch (err) {
+      setFirstNameError("Network error. Please check your connection.");
     } finally {
       setIsLoading(false);
     }
@@ -1058,6 +1083,122 @@ export default function AuthPage({ mode = "login" }) {
                     </div>
                   </div>
 
+                </div>
+              ) : null}
+
+              {step === "name" ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("role");
+                      setFirstNameError("");
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontFamily: "inherit",
+                      color: COLORS.navy,
+                      fontWeight: 600,
+                      marginBottom: 18,
+                    }}
+                  >
+                    <ChevronLeft size={18} />
+                    Back
+                  </button>
+
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 700,
+                      color: COLORS.navy,
+                      textAlign: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    What's your first name?
+                  </div>
+                  <div style={{ fontSize: 14, color: COLORS.grey, textAlign: "center", marginBottom: 24 }}>
+                    This is what guests and hosts will see on VenCome
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="First name"
+                      value={firstName}
+                      onChange={(e) => {
+                        setFirstName(e.target.value);
+                        setFirstNameError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleNameContinue();
+                      }}
+                      style={{
+                        width: "100%",
+                        height: 52,
+                        border: "1.5px solid",
+                        borderColor: firstNameError ? COLORS.error : COLORS.border,
+                        borderRadius: 10,
+                        padding: "0 16px",
+                        fontSize: 15,
+                        color: COLORS.navy,
+                        outline: "none",
+                        boxSizing: "border-box",
+                        fontFamily: "inherit",
+                      }}
+                      onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                      onBlur={(e) =>
+                        (e.target.style.borderColor = firstNameError ? COLORS.error : COLORS.border)
+                      }
+                    />
+                    {firstNameError ? (
+                      <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
+                        {firstNameError}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleNameContinue}
+                    disabled={isLoading}
+                    style={{
+                      width: "100%",
+                      height: 52,
+                      background: COLORS.blue,
+                      color: "white",
+                      border: "none",
+                      borderRadius: 10,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                      opacity: isLoading ? 0.7 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {isLoading ? (
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
+                        style={{ display: "flex" }}
+                      >
+                        <Loader2 size={20} />
+                      </motion.div>
+                    ) : (
+                      "Continue"
+                    )}
+                  </button>
                 </div>
               ) : null}
 
