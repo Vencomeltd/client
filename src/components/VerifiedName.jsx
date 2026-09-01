@@ -2,7 +2,7 @@ import React from "react";
 import { IoIosCheckmarkCircle } from "react-icons/io";
 
 const VerifiedName = ({ name, isVerified, className = "" }) => {
-  if (isVerified) {
+  if (!isVerified) {
     return <span className={`font-medium ${className}`}>{name}</span>;
   }
 

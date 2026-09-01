@@ -20,15 +20,20 @@ const HostProfile = () => {
       setLoading(true);
       setError(false);
       try {
-        const [hostData, listingData] = await Promise.all([
-          apiFetch({ endpoint: `/hosts/${id}` }),
-          // Filtered server-side -- fetching the general /properties list and
-          // matching client-side only ever showed a host's listings that
-          // happened to land on page 1 of the newest-20 platform-wide.
-          apiFetch({ endpoint: `/properties?host=${id}&limit=50` }),
-        ]);
+        // Sequential, not Promise.all -- the :id URL param can now be a slug
+        // (e.g. /host/jayden-benson), and the listings query needs the
+        // host's real _id, which only the /hosts/:id response resolves.
+        const hostData = await apiFetch({ endpoint: `/hosts/${id}` });
         if (cancelled) return;
         setHost(hostData);
+
+        // Filtered server-side -- fetching the general /properties list and
+        // matching client-side only ever showed a host's listings that
+        // happened to land on page 1 of the newest-20 platform-wide.
+        const listingData = await apiFetch({
+          endpoint: `/properties?host=${hostData._id}&limit=50`,
+        });
+        if (cancelled) return;
         setListings(listingData.properties || []);
       } catch (err) {
         if (!cancelled) setError(true);
@@ -58,17 +63,22 @@ const HostProfile = () => {
     );
   }
 
+  const hostName =
+    host.displayName ||
+    `${host.firstName || ""} ${host.lastName || ""}`.trim() ||
+    "Host";
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-24 sm:px-8 sm:pb-8 sm:pt-28">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col items-center text-center gap-3 sm:flex-row sm:items-center sm:text-left sm:gap-5 mb-5">
           <img
             src={host.profileImage || "https://via.placeholder.com/96"}
-            alt={host.displayName}
+            alt={hostName}
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover flex-shrink-0"
           />
           <VerifiedName
-            name={host.displayName}
+            name={hostName}
             isVerified={host.businessVerified}
             className="text-lg sm:text-xl"
           />
