@@ -2121,15 +2121,41 @@ function ListingsSection({
   listingsTotalPages,
   onListingsPageChange,
   onRefresh,
+  searchQuery,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
+  const [locationFilter, setLocationFilter] = useState("");
 
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
     if (listingQueueFilter === "new_host") return listing.flags.includes("new_host");
     return true;
   });
+
+  const locationOptions = useMemo(() => {
+    const cities = listings.map((listing) => listing.location?.city).filter(Boolean);
+    return Array.from(new Set(cities)).sort();
+  }, [listings]);
+
+  const filteredListings = useMemo(() => {
+    const q = (searchQuery || "").trim().toLowerCase();
+    return listings.filter((listing) => {
+      if (locationFilter && listing.location?.city !== locationFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        listing.title,
+        listing.location?.city,
+        listing.location?.neighborhood,
+        listing.location?.address,
+        getListingHostName(listing),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [listings, searchQuery, locationFilter]);
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -2332,8 +2358,18 @@ function ListingsSection({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
-        <div className="border-b border-[#E5E7EB] px-5 py-5">
-          <h3 className="text-[15px] font-bold text-[#0A1628]">All Listings</h3>
+        <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-[15px] font-bold text-[#0A1628]">All Listings ({filteredListings.length})</h3>
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+          >
+            <option value="">All locations</option>
+            {locationOptions.map((city) => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
         </div>
 
         <div className="hidden overflow-x-auto md:block">
@@ -2363,14 +2399,14 @@ function ListingsSection({
                     ))}
                   </tr>
                 ))
-              ) : listings.length === 0 ? (
+              ) : filteredListings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-[14px] text-[#6B7280]">
-                    No data yet
+                    {listings.length === 0 ? "No data yet" : "No listings match your search"}
                   </td>
                 </tr>
               ) : (
-                listings.map((listing, index) => (
+                filteredListings.map((listing, index) => (
                 <motion.tr
                   key={listing._id}
                   initial={{ opacity: 0 }}
@@ -2428,12 +2464,12 @@ function ListingsSection({
                 <div className="mt-3 h-8 w-full rounded-lg bg-[#F3F4F6]" />
               </div>
             ))
-          ) : listings.length === 0 ? (
+          ) : filteredListings.length === 0 ? (
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-center text-[14px] text-[#6B7280]">
-              No data yet
+              {listings.length === 0 ? "No data yet" : "No listings match your search"}
             </div>
           ) : (
-            listings.slice(0, 10).map((listing, index) => (
+            filteredListings.slice(0, 10).map((listing, index) => (
               <motion.div
                 key={listing._id}
                 initial={{ opacity: 0, y: 12 }}
@@ -6765,6 +6801,7 @@ export default function AdminDashboard() {
         listingsTotalPages={listingsTotalPages}
         onListingsPageChange={setListingsPage}
         onRefresh={() => fetchListings(listingsPage)}
+        searchQuery={searchQuery}
       />
     );
   } else if (activeSection === "bookings") {
