@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download } from "lucide-react";
+import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download, Trash2 } from "lucide-react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
 import { updateStoredUser } from "../utils/auth";
@@ -8,6 +10,79 @@ import IdentityVerification from "../components/IdentityVerification";
 import BusinessVerification from "../components/BusinessVerification";
 import PhoneNumberField from "../components/PhoneNumberField";
 import EmailField from "../components/EmailField";
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+// Real card-collection form -- Stripe Elements tokenizes the card entirely
+// client-side, so the raw card number never touches VenCome's servers.
+// Must be rendered inside <Elements> to use useStripe/useElements.
+function AddCardForm({ onAdded, onCancel }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [cardError, setCardError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setCardError("");
+    try {
+      const { token, error } = await stripe.createToken(elements.getElement(CardElement), { currency: "gbp" });
+      if (error) {
+        setCardError(error.message);
+        return;
+      }
+      const res = await apiFetch("/payouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "card",
+          tokenId: token.id,
+          last4: token.card.last4,
+          brand: token.card.brand,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add card");
+      onAdded(data.payoutMethods);
+    } catch (err) {
+      setCardError(err.message || "Failed to add card");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: "14px", padding: "16px", border: "1px solid #E5E7EB", borderRadius: "10px" }}>
+      <div style={{ padding: "12px", border: "1px solid #E5E7EB", borderRadius: "8px", marginBottom: "12px" }}>
+        <CardElement options={{ style: { base: { fontSize: "14px" } } }} />
+      </div>
+      {cardError && <p style={{ fontSize: "12px", color: "#DC2626", marginBottom: "10px" }}>{cardError}</p>}
+      <div style={{ display: "flex", gap: "10px" }}>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || !stripe}
+          style={{
+            padding: "10px 18px", borderRadius: "8px", border: "none",
+            background: submitting ? "#9CA3AF" : "#2E58EC", color: "#fff",
+            fontSize: "13px", fontWeight: "700", cursor: submitting ? "not-allowed" : "pointer",
+          }}
+        >
+          {submitting ? "Saving..." : "Save Card"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Settings() {
   const [user, setUser] = useState(null);
@@ -33,6 +108,9 @@ export default function Settings() {
   const [payoutStatus, setPayoutStatus] = useState(null);
   const [payoutStatusLoading, setPayoutStatusLoading] = useState(true);
   const [connectingPayout, setConnectingPayout] = useState(false);
+  const [payoutMethods, setPayoutMethods] = useState([]);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [removingCardId, setRemovingCardId] = useState(null);
   const [payoutError, setPayoutError] = useState("");
   const [googleCalendar, setGoogleCalendar] = useState(null);
   const [outlookCalendar, setOutlookCalendar] = useState(null);
@@ -88,8 +166,33 @@ export default function Settings() {
         setPayoutStatusLoading(false);
       }
     };
+    const fetchPayoutMethods = async () => {
+      try {
+        const res = await apiFetch("/payouts");
+        const data = await res.json();
+        setPayoutMethods(data.payoutMethods || []);
+      } catch (err) {
+        console.error("Failed to load payout methods", err);
+      }
+    };
     fetchPayoutStatus();
+    fetchPayoutMethods();
   }, []);
+
+  const handleRemoveCard = async (methodId) => {
+    setRemovingCardId(methodId);
+    try {
+      const res = await apiFetch(`/payouts/${methodId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove card");
+      setPayoutMethods((prev) => prev.filter((m) => m._id !== methodId));
+    } catch (err) {
+      toast.error(err.message || "Failed to remove card");
+    } finally {
+      setRemovingCardId(null);
+    }
+  };
+
+  const cardMethod = payoutMethods.find((m) => m.type === "card");
 
   useEffect(() => {
     const fetchCalendarStatus = async () => {
@@ -674,7 +777,7 @@ export default function Settings() {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "24px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "24px" }}>
                     {/* Bank Account — the real, working option */}
                     <div style={{
                       border: payoutStatus === "connected" ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #2E58EC",
@@ -696,6 +799,64 @@ export default function Settings() {
                       }}>
                         {payoutStatus === "connected" ? "Connected" : payoutStatus === "pending" ? "Verification pending" : "Not connected"}
                       </span>
+                    </div>
+
+                    {/* Debit Card — real, wired to Stripe */}
+                    <div style={{
+                      border: cardMethod ? "1.5px solid rgba(22,163,74,0.4)" : "1.5px solid #E5E7EB",
+                      borderRadius: "14px", padding: "20px",
+                      background: cardMethod ? "rgba(22,163,74,0.04)" : "#fff",
+                    }}>
+                      <CreditCard size={26} color={cardMethod ? "#16A34A" : "#6B7280"} />
+                      <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "12px 0 4px" }}>
+                        Debit Card
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px", lineHeight: "17px" }}>
+                        Instant payouts to a debit card via Stripe.
+                      </p>
+                      {cardMethod ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: "5px",
+                            padding: "4px 10px", borderRadius: "9999px", fontSize: "11px", fontWeight: "700",
+                            background: "rgba(22,163,74,0.12)", color: "#16A34A",
+                          }}>
+                            {cardMethod.brand ? `${cardMethod.brand} ****${cardMethod.last4}` : "Connected"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCard(cardMethod._id)}
+                            disabled={removingCardId === cardMethod._id}
+                            aria-label="Remove card"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 0 }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : showAddCard ? null : (
+                        <button
+                          type="button"
+                          onClick={() => setShowAddCard(true)}
+                          style={{
+                            display: "inline-block", padding: "4px 10px", borderRadius: "9999px",
+                            background: "#F0F4FF", color: "#2E58EC", fontSize: "11px", fontWeight: "700",
+                            border: "none", cursor: "pointer",
+                          }}
+                        >
+                          + Add card
+                        </button>
+                      )}
+                      {showAddCard && !cardMethod && (
+                        <Elements stripe={stripePromise}>
+                          <AddCardForm
+                            onAdded={(methods) => {
+                              setPayoutMethods(methods);
+                              setShowAddCard(false);
+                            }}
+                            onCancel={() => setShowAddCard(false)}
+                          />
+                        </Elements>
+                      )}
                     </div>
 
                     {/* PayPal — coming soon */}
