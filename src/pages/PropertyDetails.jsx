@@ -2516,6 +2516,8 @@ function HostSection({ property }) {
       !property.host.profileImage.includes("gravatar") &&
       !property.host.profileImage.includes("00000000000000000000000000000000");
 
+    const hostLink = property?.host?.slug || property?.host?._id;
+
     return (
       <div
         style={{
@@ -2528,35 +2530,45 @@ function HostSection({ property }) {
           margin: "24px 0",
         }}
       >
-        <div
+        <Link
+          to={hostLink ? `/host/${hostLink}` : "#"}
           style={{
-            width: "56px",
-            height: "56px",
-            borderRadius: "50%",
-            overflow: "hidden",
-            flexShrink: 0,
-            background: hasRealAvatar ? "transparent" : "#0A1628",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            gap: "16px",
+            textDecoration: "none",
+            pointerEvents: hostLink ? "auto" : "none",
           }}
         >
-          {hasRealAvatar ? (
-            <img
-              src={property.host.profileImage}
-              alt={hostName}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <span style={{ color: "#fff", fontSize: "18px", fontWeight: "700" }}>
-              {hostInitials}
-            </span>
-          )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0, overflowWrap: "break-word" }}>
-            {hostName}
-          </p>
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              overflow: "hidden",
+              flexShrink: 0,
+              background: hasRealAvatar ? "transparent" : "#0A1628",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {hasRealAvatar ? (
+              <img
+                src={property.host.profileImage}
+                alt={hostName}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <span style={{ color: "#fff", fontSize: "18px", fontWeight: "700" }}>
+                {hostInitials}
+              </span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0, overflowWrap: "break-word" }}>
+              {hostName}
+            </p>
           <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>
             {property?.host?.isVerified ? (
               <span
@@ -2578,7 +2590,8 @@ function HostSection({ property }) {
               { month: "long", year: "numeric" }
             )}
           </p>
-        </div>
+          </div>
+        </Link>
         <button
           onClick={async () => {
             const token = localStorage.getItem("vencome_token");
