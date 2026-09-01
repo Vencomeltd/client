@@ -1167,6 +1167,13 @@ export default function CreateSpace() {
       formData.append("discounts", JSON.stringify(form.discounts || {}));
       formData.append("blockedDates", JSON.stringify(form.blockedDates || []));
       formData.append("bookingApproval", form.bookingApproval || "approveFirstFive");
+      if (draftId) {
+        // Lets the server delete this draft in the same request as
+        // creating the listing, instead of relying only on the
+        // best-effort DELETE call below (see the draftId block near the
+        // publish success handler).
+        formData.append("draftId", draftId);
+      }
       if (form.icalUrl) {
         formData.append("icalUrl", form.icalUrl);
       }
