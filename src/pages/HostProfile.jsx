@@ -114,7 +114,7 @@ const HostProfile = () => {
         {listings.length === 0 ? (
           <p className="text-gray-500">This host hasn't published any listings yet.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {listings.map((property) => (
               <PropertyCard key={property._id} property={property} />
             ))}
