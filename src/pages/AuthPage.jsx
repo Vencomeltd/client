@@ -53,6 +53,7 @@ export default function AuthPage({ mode = "login" }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
+  const [firstNameError, setFirstNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -252,11 +253,16 @@ export default function AuthPage({ mode = "login" }) {
 
   const handleSignupSubmit = async () => {
     setEmailError("");
+    setFirstNameError("");
     setPasswordError("");
     setConfirmPasswordError("");
 
     if (!role) {
       setEmailError("Please select an account type");
+      return;
+    }
+    if (!firstName.trim()) {
+      setFirstNameError("Please enter your first name");
       return;
     }
     if (!email || !isValidEmail(email)) {
@@ -285,6 +291,7 @@ export default function AuthPage({ mode = "login" }) {
         body: JSON.stringify({
           email,
           password,
+          firstName: firstName.trim(),
           isHost: role === "host",
           newsletterOptIn,
         }),
@@ -641,6 +648,44 @@ export default function AuthPage({ mode = "login" }) {
                     </div>
                   ) : (
                     <>
+                      <div style={{ marginBottom: 16 }}>
+                        <input
+                          type="text"
+                          placeholder="First name"
+                          value={firstName}
+                          onChange={(e) => {
+                            setFirstName(e.target.value);
+                            setFirstNameError("");
+                          }}
+                          style={{
+                            width: "100%",
+                            height: 52,
+                            border: "1.5px solid",
+                            borderColor: firstNameError ? COLORS.error : COLORS.border,
+                            borderRadius: 10,
+                            padding: "0 16px",
+                            fontSize: 15,
+                            color: COLORS.navy,
+                            outline: "none",
+                            boxSizing: "border-box",
+                            fontFamily: "inherit",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
+                          onBlur={(e) =>
+                            (e.target.style.borderColor = firstNameError ? COLORS.error : COLORS.border)
+                          }
+                        />
+                        {firstNameError ? (
+                          <p style={{ fontSize: 12, color: COLORS.error, marginTop: 6 }}>
+                            {firstNameError}
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: 12, color: COLORS.grey, marginTop: 6 }}>
+                            This is what guests and hosts will see on VenCome
+                          </p>
+                        )}
+                      </div>
+
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ position: "relative" }}>
                           <input
