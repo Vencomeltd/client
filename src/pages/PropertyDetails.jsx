@@ -2209,7 +2209,7 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
           <button
             type="button"
             onClick={() => onOpen(0)}
-            className="block h-[260px] w-full"
+            className="relative block h-[260px] w-full"
           >
             <img
               {...getResponsiveImageProps(images[0])}
@@ -2217,6 +2217,12 @@ function PhotoGallery({ images, onOpen, onShowAll }) {
               alt="Property hero"
               className="h-full w-full object-cover"
             />
+            {images.length > 1 ? (
+              <span className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-sm">
+                <Grid size={13} />
+                1 / {images.length}
+              </span>
+            ) : null}
           </button>
         </div>
 
