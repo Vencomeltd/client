@@ -112,7 +112,7 @@ const ServiceLocationPage = () => {
   const heroImage = subcategory.image || category?.image;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {heroImage && (
         <div className="relative h-[220px] w-full overflow-hidden sm:h-[280px] lg:h-[340px]">
           <img

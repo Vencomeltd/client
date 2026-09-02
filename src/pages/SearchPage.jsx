@@ -703,7 +703,7 @@ export default function SearchPage() {
 
       <Navbar />
 
-      <div className="min-h-screen overflow-x-hidden bg-[#F8F6F0] pb-24 pt-28 md:pb-0 md:pt-32">
+      <div className="min-h-screen overflow-x-hidden bg-white pb-24 pt-28 md:pb-0 md:pt-32">
         <div
           ref={resultsRef}
           className="mx-auto flex max-w-[1440px] min-w-0 items-start gap-4 px-4 py-6 md:gap-8 md:px-6"

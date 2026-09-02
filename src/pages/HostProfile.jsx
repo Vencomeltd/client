@@ -52,7 +52,7 @@ const HostProfile = () => {
 
   if (error || !host) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 pt-16">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4 pt-16">
         <div className="text-center">
           <p className="text-gray-700 font-medium mb-2">Host not found</p>
           <Link to="/" className="text-primary underline">
@@ -69,7 +69,7 @@ const HostProfile = () => {
     "Host";
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 pb-6 pt-24 sm:px-8 sm:pb-8 sm:pt-28">
+    <div className="min-h-screen bg-white px-4 pb-6 pt-24 sm:px-8 sm:pb-8 sm:pt-28">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col items-center text-center gap-3 sm:flex-row sm:items-center sm:text-left sm:gap-5 mb-5">
           <img

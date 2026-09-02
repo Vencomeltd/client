@@ -443,7 +443,7 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
   return (
     <motion.section
       {...SECTION_REVEAL}
-      className="bg-[#F8F6F0] py-7 md:py-10 lg:py-16"
+      className="bg-white py-7 md:py-10 lg:py-16"
     >
       <div className="mx-auto max-w-[1440px] px-4 md:px-6">
         <div className="mb-6 flex items-center justify-between gap-4 md:mb-8 md:gap-6">
@@ -558,7 +558,7 @@ function HowItWorks() {
   return (
     <motion.section
       {...SECTION_REVEAL}
-      className="bg-[#F8F6F0] py-7 md:py-10 lg:py-20"
+      className="bg-white py-7 md:py-10 lg:py-20"
     >
       <div className="mx-auto max-w-[1440px] px-4 text-center md:px-6">
         <h2 className="text-[clamp(20px,4vw,32px)] font-extrabold text-[#0A1628]">
@@ -947,7 +947,7 @@ export default function Homepage() {
       `}</style>
 
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
-      <main className="bg-[#F8F6F0] text-[#111827]">
+      <main className="bg-white text-[#111827]">
         <HeroSection />
         <CategoryStrip />
         <FeaturedSpaces
