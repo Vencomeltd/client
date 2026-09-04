@@ -135,7 +135,7 @@ const CATEGORY_ICON_MAP = {
 function HeroSection() {
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
-  const headlineWords = ["Find", "Your", "Perfect", "Commercial", "Space"];
+  const headlineWords = ["The", "easiest", "way", "to", "grow", "your", "business"];
 
   return (
     <motion.section
@@ -146,8 +146,7 @@ function HeroSection() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           y: bgY,
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80')",
+          backgroundImage: "url('/hero-collage.jpg')",
         }}
       />
 
@@ -202,7 +201,7 @@ function HeroSection() {
             textAlign: "center",
           }}
         >
-          Offices, studios, event venues and more — book by the hour, day, or year.
+          Commercial Spaces, Booked Simply
         </p>
 
         <motion.div
