@@ -135,7 +135,7 @@ const CATEGORY_ICON_MAP = {
 function HeroSection() {
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
-  const headlineWords = ["The", "easiest", "way", "to", "grow", "your", "business"];
+  const headlineWords = ["The", "Easiest", "Way", "To", "Grow", "Your", "Business"];
 
   return (
     <motion.section
