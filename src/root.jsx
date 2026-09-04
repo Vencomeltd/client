@@ -54,6 +54,7 @@ export function meta() {
   return [
     { title },
     { name: "description", content: description },
+    { name: "robots", content: "index, follow" },
     { property: "og:type", content: "website" },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
@@ -98,7 +99,6 @@ export function Layout({ children }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="robots" content="index, follow" />
         {/* Google requires a favicon that's a real multiple of 48px, in a
             supported format, on a stable crawlable URL. */}
         <link rel="icon" href="/favicon.ico" sizes="any" />

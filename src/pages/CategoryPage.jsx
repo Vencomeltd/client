@@ -30,11 +30,12 @@ export function shouldRevalidate({ currentParams, nextParams, defaultShouldReval
 
 export function meta({ data }) {
   const category = data?.category;
-  if (!category) return [{ title: "Category | VenCome" }];
+  if (!category) return [{ title: "Category | VenCome" }, { name: "robots", content: "noindex, follow" }];
   const title = `${category.name} Spaces | VenCome`;
   const description =
     category.description || `Browse ${category.name} spaces available to book on VenCome.`;
   const url = `https://www.vencome.com/category/${category.slug || category._id}`;
+  const isEmpty = (data?.properties?.length || 0) === 0;
   return [
     { title },
     { name: "description", content: description },
@@ -42,6 +43,11 @@ export function meta({ data }) {
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { tagName: "link", rel: "canonical", href: url },
+    // Empty categories render boilerplate "launching soon" copy -- keep
+    // them crawlable (follow, so link equity still flows) but out of the
+    // index until real listings exist, so they don't compete with real
+    // category pages as near-duplicate thin content.
+    ...(isEmpty ? [{ name: "robots", content: "noindex, follow" }] : []),
   ];
 }
 

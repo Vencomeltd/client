@@ -1,6 +1,6 @@
 ﻿import Select from "react-select";
 
-const COUNTRIES = [
+export const COUNTRIES = [
   { value: "AF", label: "ðŸ‡¦ðŸ‡« Afghanistan" },
   { value: "AL", label: "ðŸ‡¦ðŸ‡± Albania" },
   { value: "DZ", label: "ðŸ‡©ðŸ‡¿ Algeria" },

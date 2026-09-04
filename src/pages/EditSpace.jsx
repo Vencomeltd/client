@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
+import { COUNTRIES } from "../components/CountrySelect";
 
 export default function EditSpace({ embedded = false, idOverride, onClose } = {}) {
   const { id: routeId } = useParams();
@@ -1459,11 +1460,9 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               >
                 Country
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.country}
                 onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
-                placeholder="Country"
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -1472,8 +1471,16 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                   fontSize: "14px",
                   outline: "none",
                   boxSizing: "border-box",
+                  background: "#fff",
                 }}
-              />
+              >
+                <option value="">Select country</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.value} value={c.label.replace(/^\p{Emoji_Presentation}+\s*/u, "")}>
+                    {c.label.replace(/^\p{Emoji_Presentation}+\s*/u, "")}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div>

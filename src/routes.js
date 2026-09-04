@@ -5,7 +5,7 @@ export default [
   index("pages/Homepage.jsx"),
   route("property/:id", "pages/PropertyDetails.jsx"),
   route("blog", "pages/BlogList.jsx"),
-  route("blogs", "pages/BlogList.jsx", { id: "blog-alias" }),
+  route("blogs", "routes/redirect-to-blog.jsx"),
   route("blog/:slug", "pages/BlogDetails.jsx"),
   route("search", "pages/SearchPage.jsx"),
 
