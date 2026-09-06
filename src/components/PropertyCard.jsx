@@ -118,7 +118,7 @@ function SkeletonCard() {
         }
       `}</style>
 
-      <div className="overflow-hidden rounded-[18px] border border-[#0A1628] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)]">
+      <div className="overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)]">
         <div
           className="aspect-[4/3] w-full rounded-[12px]"
           style={{
@@ -226,7 +226,7 @@ export default function PropertyCard({
         transition={{ duration: 0.2, ease: "easeOut" }}
         className="group h-full w-full"
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#0A1628] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition-shadow duration-200 ease-out group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)]">
+        <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition duration-200 ease-out group-hover:border-[#305CDE] group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)]">
           <Link to={`/property/${listing.slug || listing.id}`} className="flex flex-1 flex-col">
             <div className="relative overflow-hidden rounded-[12px]">
               <div className="aspect-[4/3] w-full" />
