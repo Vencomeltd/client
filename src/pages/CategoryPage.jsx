@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLoaderData, Link } from "react-router-dom";
 import { redirect } from "react-router";
 import { Sparkles, Building2 } from "lucide-react";
@@ -6,6 +6,9 @@ import { apiFetch } from "../utils/api";
 import PropertyCard from "../components/PropertyCard";
 import VencomeLoader from "../components/Loader";
 import TagList from "../components/TagList";
+import { getLowestWeeklyRate } from "../utils/dayPricing";
+
+const SORT_OPTIONS = ["Relevance", "Price: Low to High", "Price: High to Low"];
 
 export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/categories/${params.id}`);
@@ -59,6 +62,28 @@ const CategoryPage = () => {
   const [properties, setProperties] = useState(loaderData?.properties || []);
   const [loading, setLoading] = useState(!loaderData?.category);
   const [error, setError] = useState("");
+  const [sortBy, setSortBy] = useState("Relevance");
+
+  const sortedProperties = useMemo(() => {
+    if (sortBy === "Relevance") return properties;
+
+    const getListingPrice = (listing) => {
+      const base = Number(
+        listing.pricing?.hourly ??
+          listing.pricing?.hourlyPrice ??
+          listing.pricing?.daily ??
+          listing.pricing?.weekdayPrice ??
+          0
+      );
+      return getLowestWeeklyRate(base, listing.pricing?.customDayPricing);
+    };
+
+    return [...properties].sort((a, b) =>
+      sortBy === "Price: Low to High"
+        ? getListingPrice(a) - getListingPrice(b)
+        : getListingPrice(b) - getListingPrice(a)
+    );
+  }, [properties, sortBy]);
 
   useEffect(() => {
     // The SSR loader already fetched this exact category server-side --
@@ -123,6 +148,21 @@ const CategoryPage = () => {
         </div>
 
         {/* Properties Grid */}
+        {properties.length > 0 && (
+          <div className="mb-6 flex justify-end">
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="min-h-[44px] rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] text-[#111827] outline-none"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {properties.length === 0 ? (
           <div className="mx-auto flex max-w-lg flex-col items-center py-16 text-center">
             <span className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#F4F7FF] text-[#305CDE]">
@@ -149,7 +189,7 @@ const CategoryPage = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-            {properties.map((property) => (
+            {sortedProperties.map((property) => (
               <PropertyCard
                 key={property._id}
                 id={property._id}
