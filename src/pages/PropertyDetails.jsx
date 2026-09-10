@@ -430,6 +430,20 @@ const normalizePropertyData = (property) => {
       : openTime && closeTime
       ? `${openTime} - ${closeTime}`
       : "Hours available on request",
+    availabilityDayHours:
+      property.availability?.hoursMode === "custom"
+        ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => {
+            const entry = (property.availability?.dayHours || []).find((d) => d.day === day);
+            const label = !entry
+              ? "Closed"
+              : entry.is24Hours
+              ? "Open 24 hours"
+              : entry.openTime && entry.closeTime
+              ? `${entry.openTime} - ${entry.closeTime}`
+              : "Closed";
+            return { day, label };
+          })
+        : null,
     bookingTypeLabel: property.bookingSettings?.instantBook
       ? "Instant Book"
       : "Request to Book",
@@ -1761,6 +1775,7 @@ export default function PropertyDetails() {
                   availabilityBreakdown={bookingMetrics.breakdown}
                   openDaysLabel={propertyView.availabilityLabel}
                   openHours={propertyView.availabilityHours}
+                  dayHoursList={propertyView.availabilityDayHours}
                 />
               </motion.section>
 
@@ -2965,12 +2980,24 @@ function AvailabilitySection({
   availabilityBreakdown,
   openDaysLabel,
   openHours,
+  dayHoursList,
 }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Availability</h2>
       <p className="mt-1 text-[13px] text-[#6B7280]">{openDaysLabel}</p>
-      <p className="mt-1 text-[13px] text-[#6B7280]">{openHours}</p>
+      {dayHoursList ? (
+        <div className="mt-2 grid max-w-xs grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          {dayHoursList.map(({ day, label }) => (
+            <p key={day} className="contents text-[13px] text-[#6B7280]">
+              <span className="font-medium text-[#374151]">{day}</span>
+              <span>{label}</span>
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-[13px] text-[#6B7280]">{openHours}</p>
+      )}
 
       <div className="mt-5 rounded-[18px] border border-[#E5E7EB] bg-white p-4">
         <div className="mb-5 flex items-center justify-between">

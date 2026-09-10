@@ -67,6 +67,9 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       closeTime: "",
       minNotice: "",
       instantBook: false,
+      hoursMode: "same",
+      is24Hours: false,
+      dayHours: {},
     },
     bufferTime: { before: "", after: "" },
     capacity: "",
@@ -145,6 +148,16 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             closeTime: p.availability?.closeTime || "",
             minNotice: p.availability?.minNotice || "",
             instantBook: p.bookingSettings?.instantBook || false,
+            hoursMode: p.availability?.hoursMode || "same",
+            is24Hours: p.availability?.is24Hours || false,
+            dayHours: (p.availability?.dayHours || []).reduce((acc, entry) => {
+              acc[entry.day] = {
+                openTime: entry.openTime || "",
+                closeTime: entry.closeTime || "",
+                is24Hours: entry.is24Hours || false,
+              };
+              return acc;
+            }, {}),
           },
           bufferTime: {
             before: p.bookingSettings?.bufferBefore || "",
@@ -230,6 +243,19 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
     }
   };
 
+  const updateDayHours = (day, patch) => {
+    setFormData((prev) => ({
+      ...prev,
+      availability: {
+        ...prev.availability,
+        dayHours: {
+          ...prev.availability.dayHours,
+          [day]: { openTime: "", closeTime: "", is24Hours: false, ...prev.availability.dayHours[day], ...patch },
+        },
+      },
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -297,6 +323,12 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           openTime: formData.availability.openTime,
           closeTime: formData.availability.closeTime,
           minNotice: formData.availability.minNotice,
+          hoursMode: formData.availability.hoursMode || "same",
+          is24Hours: formData.availability.hoursMode === "same" ? !!formData.availability.is24Hours : false,
+          dayHours:
+            formData.availability.hoursMode === "custom"
+              ? Object.entries(formData.availability.dayHours || {}).map(([day, hours]) => ({ day, ...hours }))
+              : [],
         })
       );
       payload.append("discounts", JSON.stringify(formData.discounts || {}));
@@ -1190,69 +1222,176 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               })}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "16px", marginBottom: "16px", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: "140px" }}>
-              <label
-                style={{
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  color: "#374151",
-                  display: "block",
-                  marginBottom: "6px",
-                }}
-              >
-                Open Time
-              </label>
-              <input
-                type="time"
-                value={formData.availability.openTime}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    availability: { ...prev.availability, openTime: e.target.value },
-                  }))
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  border: "1.5px solid #E5E7EB",
-                  fontSize: "14px",
-                  outline: "none",
-                }}
-              />
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "8px" }}>
+              Opening Hours
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
+              {[
+                { value: "same", label: "Same hours every day" },
+                { value: "custom", label: "Different hours per day" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      availability: { ...prev.availability, hoursMode: option.value },
+                    }))
+                  }
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${formData.availability.hoursMode === option.value ? "#0A1628" : "#E5E7EB"}`,
+                    background: formData.availability.hoursMode === option.value ? "rgba(10,22,40,0.03)" : "#fff",
+                    color: formData.availability.hoursMode === option.value ? "#0A1628" : "#111827",
+                    fontSize: "13px",
+                    fontWeight: formData.availability.hoursMode === option.value ? "600" : "400",
+                    cursor: "pointer",
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
-            <div style={{ flex: 1, minWidth: "140px" }}>
-              <label
-                style={{
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  color: "#374151",
-                  display: "block",
-                  marginBottom: "6px",
-                }}
-              >
-                Close Time
-              </label>
-              <input
-                type="time"
-                value={formData.availability.closeTime}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    availability: { ...prev.availability, closeTime: e.target.value },
-                  }))
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "8px",
-                  border: "1.5px solid #E5E7EB",
-                  fontSize: "14px",
-                  outline: "none",
-                }}
-              />
-            </div>
+
+            {formData.availability.hoursMode === "custom" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {formData.availability.openDays.length === 0 ? (
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+                    Select at least one open day above to set its hours.
+                  </p>
+                ) : (
+                  formData.availability.openDays.map((day) => {
+                    const hours = formData.availability.dayHours[day] || { openTime: "", closeTime: "", is24Hours: false };
+                    return (
+                      <div key={day} style={{ borderRadius: "10px", border: "1.5px solid #E5E7EB", padding: "12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                          <p style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628", margin: 0 }}>{day}</p>
+                          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "500", color: "#0A1628" }}>
+                            <input
+                              type="checkbox"
+                              checked={hours.is24Hours}
+                              onChange={(e) => updateDayHours(day, { is24Hours: e.target.checked })}
+                            />
+                            Open 24 hours
+                          </label>
+                        </div>
+                        {!hours.is24Hours && (
+                          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                            <div style={{ flex: 1, minWidth: "120px" }}>
+                              <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
+                                Start time
+                              </label>
+                              <input
+                                type="time"
+                                value={hours.openTime}
+                                onChange={(e) => updateDayHours(day, { openTime: e.target.value })}
+                                style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "13px", outline: "none" }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: "120px" }}>
+                              <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
+                                End time
+                              </label>
+                              <input
+                                type="time"
+                                value={hours.closeTime}
+                                onChange={(e) => updateDayHours(day, { closeTime: e.target.value })}
+                                style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "13px", outline: "none" }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              <>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "500", color: "#0A1628", marginBottom: "12px" }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.availability.is24Hours}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        availability: { ...prev.availability, is24Hours: e.target.checked },
+                      }))
+                    }
+                  />
+                  Open 24 hours
+                </label>
+                {!formData.availability.is24Hours && (
+                  <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: "140px" }}>
+                      <label
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          color: "#374151",
+                          display: "block",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        Open Time
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.availability.openTime}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            availability: { ...prev.availability, openTime: e.target.value },
+                          }))
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "10px",
+                          borderRadius: "8px",
+                          border: "1.5px solid #E5E7EB",
+                          fontSize: "14px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: "140px" }}>
+                      <label
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          color: "#374151",
+                          display: "block",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        Close Time
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.availability.closeTime}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            availability: { ...prev.availability, closeTime: e.target.value },
+                          }))
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "10px",
+                          borderRadius: "8px",
+                          border: "1.5px solid #E5E7EB",
+                          fontSize: "14px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <input
