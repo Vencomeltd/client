@@ -72,9 +72,25 @@ export default function SupportChatWidget() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(false);
   const bottomRef = useRef(null);
 
   const hidden = isHiddenPath(location.pathname);
+
+  // A small "Need help?" nudge next to the closed bubble, shown once per
+  // browser session (sessionStorage) after a short delay so it doesn't
+  // flash in before the page has settled.
+  useEffect(() => {
+    if (open || hidden) return;
+    if (sessionStorage.getItem("vencome_support_greeting_seen")) return;
+    const timer = setTimeout(() => setShowGreeting(true), 1500);
+    return () => clearTimeout(timer);
+  }, [open, hidden]);
+
+  const dismissGreeting = () => {
+    setShowGreeting(false);
+    sessionStorage.setItem("vencome_support_greeting_seen", "1");
+  };
 
   // Check for a still-open ticket once logged in, regardless of panel state,
   // so we can join its socket room and surface the unread badge even closed.
@@ -128,16 +144,15 @@ export default function SupportChatWidget() {
 
   if (hidden) return null;
 
-  const handleStart = async (e) => {
-    e.preventDefault();
-    if (!text.trim() || sending) return;
+  const startConversation = async (categoryValue, message) => {
+    const trimmed = message.trim();
+    if (!trimmed || sending) return;
     setSending(true);
     try {
-      const trimmed = text.trim();
       const subject = trimmed.length > 60 ? `${trimmed.slice(0, 60)}…` : trimmed;
       const res = await apiFetch("/support/tickets", {
         method: "POST",
-        body: JSON.stringify({ category, subject, message: trimmed }),
+        body: JSON.stringify({ category: categoryValue, subject, message: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to start conversation");
@@ -149,6 +164,11 @@ export default function SupportChatWidget() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleStart = (e) => {
+    e.preventDefault();
+    startConversation(category, text);
   };
 
   const handleReply = async (e) => {
@@ -174,9 +194,50 @@ export default function SupportChatWidget() {
 
   return (
     <>
+      {showGreeting && !open && (
+        <button
+          type="button"
+          onClick={() => {
+            dismissGreeting();
+            setOpen(true);
+          }}
+          style={{
+            position: "fixed",
+            bottom: 36,
+            right: 88,
+            zIndex: 999,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#fff",
+            border: "none",
+            borderRadius: 999,
+            padding: "10px 14px 10px 16px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>Need help? 👋</span>
+          <span
+            role="button"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              dismissGreeting();
+            }}
+            style={{ display: "flex", color: "#9CA3AF", padding: 2 }}
+          >
+            <X size={13} />
+          </span>
+        </button>
+      )}
+
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          dismissGreeting();
+          setOpen((o) => !o);
+        }}
         aria-label={open ? "Close support chat" : "Open support chat"}
         style={{
           position: "fixed",
@@ -243,10 +304,10 @@ export default function SupportChatWidget() {
             }}
           >
             <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Support</p>
-              {ticket && (
-                <p style={{ margin: 0, fontSize: 11, opacity: 0.7 }}>{ticket.ticketNumber}</p>
-              )}
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{ticket ? "Support" : "Hi there 👋"}</p>
+              <p style={{ margin: 0, fontSize: 11, opacity: 0.7 }}>
+                {ticket ? ticket.ticketNumber : "How can we help?"}
+              </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <a
@@ -275,35 +336,62 @@ export default function SupportChatWidget() {
 
           <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             {!user ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center", textAlign: "center", padding: "12px 4px" }}>
-                <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
-                  Chat with our team on WhatsApp, or log in to start a support ticket.
-                </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: "#F3F4F6", borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px" }}>
+                  <p style={{ fontSize: 13, color: "#111827", margin: 0, lineHeight: 1.5 }}>
+                    Chat with our team on WhatsApp, or log in to start a support ticket.
+                  </p>
+                </div>
                 <a
-                  href={WHATSAPP_URL}
+                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I'd like help finding and booking a space.")}`}
                   target="_blank"
                   rel="noreferrer"
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "10px 20px",
-                    borderRadius: 999, background: "#25D366", color: "#fff",
-                    fontSize: 13, fontWeight: 700, textDecoration: "none",
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, color: "#111827", textDecoration: "none" }}
                 >
-                  <WhatsAppIcon size={16} color="#fff" />
-                  Chat on WhatsApp
+                  <WhatsAppIcon size={16} color="#25D366" />
+                  Help me find a space
+                </a>
+                <a
+                  href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I'd like help listing my space.")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, color: "#111827", textDecoration: "none" }}
+                >
+                  <WhatsAppIcon size={16} color="#25D366" />
+                  Help me list my space
                 </a>
                 <button
                   type="button"
                   onClick={() => navigate("/login")}
-                  style={{ background: "none", border: "none", color: "#2E58EC", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                  style={{ background: "none", border: "none", color: "#2E58EC", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "4px 0 0", textAlign: "left" }}
                 >
                   Log in for ticket support
                 </button>
               </div>
             ) : !ticket ? (
-              <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
-                Send us a message and our team will get back to you here.
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ background: "#F3F4F6", borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px" }}>
+                  <p style={{ fontSize: 13, color: "#111827", margin: 0, lineHeight: 1.5 }}>
+                    Need a hand? Pick what you're after, or just type your question below.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startConversation("booking_payments", "I'd like help finding and booking a space.")}
+                  disabled={sending}
+                  style={{ textAlign: "left", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, color: "#2E58EC", cursor: sending ? "not-allowed" : "pointer" }}
+                >
+                  Help me find a space
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startConversation("hosting_listings", "I'd like help listing my space.")}
+                  disabled={sending}
+                  style={{ textAlign: "left", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "#fff", fontSize: 13, fontWeight: 600, color: "#2E58EC", cursor: sending ? "not-allowed" : "pointer" }}
+                >
+                  Help me list my space
+                </button>
+              </div>
             ) : (
               messages.map((msg, i) => (
                 <div
