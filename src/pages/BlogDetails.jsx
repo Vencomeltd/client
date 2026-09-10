@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useLoaderData } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../utils/api";
+
+const commentAuthorName = (user) =>
+  user?.displayName || [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "VenCome User";
 
 export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${params.slug}`);
@@ -34,12 +39,17 @@ export function meta({ data }) {
 
 export default function BlogDetails() {
   const { slug } = useParams();
+  const { user } = useAuth();
   const loaderData = useLoaderData();
   const [blog, setBlog] = useState(loaderData?.blog || null);
   const [loading, setLoading] = useState(!loaderData);
   const [notFound, setNotFound] = useState(loaderData ? !loaderData.blog : false);
   const [recentBlogs, setRecentBlogs] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [postingComment, setPostingComment] = useState(false);
+  const [commentError, setCommentError] = useState("");
   const postUrl = blog ? `https://www.vencome.com/blog/${blog.slug}` : "";
 
   useEffect(() => {
@@ -68,6 +78,46 @@ export default function BlogDetails() {
     };
     fetchRecent();
   }, [slug]);
+
+  useEffect(() => {
+    const fetchComments = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${slug}/comments`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setComments(data.comments || []);
+      } catch {}
+    };
+    fetchComments();
+  }, [slug]);
+
+  const handlePostComment = async () => {
+    const content = commentText.trim();
+    if (!content) return;
+    setPostingComment(true);
+    setCommentError("");
+    try {
+      const data = await apiFetch({
+        endpoint: `/blog/${slug}/comments`,
+        method: "POST",
+        body: { content },
+        showErrorToast: false,
+      });
+      setComments((prev) => [...prev, data.comment]);
+      setCommentText("");
+    } catch (err) {
+      setCommentError(err.message || "Couldn't post your comment");
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await apiFetch({ endpoint: `/blog/${slug}/comments/${commentId}`, method: "DELETE", showErrorToast: false });
+      setComments((prev) => prev.filter((c) => c._id !== commentId));
+    } catch {}
+  };
 
   if (loading) return (
     <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
@@ -190,6 +240,104 @@ export default function BlogDetails() {
               {copied ? "✓ Copied!" : "Copy Link"}
             </button>
           </div>
+        </div>
+
+        {/* Comments Section */}
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: "1px solid #E5E7EB" }}>
+          <h3 style={{ fontSize: 20, fontWeight: 800, color: "#0A1628", marginBottom: 20 }}>
+            Comments {comments.length > 0 ? `(${comments.length})` : ""}
+          </h3>
+
+          {user ? (
+            <div style={{ marginBottom: 32 }}>
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Share your thoughts..."
+                maxLength={2000}
+                style={{
+                  width: "100%",
+                  minHeight: 90,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1.5px solid #E5E7EB",
+                  fontSize: 14,
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                  boxSizing: "border-box",
+                  outline: "none",
+                }}
+              />
+              {commentError ? (
+                <p style={{ fontSize: 13, color: "#DC2626", marginTop: 6 }}>{commentError}</p>
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={handlePostComment}
+                  disabled={postingComment || !commentText.trim()}
+                  style={{
+                    padding: "10px 22px",
+                    borderRadius: 8,
+                    background: "#305CDE",
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: postingComment || !commentText.trim() ? "not-allowed" : "pointer",
+                    opacity: postingComment || !commentText.trim() ? 0.6 : 1,
+                  }}
+                >
+                  {postingComment ? "Posting..." : "Post Comment"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 32 }}>
+              <Link to="/login" style={{ color: "#305CDE", fontWeight: 700, textDecoration: "none" }}>
+                Log in
+              </Link>{" "}
+              to join the conversation.
+            </p>
+          )}
+
+          {comments.length === 0 ? (
+            <p style={{ fontSize: 14, color: "#9CA3AF" }}>Be the first to comment.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {comments.map((comment) => {
+                const name = commentAuthorName(comment.user);
+                const isOwn = user && comment.user?._id === user._id;
+                return (
+                  <div key={comment._id} style={{ display: "flex", gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0A1628", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>{name[0]?.toUpperCase()}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", margin: 0 }}>{name}</p>
+                        <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>
+                          {new Date(comment.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <p style={{ fontSize: 14, color: "#374151", margin: "4px 0 0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                        {comment.content}
+                      </p>
+                      {isOwn ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteComment(comment._id)}
+                          style={{ marginTop: 6, background: "none", border: "none", padding: 0, fontSize: 12, color: "#9CA3AF", cursor: "pointer" }}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {recentBlogs.length > 0 && (
