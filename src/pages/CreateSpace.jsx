@@ -213,6 +213,9 @@ const defaultState = {
   // hourly/daily rate above -- see customDayPricingEnabled toggle below.
   customDayPricingEnabled: false,
   customDayPricing: [],
+  // Graduated/stepped WEEKLY pricing -- e.g. £80/week for the first 8
+  // weeks, then £100/week after.
+  graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
   // DAILY pricing only -- restricts a booking to exactly one calendar day
   // instead of allowing a multi-night stay. See bookingSettings.singleDayOnly.
   singleDayOnly: false,
@@ -1082,6 +1085,14 @@ export default function CreateSpace() {
 
       if (form.customDayPricingEnabled && form.customDayPricing?.length > 0) {
         flatPricing.customDayPricing = form.customDayPricing;
+      }
+
+      if (form.graduatedWeekly?.enabled && form.graduatedWeekly.thresholdWeeks && form.graduatedWeekly.rateAfterThreshold) {
+        flatPricing.graduatedWeekly = {
+          enabled: true,
+          thresholdWeeks: parseInt(form.graduatedWeekly.thresholdWeeks, 10),
+          rateAfterThreshold: parseFloat(form.graduatedWeekly.rateAfterThreshold),
+        };
       }
 
       formData.append("title", form.title);
@@ -2950,6 +2961,73 @@ export default function CreateSpace() {
                       customDayPricing={form.customDayPricing}
                       onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
                     />
+                  )}
+
+                  {form.pricing.weekly?.enabled && (
+                    <div style={{ marginTop: "24px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "20px" }}>
+                      <label
+                        style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            graduatedWeekly: { ...prev.graduatedWeekly, enabled: !prev.graduatedWeekly.enabled },
+                          }))
+                        }
+                      >
+                        <input type="checkbox" checked={form.graduatedWeekly.enabled} readOnly />
+                        <div>
+                          <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "15px", margin: 0 }}>
+                            Step up the rate after a number of weeks
+                          </p>
+                          <p style={{ color: "#6B7280", fontSize: "13px", margin: "2px 0 0" }}>
+                            e.g. £80/week for the first 8 weeks, then £100/week after
+                          </p>
+                        </div>
+                      </label>
+
+                      {form.graduatedWeekly.enabled && (
+                        <div style={{ marginTop: "16px", display: "grid", gap: "16px", gridTemplateColumns: "1fr 1fr" }}>
+                          <div>
+                            <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "700", color: "#0A1628" }}>
+                              After how many weeks?
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="e.g. 8"
+                              value={form.graduatedWeekly.thresholdWeeks}
+                              onChange={(event) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  graduatedWeekly: { ...prev.graduatedWeekly, thresholdWeeks: event.target.value },
+                                }))
+                              }
+                              onWheel={(event) => event.target.blur()}
+                              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "15px", outline: "none" }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "700", color: "#0A1628" }}>
+                              New rate per week (£)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="e.g. 100"
+                              value={form.graduatedWeekly.rateAfterThreshold}
+                              onChange={(event) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  graduatedWeekly: { ...prev.graduatedWeekly, rateAfterThreshold: event.target.value },
+                                }))
+                              }
+                              onWheel={(event) => event.target.blur()}
+                              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "15px", outline: "none" }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {form.pricing.daily?.enabled && (

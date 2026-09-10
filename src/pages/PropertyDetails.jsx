@@ -301,7 +301,10 @@ const buildPricingTiers = (pricing = {}) =>
       unit: "week",
       price: pickPricingValue(pricing.weekly),
       label: "Per Week",
-      min: "Weekly booking",
+      min:
+        pricing.graduatedWeekly?.enabled && pricing.graduatedWeekly.thresholdWeeks
+          ? `Weekly booking — then £${pricing.graduatedWeekly.rateAfterThreshold}/wk after ${pricing.graduatedWeekly.thresholdWeeks} wks`
+          : "Weekly booking",
     },
     {
       unit: "month",
@@ -917,7 +920,10 @@ export default function PropertyDetails() {
           unit: "week",
           price: getPriceForDisplay("weekly"),
           label: "Per Week",
-          min: "Weekly booking",
+          min:
+            property?.pricing?.graduatedWeekly?.enabled && property.pricing.graduatedWeekly.thresholdWeeks
+              ? `Weekly booking — then £${property.pricing.graduatedWeekly.rateAfterThreshold}/wk after ${property.pricing.graduatedWeekly.thresholdWeeks} wks`
+              : "Weekly booking",
         },
         {
           unit: "month",

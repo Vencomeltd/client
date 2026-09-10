@@ -56,6 +56,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
     },
     customDayPricingEnabled: false,
     customDayPricing: [],
+    graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
     singleDayOnly: false,
     discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: 0 },
     blockedDates: [],
@@ -130,6 +131,11 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           extras: p.extras || [],
           pricing,
           customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
+          graduatedWeekly: {
+            enabled: p.pricing?.graduatedWeekly?.enabled || false,
+            thresholdWeeks: p.pricing?.graduatedWeekly?.thresholdWeeks || "",
+            rateAfterThreshold: p.pricing?.graduatedWeekly?.rateAfterThreshold || "",
+          },
           customDayPricing: p.pricing?.customDayPricing || [],
           singleDayOnly: p.bookingSettings?.singleDayOnly || false,
           discounts: {
@@ -273,6 +279,15 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       flatPricing.customDayPricing = formData.customDayPricingEnabled
         ? formData.customDayPricing
         : [];
+      // Same wholesale-replace reasoning applies to graduatedWeekly.
+      flatPricing.graduatedWeekly =
+        formData.graduatedWeekly.enabled && formData.graduatedWeekly.thresholdWeeks && formData.graduatedWeekly.rateAfterThreshold
+          ? {
+              enabled: true,
+              thresholdWeeks: parseInt(formData.graduatedWeekly.thresholdWeeks, 10),
+              rateAfterThreshold: parseFloat(formData.graduatedWeekly.rateAfterThreshold),
+            }
+          : { enabled: false, thresholdWeeks: 0, rateAfterThreshold: 0 };
 
       const payload = new FormData();
       payload.append("title", formData.title);
@@ -999,6 +1014,69 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               customDayPricing={formData.customDayPricing}
               onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
             />
+          )}
+
+          {formData.pricing.weekly?.enabled && (
+            <div style={{ marginTop: "16px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "16px" }}>
+              <label
+                style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    graduatedWeekly: { ...prev.graduatedWeekly, enabled: !prev.graduatedWeekly.enabled },
+                  }))
+                }
+              >
+                <input type="checkbox" checked={formData.graduatedWeekly.enabled} readOnly style={{ width: "18px", height: "18px", cursor: "pointer" }} />
+                <div>
+                  <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "14px", margin: 0 }}>
+                    Step up the rate after a number of weeks
+                  </p>
+                  <p style={{ color: "#6B7280", fontSize: "12px", margin: "2px 0 0" }}>
+                    e.g. £80/week for the first 8 weeks, then £100/week after
+                  </p>
+                </div>
+              </label>
+
+              {formData.graduatedWeekly.enabled && (
+                <div style={{ marginTop: "12px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: "140px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
+                      After how many weeks?
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.graduatedWeekly.thresholdWeeks}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          graduatedWeekly: { ...prev.graduatedWeekly, thresholdWeeks: e.target.value },
+                        }))
+                      }
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: "140px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
+                      New rate per week (£)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.graduatedWeekly.rateAfterThreshold}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          graduatedWeekly: { ...prev.graduatedWeekly, rateAfterThreshold: e.target.value },
+                        }))
+                      }
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none" }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {formData.pricing.daily?.enabled && (
