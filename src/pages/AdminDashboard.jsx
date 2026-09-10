@@ -2664,22 +2664,29 @@ function HomepageOrderPanel({ onToast }) {
     load();
   }, [onToast]);
 
-  const handleDrop = async (dropIndex) => {
+  // Live-reorders on every dragover (not just on drop) so the other rows
+  // slide out of the way while the drag is in progress -- the actual
+  // network save only happens once, on dragend.
+  const handleDragOver = (overIndex) => {
     const from = dragIndex.current;
+    if (from === null || from === overIndex) return;
+    setItems((current) => {
+      const reordered = [...current];
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(overIndex, 0, moved);
+      return reordered;
+    });
+    dragIndex.current = overIndex;
+  };
+
+  const persistOrder = async () => {
     dragIndex.current = null;
-    if (from === null || from === dropIndex) return;
-
-    const reordered = [...items];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(dropIndex, 0, moved);
-    setItems(reordered);
-
     try {
       const token = localStorage.getItem("vencome_token");
       await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/reorder`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ order: reordered.map((p) => p._id) }),
+        body: JSON.stringify({ order: items.map((p) => p._id) }),
       });
     } catch {
       onToast("Failed to save new order");
@@ -2695,19 +2702,21 @@ function HomepageOrderPanel({ onToast }) {
       <p className="mb-3 text-[12px] text-[#6B7280]">Drag listings to change the order they appear in on the homepage.</p>
       <div className="flex flex-col gap-2">
         {items.map((item, index) => (
-          <div
+          <motion.div
             key={item._id}
+            layout
+            transition={{ duration: 0.2, ease: "easeOut" }}
             draggable
             onDragStart={() => { dragIndex.current = index; }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => handleDrop(index)}
+            onDragOver={(e) => { e.preventDefault(); handleDragOver(index); }}
+            onDragEnd={persistOrder}
             className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2"
             style={{ cursor: "grab" }}
           >
             <GripVertical size={14} color="#9CA3AF" />
             <img src={item.coverImage} alt={item.title} className="h-9 w-12 rounded object-cover" />
             <p className="truncate text-[13px] font-medium text-[#0A1628]">{item.title}</p>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -3176,22 +3185,29 @@ function CategoriesSection({ onToast }) {
   const { confirm, ConfirmDialog } = useConfirm();
   const dragCategoryIndex = useRef(null);
 
-  const handleCategoryDrop = async (dropIndex) => {
+  // Live-reorders on every dragover (not just on drop) so the other cards
+  // slide out of the way while the drag is in progress -- the actual
+  // network save only happens once, on dragend.
+  const handleCategoryDragOver = (overIndex) => {
     const dragIndex = dragCategoryIndex.current;
+    if (dragIndex === null || dragIndex === overIndex) return;
+    setCategories((current) => {
+      const reordered = [...current];
+      const [moved] = reordered.splice(dragIndex, 1);
+      reordered.splice(overIndex, 0, moved);
+      return reordered;
+    });
+    dragCategoryIndex.current = overIndex;
+  };
+
+  const persistCategoryOrder = async () => {
     dragCategoryIndex.current = null;
-    if (dragIndex === null || dragIndex === dropIndex) return;
-
-    const reordered = [...categories];
-    const [moved] = reordered.splice(dragIndex, 1);
-    reordered.splice(dropIndex, 0, moved);
-    setCategories(reordered);
-
     try {
       const token = localStorage.getItem("vencome_token");
       await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/reorder`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ order: reordered.map((c) => c._id) }),
+        body: JSON.stringify({ order: categories.map((c) => c._id) }),
       });
     } catch {
       onToast("Failed to save new order");
@@ -3435,12 +3451,14 @@ function CategoriesSection({ onToast }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
           {categories.map((category, index) => (
-            <div
+            <motion.div
               key={category._id}
+              layout
+              transition={{ duration: 0.2, ease: "easeOut" }}
               draggable
               onDragStart={() => { dragCategoryIndex.current = index; }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleCategoryDrop(index)}
+              onDragOver={(e) => { e.preventDefault(); handleCategoryDragOver(index); }}
+              onDragEnd={persistCategoryOrder}
               style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1.5px solid #E5E7EB", cursor: "grab" }}
             >
               <div style={{ height: 100, background: `url(${category.image}) center/cover no-repeat, #F3F4F6` }} />
@@ -3492,7 +3510,7 @@ function CategoriesSection({ onToast }) {
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
