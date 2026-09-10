@@ -17,6 +17,7 @@ import {
   Eye,
   FileText,
   Globe,
+  GripVertical,
   Key,
   LayoutDashboard,
   LayoutGrid,
@@ -2130,6 +2131,7 @@ function ListingsSection({
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
   const [locationFilter, setLocationFilter] = useState("");
+  const [showReorder, setShowReorder] = useState(false);
 
   const filteredQueue = moderationQueue.filter((listing) => {
     if (listingQueueFilter === "flagged") return listing.flags.length > 0;
@@ -2364,17 +2366,29 @@ function ListingsSection({
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-[15px] font-bold text-[#0A1628]">All Listings ({filteredListings.length})</h3>
-          <select
-            value={locationFilter}
-            onChange={(e) => setLocationFilter(e.target.value)}
-            className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
-          >
-            <option value="">All locations</option>
-            {locationOptions.map((city) => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowReorder((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-semibold text-[#111827]"
+            >
+              <GripVertical size={14} />
+              {showReorder ? "Done reordering" : "Reorder homepage"}
+            </button>
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+            >
+              <option value="">All locations</option>
+              {locationOptions.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {showReorder ? <HomepageOrderPanel onToast={onToast} /> : null}
 
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full border-collapse">
@@ -2619,6 +2633,84 @@ function ListingsSection({
         }}
       />
     </>
+  );
+}
+
+// Drag-reorder list for homepage listing order (Property.order). Fetches
+// its own full, unpaginated set of listings -- independent of the parent
+// table's paginated `listings` prop, since reordering needs every active
+// listing in one list, not just the current page.
+function HomepageOrderPanel({ onToast }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const dragIndex = useRef(null);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties?limit=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setItems(data.properties || []);
+      } catch {
+        onToast("Failed to load listings for reordering");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [onToast]);
+
+  const handleDrop = async (dropIndex) => {
+    const from = dragIndex.current;
+    dragIndex.current = null;
+    if (from === null || from === dropIndex) return;
+
+    const reordered = [...items];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(dropIndex, 0, moved);
+    setItems(reordered);
+
+    try {
+      const token = localStorage.getItem("vencome_token");
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ order: reordered.map((p) => p._id) }),
+      });
+    } catch {
+      onToast("Failed to save new order");
+    }
+  };
+
+  if (loading) {
+    return <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">Loading listings...</div>;
+  }
+
+  return (
+    <div className="border-b border-[#E5E7EB] px-5 py-4">
+      <p className="mb-3 text-[12px] text-[#6B7280]">Drag listings to change the order they appear in on the homepage.</p>
+      <div className="flex flex-col gap-2">
+        {items.map((item, index) => (
+          <div
+            key={item._id}
+            draggable
+            onDragStart={() => { dragIndex.current = index; }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => handleDrop(index)}
+            className="flex items-center gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2"
+            style={{ cursor: "grab" }}
+          >
+            <GripVertical size={14} color="#9CA3AF" />
+            <img src={item.coverImage} alt={item.title} className="h-9 w-12 rounded object-cover" />
+            <p className="truncate text-[13px] font-medium text-[#0A1628]">{item.title}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -3082,6 +3174,30 @@ function CategoriesSection({ onToast }) {
   const [editingSubId, setEditingSubId] = useState(null);
   const [savingSub, setSavingSub] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
+  const dragCategoryIndex = useRef(null);
+
+  const handleCategoryDrop = async (dropIndex) => {
+    const dragIndex = dragCategoryIndex.current;
+    dragCategoryIndex.current = null;
+    if (dragIndex === null || dragIndex === dropIndex) return;
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
+    setCategories(reordered);
+
+    try {
+      const token = localStorage.getItem("vencome_token");
+      await fetch(`${import.meta.env.VITE_API_URL}/admin/categories/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ order: reordered.map((c) => c._id) }),
+      });
+    } catch {
+      onToast("Failed to save new order");
+      await loadCategories();
+    }
+  };
 
   const loadCategories = async () => {
     setLoading(true);
@@ -3318,12 +3434,22 @@ function CategoriesSection({ onToast }) {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-          {categories.map((category) => (
-            <div key={category._id} style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
+          {categories.map((category, index) => (
+            <div
+              key={category._id}
+              draggable
+              onDragStart={() => { dragCategoryIndex.current = index; }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleCategoryDrop(index)}
+              style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1.5px solid #E5E7EB", cursor: "grab" }}
+            >
               <div style={{ height: 100, background: `url(${category.image}) center/cover no-repeat, #F3F4F6` }} />
               <div style={{ padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0 }}>{category.name}</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                    <GripVertical size={14} color="#9CA3AF" />
+                    {category.name}
+                  </p>
                   <button
                     type="button"
                     onClick={() => toggleStatus(category)}
