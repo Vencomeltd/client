@@ -23,6 +23,7 @@ import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
 import Footer from "../components/Footer";
+import { trackEvent } from "../utils/analytics";
 
 const DURATION_OPTIONS = ["Any", "Hourly", "Daily", "Weekly", "Monthly", "Annual"];
 
@@ -316,6 +317,13 @@ export default function SearchPage() {
   const [listings, setListings] = useState(loaderData?.listings || []);
   const [loading, setLoading] = useState(!loaderData);
   const [total, setTotal] = useState(loaderData?.listings?.length || 0);
+
+  useEffect(() => {
+    const term = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
+    const type = searchParams.get("category") || "";
+    if (!term && !type) return;
+    trackEvent("search", { search_term: term, space_type: type });
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchCategories = async () => {

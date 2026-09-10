@@ -35,6 +35,7 @@ import Footer from "../components/Footer";
 import CalendarPicker from "../components/CalendarPicker";
 import apiFetch from "../utils/apiClient";
 import { apiFetch as apiFetchJson } from "../utils/api";
+import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
@@ -1188,6 +1189,11 @@ export default function PropertyDetails() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "true") {
       setBookingSuccess(true);
+      trackEvent("purchase", {
+        transaction_id: params.get("bookingId") || "",
+        currency: "GBP",
+        value: Number(params.get("value")) || 0,
+      });
       // Clean the URL without reload
       window.history.replaceState({}, "", window.location.pathname);
       apiFetchJson({ endpoint: "/platform-reviews/should-prompt", method: "GET", showErrorToast: false })
@@ -1576,6 +1582,11 @@ export default function PropertyDetails() {
   // runs once the customer has ticked the checkbox and confirmed. If the
   // listing has no terms, this step is skipped entirely.
   const handleBookClick = () => {
+    trackEvent("begin_checkout", {
+      currency: "GBP",
+      value: bookingMetrics?.subtotal || 0,
+      items: [{ item_id: property._id, item_name: property.title, item_category: property.category }],
+    });
     if (property?.listingTerms?.trim()) {
       setTermsGateChecked(false);
       setShowTermsGate(true);

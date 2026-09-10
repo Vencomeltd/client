@@ -99,6 +99,19 @@ export function Layout({ children }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
+        {import.meta.env.VITE_GA_MEASUREMENT_ID ? (
+          <>
+            <script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA_MEASUREMENT_ID}`}
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA_MEASUREMENT_ID}');`,
+              }}
+            />
+          </>
+        ) : null}
         {/* Google requires a favicon that's a real multiple of 48px, in a
             supported format, on a stable crawlable URL. */}
         <link rel="icon" href="/favicon.ico" sizes="any" />

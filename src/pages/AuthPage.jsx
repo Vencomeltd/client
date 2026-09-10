@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { GoogleLogin } from "@react-oauth/google";
 import { Building2, Check, ChevronLeft, Eye, EyeOff, Loader2, Search } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { trackEvent } from "../utils/analytics";
 
 const COLORS = {
   blue: "#2E58EC",
@@ -183,6 +184,7 @@ export default function AuthPage({ mode = "login" }) {
   // success path -- stores tokens, promotes the account to host if needed,
   // and navigates to the right landing page.
   const completeLogin = async (data) => {
+    if (isNewAccount) trackEvent("sign_up", { method: "email" });
     let resolvedUser = data.user;
     localStorage.setItem("vencome_token", data.token);
     localStorage.setItem("vencome_refresh", data.refreshToken);
@@ -1050,6 +1052,7 @@ export default function AuthPage({ mode = "login" }) {
                               }
                             }
 
+                            if (data.isNewUser === true) trackEvent("sign_up", { method: "google" });
                             updateUser(resolvedUser);
                             setFirstName(resolvedUser.firstName || "");
                             setStep("success");
