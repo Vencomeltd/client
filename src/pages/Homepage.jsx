@@ -291,17 +291,14 @@ export async function loader() {
     blogRes.json().catch(() => ({})),
   ]);
 
-  // Pin Medical & Clinical and Beauty & Cosmetics to the front, matching
-  // CategoryStrip's existing client-side reorder logic.
-  const PINNED_NAMES = ["Medical & Clinical", "Beauty & Cosmetics"];
+  // Server now returns categories pre-sorted by Category.order (admin
+  // drag-reorder) -- no client-side reordering needed.
   const categoryList = Array.isArray(categoriesData) ? categoriesData : [];
-  const pinned = PINNED_NAMES.map((name) => categoryList.find((c) => c.name === name)).filter(Boolean);
-  const rest = categoryList.filter((c) => !PINNED_NAMES.includes(c.name));
 
   const properties = propertiesData.properties || [];
 
   return {
-    categories: [...pinned, ...rest],
+    categories: categoryList,
     countries: Array.isArray(citiesData.countries) ? citiesData.countries : [],
     featuredListings: properties,
     popularListings: properties,
@@ -337,15 +334,8 @@ function CategoryStrip() {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
 
-        // Pin Medical & Clinical and Beauty & Cosmetics to the front of the strip
-        const PINNED_NAMES = ["Medical & Clinical", "Beauty & Cosmetics"];
-        const pinned = PINNED_NAMES
-          .map((name) => list.find((c) => c.name === name))
-          .filter(Boolean);
-        const rest = list.filter((c) => !PINNED_NAMES.includes(c.name));
-        const reordered = [...pinned, ...rest];
-
-        setCategories(reordered);
+        // Server now returns categories pre-sorted by Category.order.
+        setCategories(list);
       } catch (err) {
         console.error("Failed to fetch categories:", err);
       }
