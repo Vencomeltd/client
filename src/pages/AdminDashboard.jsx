@@ -4363,6 +4363,102 @@ function BroadcastSection({ users }) {
   );
 }
 
+// Where visitors come from (country) and how they found the site
+// (referrer source) -- backed by the lightweight in-house tracker in
+// root.jsx/routes/visitorTracking.js, not GA4 (no GA4 API wiring yet).
+function VisitorAnalyticsPanel() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/analytics/visitors?days=${days}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setData(await res.json());
+      } catch {
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [days]);
+
+  const maxCountry = Math.max(1, ...(data?.byCountry || []).map((r) => r.count));
+  const maxSource = Math.max(1, ...(data?.bySource || []).map((r) => r.count));
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] px-5 py-4">
+        <div>
+          <h3 className="text-[15px] font-bold text-[#0A1628]">Where visitors come from</h3>
+          <p className="mt-0.5 text-[12px] text-[#6B7280]">{data?.total ?? "…"} visits tracked</p>
+        </div>
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none"
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+          <option value={365}>Last year</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">Loading...</div>
+      ) : !data?.total ? (
+        <div className="px-5 py-8 text-center text-[13px] text-[#6B7280]">
+          No visits tracked yet in this range.
+        </div>
+      ) : (
+        <div className="grid gap-6 p-5 md:grid-cols-2">
+          <div>
+            <p className="mb-3 text-[12px] font-bold uppercase tracking-wide text-[#6B7280]">By country</p>
+            <div className="flex flex-col gap-2">
+              {data.byCountry.map((row) => (
+                <div key={row.country} className="flex items-center gap-3">
+                  <span className="w-10 shrink-0 text-[12px] font-medium text-[#374151]">{row.country}</span>
+                  <div className="h-2 flex-1 rounded-full bg-[#F3F4F6]">
+                    <div
+                      className="h-2 rounded-full bg-[#305CDE]"
+                      style={{ width: `${(row.count / maxCountry) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[12px] text-[#6B7280]">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 text-[12px] font-bold uppercase tracking-wide text-[#6B7280]">How they found us</p>
+            <div className="flex flex-col gap-2">
+              {data.bySource.map((row) => (
+                <div key={row.source} className="flex items-center gap-3">
+                  <span className="w-16 shrink-0 truncate text-[12px] font-medium capitalize text-[#374151]">{row.source}</span>
+                  <div className="h-2 flex-1 rounded-full bg-[#F3F4F6]">
+                    <div
+                      className="h-2 rounded-full bg-[#16A34A]"
+                      style={{ width: `${(row.count / maxSource) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[12px] text-[#6B7280]">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnalyticsSection({ chartData, categoryData, stats, bookings, livePayments, paymentStats, loading }) {
   const [chartRange, setChartRange] = useState("1Y");
 
@@ -4397,6 +4493,8 @@ function AnalyticsSection({ chartData, categoryData, stats, bookings, livePaymen
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Analytics</h2>
         <p className="mt-1 text-[13px] text-[#6B7280]">Platform performance overview</p>
       </div>
+
+      <VisitorAnalyticsPanel />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
         {statCards.map((card) => (

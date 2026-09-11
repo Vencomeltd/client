@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Meta, Links, Scripts, Outlet, ScrollRestoration } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastContainer } from "react-toastify";
@@ -142,7 +143,33 @@ export function Layout({ children }) {
   );
 }
 
+// Fires once per browser session (sessionStorage-deduped, not localStorage --
+// a returning visitor days later is a new "how did they find us" signal, not
+// the same one) so the admin visitor-analytics panel has real country/
+// referrer data without needing GA4 API access.
+function useVisitorTracking() {
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("vencome_visit_tracked")) return;
+      sessionStorage.setItem("vencome_visit_tracked", "1");
+      const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      fetch(`${import.meta.env.VITE_API_URL}/track-visit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          referrer: document.referrer || "",
+          landingPage: window.location.pathname,
+        }),
+      }).catch(() => {});
+    } catch {
+      // Tracking must never break the app.
+    }
+  }, []);
+}
+
 export default function Root() {
+  useVisitorTracking();
   return (
     <ChatProvider>
       <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
