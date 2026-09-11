@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { CalendarDays, MapPin, ShieldCheck, Users } from "lucide-react";
+import Navbar from "../components/Navbar";
 
 if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
   console.error("VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout will not work.");
@@ -62,7 +63,8 @@ export default function Checkout() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 20px" }}>
+      <Navbar />
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "100px 20px 40px" }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: "#0A1628", marginBottom: 28 }}>
           Complete your booking
         </h1>
