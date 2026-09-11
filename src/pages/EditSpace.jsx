@@ -57,6 +57,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
     customDayPricingEnabled: false,
     customDayPricing: [],
     graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
+    deposit: { enabled: false, amount: "" },
     singleDayOnly: false,
     discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: 0 },
     blockedDates: [],
@@ -135,6 +136,10 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             enabled: p.pricing?.graduatedWeekly?.enabled || false,
             thresholdWeeks: p.pricing?.graduatedWeekly?.thresholdWeeks || "",
             rateAfterThreshold: p.pricing?.graduatedWeekly?.rateAfterThreshold || "",
+          },
+          deposit: {
+            enabled: p.deposit?.enabled || false,
+            amount: p.deposit?.amount || "",
           },
           customDayPricing: p.pricing?.customDayPricing || [],
           singleDayOnly: p.bookingSettings?.singleDayOnly || false,
@@ -306,6 +311,13 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         })
       );
       payload.append("subcategory", formData.subcategory || "");
+      payload.append(
+        "deposit",
+        JSON.stringify({
+          enabled: !!formData.deposit?.enabled,
+          amount: formData.deposit?.enabled ? parseFloat(formData.deposit.amount) || 0 : 0,
+        })
+      );
       payload.append(
         "coordinates",
         JSON.stringify({
@@ -1078,6 +1090,38 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               )}
             </div>
           )}
+
+          <div style={{ marginTop: "16px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "16px" }}>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+              onClick={() => setFormData((prev) => ({ ...prev, deposit: { ...prev.deposit, enabled: !prev.deposit.enabled } }))}
+            >
+              <input type="checkbox" checked={formData.deposit.enabled} readOnly style={{ width: "18px", height: "18px", cursor: "pointer" }} />
+              <div>
+                <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "14px", margin: 0 }}>
+                  Require a security deposit
+                </p>
+                <p style={{ color: "#6B7280", fontSize: "12px", margin: "2px 0 0" }}>
+                  Charged alongside rent at checkout, held until the stay ends
+                </p>
+              </div>
+            </label>
+
+            {formData.deposit.enabled && (
+              <div style={{ marginTop: "12px" }}>
+                <label style={{ fontSize: "12px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "4px" }}>
+                  Deposit amount (£)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.deposit.amount}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, deposit: { ...prev.deposit, amount: e.target.value } }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none" }}
+                />
+              </div>
+            )}
+          </div>
 
           {formData.pricing.daily?.enabled && (
             <div

@@ -216,6 +216,8 @@ const defaultState = {
   // Graduated/stepped WEEKLY pricing -- e.g. £80/week for the first 8
   // weeks, then £100/week after.
   graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
+  // Optional security deposit, charged alongside rent at checkout.
+  deposit: { enabled: false, amount: "" },
   // DAILY pricing only -- restricts a booking to exactly one calendar day
   // instead of allowing a multi-night stay. See bookingSettings.singleDayOnly.
   singleDayOnly: false,
@@ -1167,6 +1169,13 @@ export default function CreateSpace() {
             form.hoursMode === "custom"
               ? Object.entries(form.dayHours || {}).map(([day, hours]) => ({ day, ...hours }))
               : [],
+        })
+      );
+      formData.append(
+        "deposit",
+        JSON.stringify({
+          enabled: !!form.deposit?.enabled,
+          amount: form.deposit?.enabled ? parseFloat(form.deposit.amount) || 0 : 0,
         })
       );
       formData.append("coverImageIndex", form.coverImageIndex ?? 0);
@@ -3029,6 +3038,44 @@ export default function CreateSpace() {
                       )}
                     </div>
                   )}
+
+                  <div style={{ marginTop: "24px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "20px" }}>
+                    <label
+                      style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, deposit: { ...prev.deposit, enabled: !prev.deposit.enabled } }))
+                      }
+                    >
+                      <input type="checkbox" checked={form.deposit.enabled} readOnly />
+                      <div>
+                        <p style={{ fontWeight: "700", color: "#0A1628", fontSize: "15px", margin: 0 }}>
+                          Require a security deposit
+                        </p>
+                        <p style={{ color: "#6B7280", fontSize: "13px", margin: "2px 0 0" }}>
+                          Charged alongside rent at checkout, held until the stay ends
+                        </p>
+                      </div>
+                    </label>
+
+                    {form.deposit.enabled && (
+                      <div style={{ marginTop: "16px" }}>
+                        <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", fontWeight: "700", color: "#0A1628" }}>
+                          Deposit amount (£)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 200"
+                          value={form.deposit.amount}
+                          onChange={(event) =>
+                            setForm((prev) => ({ ...prev, deposit: { ...prev.deposit, amount: event.target.value } }))
+                          }
+                          onWheel={(event) => event.target.blur()}
+                          style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "15px", outline: "none" }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   {form.pricing.daily?.enabled && (
                     <div
