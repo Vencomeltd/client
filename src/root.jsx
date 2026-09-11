@@ -6,6 +6,8 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { ChatProvider } from "./context/ChatContext.jsx";
+import { TranslationProvider } from "./context/TranslationContext.jsx";
+import { CurrencyProvider } from "./context/CurrencyContext.jsx";
 import SupportChatWidget from "./components/SupportChatWidget.jsx";
 import "./index.css";
 
@@ -146,11 +148,15 @@ export default function Root() {
       <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
         <AuthProvider>
           <NotificationProvider>
-            <QueryClientProvider client={queryClient}>
-              <ToastContainer position="top-right" autoClose={4000} />
-              <Outlet />
-              <SupportChatWidget />
-            </QueryClientProvider>
+            <TranslationProvider>
+              <CurrencyProvider>
+                <QueryClientProvider client={queryClient}>
+                  <ToastContainer position="top-right" autoClose={4000} />
+                  <Outlet />
+                  <SupportChatWidget />
+                </QueryClientProvider>
+              </CurrencyProvider>
+            </TranslationProvider>
           </NotificationProvider>
         </AuthProvider>
       </GoogleOAuthProvider>

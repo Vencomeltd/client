@@ -29,6 +29,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useTranslation } from "../context/TranslationContext.jsx";
+import { useCurrency } from "../context/CurrencyContext.jsx";
 
 const COLORS = {
   blue: "#2E58EC",
@@ -260,8 +262,8 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [translateEnabled, setTranslateEnabled] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState("English — United Kingdom");
-  const [selectedCurrency, setSelectedCurrency] = useState("GBP £");
+  const { language, setLanguage, languages } = useTranslation();
+  const { currency } = useCurrency();
 
   useEffect(() => {
     if (activeTabProp) setActiveTab(activeTabProp);
@@ -1261,30 +1263,49 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       <Toggle enabled={translateEnabled} onChange={setTranslateEnabled} />
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Suggested language and region</div>
-                    <button type="button" onClick={() => setSelectedLanguage("English — United Kingdom")}
-                      style={{ width: "100%", textAlign: "left", padding: 14, borderRadius: 16, border: "1.5px solid " + (selectedLanguage === "English — United Kingdom" ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", marginBottom: 18 }}>
+                    <button type="button" onClick={() => setLanguage("en-GB")}
+                      style={{ width: "100%", textAlign: "left", padding: 14, borderRadius: 16, border: "1.5px solid " + (language === "en-GB" ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", marginBottom: 18 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.navy }}>English</div>
                       <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>United Kingdom</div>
                     </button>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Choose a language and region</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10 }}>
-                      {["English — United States", "English — United Kingdom", "French", "German", "Spanish", "Arabic", "Hindi", "Portuguese", "Italian", "Dutch"].map(lang => (
-                        <button key={lang} type="button" onClick={() => setSelectedLanguage(lang)}
-                          style={{ padding: 12, borderRadius: 16, border: "1.5px solid " + (selectedLanguage === lang ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", textAlign: "left" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>{lang.split("—")[0].trim()}</div>
-                          <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{lang.includes("—") ? lang.split("—")[1].trim() : " "}</div>
+                      {languages.map(({ code, label, region }) => (
+                        <button key={code} type="button" onClick={() => setLanguage(code)}
+                          style={{ padding: 12, borderRadius: 16, border: "1.5px solid " + (language === code ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", textAlign: "left" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.navy }}>{label}</div>
+                          <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>{region || " "}</div>
                         </button>
                       ))}
                     </div>
                   </>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
-                    {["GBP £", "USD $", "EUR €", "AED د.إ", "SAR ﷼", "NGN ₦"].map(cur => (
-                      <button key={cur} type="button" onClick={() => setSelectedCurrency(cur)}
-                        style={{ padding: 14, borderRadius: 16, border: "1.5px solid " + (selectedCurrency === cur ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", textAlign: "left" }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.navy }}>{cur}</div>
-                      </button>
-                    ))}
+                    {[
+                      { code: "GBP", symbol: "£" },
+                      { code: "USD", symbol: "$" },
+                      { code: "EUR", symbol: "€" },
+                      { code: "AED", symbol: "د.إ" },
+                      { code: "SAR", symbol: "﷼" },
+                      { code: "NGN", symbol: "₦" },
+                    ].map(({ code, symbol }) => {
+                      const active = currency === code;
+                      return (
+                        <button key={code} type="button" disabled={!active}
+                          style={{
+                            padding: 14, borderRadius: 16,
+                            border: "1.5px solid " + (active ? COLORS.navy : COLORS.border),
+                            background: active ? "white" : "#F9FAFB",
+                            cursor: active ? "default" : "not-allowed",
+                            textAlign: "left", opacity: active ? 1 : 0.6,
+                          }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: active ? COLORS.navy : COLORS.grey }}>{code} {symbol}</div>
+                          {!active && (
+                            <div style={{ fontSize: 11, color: COLORS.grey, marginTop: 2 }}>Coming soon</div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
