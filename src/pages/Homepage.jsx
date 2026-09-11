@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLoaderData } from "react-router-dom";
+import { Link, useLoaderData, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import {
   Building2,
@@ -133,6 +133,15 @@ const CATEGORY_ICON_MAP = {
 };
 
 function HeroSection() {
+  const navigate = useNavigate();
+  const [heroSearchLocation, setHeroSearchLocation] = useState("");
+
+  const handleHeroSearch = (e) => {
+    e.preventDefault();
+    const trimmed = heroSearchLocation.trim();
+    navigate(trimmed ? `/search?location=${encodeURIComponent(trimmed)}` : "/search");
+  };
+
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
   const headlineWords = ["The", "Easiest", "Way", "To", "Grow", "Your", "Business"];
@@ -203,6 +212,57 @@ function HeroSection() {
         >
           Commercial Spaces, Booked Simply
         </p>
+
+        <motion.form
+          onSubmit={handleHeroSearch}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          className="flex w-full max-w-[440px] md:hidden"
+          style={{
+            marginBottom: 20,
+            background: "white",
+            borderRadius: 9999,
+            padding: 6,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+          }}
+        >
+          <input
+            value={heroSearchLocation}
+            onChange={(e) => setHeroSearchLocation(e.target.value)}
+            placeholder="Where are you looking?"
+            aria-label="Search location"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              fontSize: 15,
+              color: "#111827",
+              padding: "0 8px 0 14px",
+            }}
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            style={{
+              flexShrink: 0,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              border: "none",
+              background: "#2E58EC",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <Search size={17} />
+          </button>
+        </motion.form>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
