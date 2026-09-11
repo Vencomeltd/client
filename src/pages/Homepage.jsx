@@ -58,21 +58,21 @@ const HOW_IT_WORKS_STEPS = [
     icon: Search,
     title: "Search & Discover",
     description:
-      "Browse thousands of verified commercial spaces filtered by location, type, duration, and budget.",
+      "Browse verified commercial spaces across London, filtered by location, type, duration, and budget.",
   },
   {
     number: "02",
     icon: CalendarDays,
-    title: "Book Instantly",
+    title: "Request to Book",
     description:
-      "Choose your dates and duration. Book instantly or send a request — your payment is held securely in escrow.",
+      "Choose your dates and enter your card details to send a booking request. Your host is notified and confirms availability, at which point you're charged and payment is held securely in escrow, not released to the host yet.",
   },
   {
     number: "03",
     icon: Building2,
     title: "Move Right In",
     description:
-      "Access your space on the agreed date. After checkout, payment releases to the host. Simple, transparent, secure.",
+      "Access your space on the agreed date. Payment is released to the host 24 hours after your booking starts. If something isn't as described, you can raise it with us directly and we'll review it case by case.",
   },
 ];
 
