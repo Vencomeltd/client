@@ -91,7 +91,7 @@ export default function Settings() {
   // the host onboarding checklist's "Connect your calendar" step) instead
   // of always dropping onto the default Account tab.
   const [activeTab, setActiveTab] = useState(() => {
-    const validTabs = ["account", "password", "notifications", "payments", "payout", "calendar", "verification"];
+    const validTabs = ["account", "password", "notifications", "payments", "payout", "wallet", "calendar", "verification"];
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     return validTabs.includes(requestedTab) ? requestedTab : "account";
   });
@@ -112,6 +112,8 @@ export default function Settings() {
   const [showAddCard, setShowAddCard] = useState(false);
   const [removingCardId, setRemovingCardId] = useState(null);
   const [payoutError, setPayoutError] = useState("");
+  const [wallet, setWallet] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(true);
   const [googleCalendar, setGoogleCalendar] = useState(null);
   const [outlookCalendar, setOutlookCalendar] = useState(null);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -137,7 +139,7 @@ export default function Settings() {
         setNotifications((p) => ({ ...p, emailMarketing: !!data.newsletterOptIn }));
         // Host-only tabs (payout, calendar) and the customer-only payments
         // tab shouldn't be reachable via a stale ?tab= link for the wrong role.
-        const hostOnlyTabs = ["payout", "calendar"];
+        const hostOnlyTabs = ["payout", "wallet", "calendar"];
         const customerOnlyTabs = ["payments"];
         setActiveTab((current) => {
           if (hostOnlyTabs.includes(current) && !data.isHost) return "account";
@@ -175,8 +177,20 @@ export default function Settings() {
         console.error("Failed to load payout methods", err);
       }
     };
+    const fetchWallet = async () => {
+      try {
+        const res = await apiFetch("/wallet");
+        const data = await res.json();
+        setWallet(data);
+      } catch (err) {
+        console.error("Failed to load wallet", err);
+      } finally {
+        setWalletLoading(false);
+      }
+    };
     fetchPayoutStatus();
     fetchPayoutMethods();
+    fetchWallet();
   }, []);
 
   const handleRemoveCard = async (methodId) => {
@@ -517,6 +531,7 @@ export default function Settings() {
     { key: "notifications", label: "Notifications", icon: Bell },
     { key: "payments", label: "Payments", icon: CreditCard, hostOnly: false, customerOnly: true },
     { key: "payout", label: "Payouts", icon: Building2, hostOnly: true },
+    { key: "wallet", label: "Deposit Wallet", icon: Wallet, hostOnly: true },
     { key: "calendar", label: "Calendar Sync", icon: CalendarDays, hostOnly: true },
     { key: "verification", label: "Verification", icon: BadgeCheck },
   ];
@@ -917,6 +932,75 @@ export default function Settings() {
                         : "Connect bank account"}
                     </button>
                   </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === "wallet" && (
+            <div>
+              <p style={sectionTitle}>Deposit Wallet</p>
+              <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
+                Security deposits from your bookings. Reserved funds are held until a stay's
+                checkout clears; available funds have cleared and transfer to your connected bank
+                automatically — there's nothing to manually withdraw.
+              </p>
+
+              {walletLoading ? (
+                <Loader2 size={20} className="animate-spin" style={{ color: "#6B7280" }} />
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+                    <div style={{ background: "#F8F6F0", borderRadius: 14, padding: 18, border: "1.5px solid #E5E7EB" }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 6px" }}>
+                        Reserved
+                      </p>
+                      <p style={{ fontSize: 24, fontWeight: 800, color: "#0A1628", margin: 0 }}>
+                        £{(wallet?.reservedBalance || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <div style={{ background: "#F0FDF4", borderRadius: 14, padding: 18, border: "1.5px solid #BBF7D0" }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 6px" }}>
+                        Available
+                      </p>
+                      <p style={{ fontSize: 24, fontWeight: 800, color: "#16A34A", margin: 0 }}>
+                        £{(wallet?.availableBalance || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 10 }}>
+                    Recent activity
+                  </p>
+                  {!wallet?.transactions?.length ? (
+                    <p style={{ fontSize: 13, color: "#9CA3AF" }}>No wallet activity yet.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {wallet.transactions.map((t) => (
+                        <div
+                          key={t._id}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 10, border: "1px solid #E5E7EB" }}
+                        >
+                          <div>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: "#0A1628", margin: 0 }}>
+                              {{
+                                deposit_credit: "Deposit received",
+                                deposit_refund: "Deposit refunded",
+                                claim_settled: "Damage claim settled",
+                                transferred_to_host: "Transferred to your bank",
+                              }[t.type] || t.type}
+                            </p>
+                            <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>
+                              {new Date(t.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: t.type === "deposit_refund" ? "#DC2626" : "#0A1628", margin: 0 }}>
+                            {t.type === "deposit_refund" ? "-" : "+"}£{t.amount.toFixed(2)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </div>
