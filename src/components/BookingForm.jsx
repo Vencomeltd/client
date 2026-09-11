@@ -4,7 +4,6 @@ import { addDays, differenceInDays } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import Button from "./Button";
-import { apiFetch } from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { IoIosCheckmarkCircleOutline } from "react-icons/io";
 import { toast } from "react-toastify";
@@ -215,14 +214,8 @@ export default function BookingForm({ property }) {
       }
 
       const booking = await response.json();
-      const { url } = await apiFetch({
-        endpoint: "/payments/create-checkout-session",
-        method: "POST",
-        body: { bookingId: booking._id },
-      });
-
       redirectingToStripe = true;
-      window.location.href = url;
+      navigate(`/checkout/${booking._id}`);
     } catch (err) {
       toast.error("Booking failed: " + (err.message || "Please try again"));
     } finally {

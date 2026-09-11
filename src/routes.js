@@ -100,6 +100,7 @@ export default [
   layout("routes/layouts/customer-route.jsx", [
     route("customer/dashboard", "routes/customer-dashboard-overview.jsx"),
     route("customer/bookings", "pages/MyBookings.jsx", { id: "customer-bookings" }),
+    route("checkout/:bookingId", "pages/Checkout.jsx"),
   ]),
 
   layout("routes/layouts/admin-route.jsx", [

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams, useLoaderData } from "react-router-dom";
+import { Link, useParams, useLoaderData, useNavigate } from "react-router-dom";
 import { redirect } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -777,6 +777,7 @@ export function meta({ data }) {
 
 export default function PropertyDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const loaderData = useLoaderData();
   const today = startOfDay(new Date());
   const [property, setProperty] = useState(loaderData?.property || null);
@@ -1551,30 +1552,12 @@ export default function PropertyDetails() {
         return;
       }
 
-      // Get the first successful booking and redirect to Stripe
+      // Get the first successful booking and go to our own checkout page
+      // (it creates the Stripe Checkout Session itself -- see Checkout.jsx)
+      // instead of redirecting to a stripe.com-hosted page.
       const firstResult = results[0];
       const booking = await firstResult.json();
-
-      const stripeRes = await fetch(
-        `${import.meta.env.VITE_API_URL}/payments/create-checkout-session`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ bookingId: booking._id }),
-        }
-      );
-
-      if (!stripeRes.ok) {
-        const stripeErr = await stripeRes.json();
-        setBookingError(stripeErr.error || "Payment setup failed");
-        return;
-      }
-
-      const { url } = await stripeRes.json();
-      window.location.href = url;
+      navigate(`/checkout/${booking._id}`);
     } catch (err) {
       setBookingError("Something went wrong. Please try again.");
     } finally {
