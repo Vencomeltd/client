@@ -4822,7 +4822,107 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
   );
 }
 
-function BookingsSection({ bookings, loading }) {
+// Disputed damage claims needing a human decision -- fetches its own data
+// (separate from the bookings list above it) since it's a distinct queue,
+// not a filter over the same bookings.
+function DepositClaimsPanel({ onToast }) {
+  const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [approvedAmounts, setApprovedAmounts] = useState({});
+  const [resolvingId, setResolvingId] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/bookings/deposit-claims`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setClaims(data.bookings || []);
+    } catch {
+      onToast("Failed to load disputed claims");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleResolve = async (booking) => {
+    const approvedAmount = approvedAmounts[booking._id] ?? booking.deposit.claim.amount;
+    setResolvingId(booking._id);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/bookings/${booking._id}/deposit/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ approvedAmount: Number(approvedAmount) }),
+      });
+      if (!res.ok) throw new Error();
+      onToast("Claim resolved");
+      await load();
+    } catch {
+      onToast("Failed to resolve claim");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  if (loading || claims.length === 0) return null;
+
+  return (
+    <div className="mb-6 overflow-hidden rounded-2xl border border-[#FCA5A5] bg-[#FEF2F2]">
+      <div className="px-5 py-4">
+        <h3 className="text-[15px] font-bold text-[#7F1D1D]">Disputed deposit claims ({claims.length})</h3>
+        <p className="mt-1 text-[13px] text-[#7F1D1D]">Guest disputed the host's claim — review and settle.</p>
+      </div>
+      <div className="flex flex-col gap-3 px-5 pb-5">
+        {claims.map((booking) => (
+          <div key={booking._id} className="rounded-xl border border-[#E5E7EB] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-semibold text-[#0A1628]">{booking.property?.title}</p>
+                <p className="text-[12px] text-[#6B7280]">
+                  Guest: {booking.guest?.displayName || booking.guest?.email} · Host: {booking.host?.displayName || booking.host?.email}
+                </p>
+                <p className="mt-1 text-[12px] text-[#374151]">
+                  Claimed £{booking.deposit.claim.amount} of £{booking.deposit.amount} deposit — "{booking.deposit.claim.reason}"
+                </p>
+                {booking.deposit.claim.photoUrls?.[0] && (
+                  <img src={booking.deposit.claim.photoUrls[0]} alt="Claim evidence" className="mt-2 h-20 w-28 rounded-lg object-cover" />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  max={booking.deposit.amount}
+                  placeholder={String(booking.deposit.claim.amount)}
+                  value={approvedAmounts[booking._id] ?? ""}
+                  onChange={(e) => setApprovedAmounts((prev) => ({ ...prev, [booking._id]: e.target.value }))}
+                  className="w-24 rounded-lg border border-[#E5E7EB] px-2 py-1.5 text-[13px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleResolve(booking)}
+                  disabled={resolvingId === booking._id}
+                  className="rounded-lg bg-[#0A1628] px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
+                >
+                  {resolvingId === booking._id ? "Resolving…" : "Resolve"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BookingsSection({ bookings, loading, onToast }) {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const filtered = bookings.filter((b) => {
@@ -4835,6 +4935,7 @@ function BookingsSection({ bookings, loading }) {
 
   return (
     <>
+      <DepositClaimsPanel onToast={onToast} />
       <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h2 className="text-[20px] font-extrabold text-[#0A1628]">Bookings</h2>
@@ -6987,7 +7088,7 @@ export default function AdminDashboard() {
       />
     );
   } else if (activeSection === "bookings") {
-    sectionContent = <BookingsSection bookings={bookings} loading={loading} />;
+    sectionContent = <BookingsSection bookings={bookings} loading={loading} onToast={showToast} />;
   } else if (activeSection === "markets") {
     sectionContent = (
       <MarketsSection bookings={bookings} onToast={showToast} />
