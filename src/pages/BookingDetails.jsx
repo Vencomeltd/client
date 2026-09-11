@@ -587,6 +587,109 @@ function DisputeModal({ onSubmit, onCancel, loading }) {
   );
 }
 
+function DepositClaimModal({ onSubmit, onCancel, loading, depositAmount }) {
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const handlePhotoSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "Upload failed");
+      setPhotoUrl(data.url);
+    } catch {
+      setUploadError("Failed to upload photo. Try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const numericAmount = parseFloat(amount);
+  const canSubmit = numericAmount > 0 && numericAmount <= depositAmount && reason.trim() && photoUrl;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <div className="mb-4 flex justify-center">
+          <AlertTriangle size={36} className="text-amber-500" />
+        </div>
+        <h3 className="text-xl font-semibold text-slate-900 text-center mb-2">
+          File a damage claim
+        </h3>
+        <p className="text-sm text-slate-500 text-center leading-relaxed mb-6">
+          The guest has 48 hours to dispute this. If they don't, the claimed amount settles
+          automatically and any remainder refunds to them.
+        </p>
+
+        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+          Claim amount (£, up to £{depositAmount})
+        </label>
+        <input
+          type="number"
+          min="0"
+          max={depositAmount}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="e.g. 50"
+          className="w-full mb-4 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-400"
+        />
+
+        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+          Reason
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          placeholder="What was damaged, and how much it cost to repair/replace..."
+          className="w-full mb-4 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 outline-none resize-none focus:border-slate-400"
+        />
+
+        <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+          Photo evidence
+        </label>
+        <input type="file" accept="image/*" onChange={handlePhotoSelect} disabled={uploading} className="w-full mb-1 text-sm" />
+        {uploading && <p className="text-xs text-slate-400 mb-4">Uploading…</p>}
+        {uploadError && <p className="text-xs text-red-500 mb-4">{uploadError}</p>}
+        {photoUrl && !uploading && (
+          <img src={photoUrl} alt="Claim evidence" className="w-full h-32 object-cover rounded-lg mb-4" />
+        )}
+        {!photoUrl && !uploading && <div className="mb-4" />}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-50 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSubmit({ amount: numericAmount, reason: reason.trim(), photoUrls: [photoUrl] })}
+            disabled={loading || !canSubmit}
+            className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition disabled:opacity-50 cursor-pointer bg-amber-600 hover:bg-amber-700"
+          >
+            {loading ? "Filing…" : "File Claim"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeaseSignModal({
   onClose,
   loading,
@@ -1120,6 +1223,52 @@ export default function BookingDetails() {
     }
   }, [id]);
 
+  const handleDepositRefund = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const data = await apiFetch({ endpoint: `/bookings/${id}/deposit/refund`, method: "POST" });
+      setBooking((prev) => ({ ...prev, deposit: data.deposit }));
+      setModal(null);
+      showToast("Deposit refunded to the guest.");
+    } catch {
+      showToast("Failed to refund deposit.", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [id]);
+
+  const handleDepositClaim = useCallback(async ({ amount, reason, photoUrls }) => {
+    setActionLoading(true);
+    try {
+      const data = await apiFetch({
+        endpoint: `/bookings/${id}/deposit/claim`,
+        method: "POST",
+        body: { amount, reason, photoUrls },
+      });
+      setBooking((prev) => ({ ...prev, deposit: data.deposit }));
+      setModal(null);
+      showToast("Claim filed. The guest has 48 hours to dispute it.");
+    } catch (err) {
+      showToast(err.message || "Failed to file claim.", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [id]);
+
+  const handleDepositDispute = useCallback(async () => {
+    setActionLoading(true);
+    try {
+      const data = await apiFetch({ endpoint: `/bookings/${id}/deposit/claim/dispute`, method: "POST" });
+      setBooking((prev) => ({ ...prev, deposit: data.deposit }));
+      setModal(null);
+      showToast("Claim disputed. VenCome support will review it.");
+    } catch {
+      showToast("Failed to dispute claim.", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [id]);
+
   const handleLeaseUpload = useCallback((uploadedLeaseUrl) => {
     setLeaseUrl(uploadedLeaseUrl);
     showToast("Lease agreement uploaded successfully.");
@@ -1214,6 +1363,36 @@ export default function BookingDetails() {
       {modal === "dispute" && (
         <DisputeModal
           onSubmit={handleReportDispute}
+          onCancel={() => setModal(null)}
+          loading={actionLoading}
+        />
+      )}
+      {modal === "depositRefund" && (
+        <ConfirmModal
+          title="Refund the deposit?"
+          message={`The full £${booking.deposit?.amount} deposit will be refunded to the guest's original payment method. This cannot be undone.`}
+          confirmLabel="Yes, Refund"
+          confirmClass="bg-emerald-600 hover:bg-emerald-700"
+          onConfirm={handleDepositRefund}
+          onCancel={() => setModal(null)}
+          loading={actionLoading}
+        />
+      )}
+      {modal === "depositClaim" && (
+        <DepositClaimModal
+          onSubmit={handleDepositClaim}
+          onCancel={() => setModal(null)}
+          loading={actionLoading}
+          depositAmount={booking.deposit?.amount}
+        />
+      )}
+      {modal === "depositDispute" && (
+        <ConfirmModal
+          title="Dispute this claim?"
+          message="VenCome support will review the host's evidence and your response, then decide how the deposit is split. This pauses the claim until they resolve it."
+          confirmLabel="Yes, Dispute"
+          confirmClass="bg-red-600 hover:bg-red-700"
+          onConfirm={handleDepositDispute}
           onCancel={() => setModal(null)}
           loading={actionLoading}
         />
@@ -1460,6 +1639,24 @@ export default function BookingDetails() {
                       <MessageSquare size={16} />
                       Message Guest
                     </button>
+                    {booking.deposit?.status === "charged" && (
+                      <>
+                        <button
+                          onClick={() => setModal("depositRefund")}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-emerald-200 hover:bg-emerald-50 active:scale-95 text-emerald-700 text-sm font-semibold transition cursor-pointer"
+                        >
+                          <Check size={16} />
+                          Refund Deposit (£{booking.deposit.amount})
+                        </button>
+                        <button
+                          onClick={() => setModal("depositClaim")}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-200 hover:bg-amber-50 active:scale-95 text-amber-700 text-sm font-semibold transition cursor-pointer"
+                        >
+                          <AlertTriangle size={16} />
+                          File Damage Claim
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -1503,6 +1700,17 @@ export default function BookingDetails() {
                         Cancel Booking
                       </button>
                     )}
+                    {["claimed", "partially_claimed"].includes(booking.deposit?.status) &&
+                      booking.deposit.claim?.disputeStatus === "none" &&
+                      new Date() < new Date(booking.deposit.claim.disputeDeadline) && (
+                        <button
+                          onClick={() => setModal("depositDispute")}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 hover:bg-red-50 active:scale-95 text-red-600 text-sm font-semibold transition cursor-pointer"
+                        >
+                          <AlertTriangle size={16} />
+                          Dispute Deposit Claim (£{booking.deposit.claim.amount})
+                        </button>
+                      )}
                   </>
                 )}
 
