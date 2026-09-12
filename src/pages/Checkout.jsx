@@ -38,6 +38,22 @@ export default function Checkout() {
         const propertyData = await propertyRes.json();
         setProperty(propertyData.property || propertyData);
 
+        // Stripe redirected back here with a completed session instead of
+        // firing onComplete inline (happens when a redirect-based step like
+        // 3D Secure was needed) -- confirm it actually completed, then go
+        // straight to the success page instead of starting a new checkout.
+        const existingSessionId = new URLSearchParams(window.location.search).get("session_id");
+        if (existingSessionId) {
+          const statusRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/session-status/${existingSessionId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const statusData = await statusRes.json();
+          if (statusRes.ok && statusData.status === "complete") {
+            navigate(`/property/${bookingData.property}?success=true&bookingId=${bookingData._id}&value=${bookingData.totalPrice}`, { replace: true });
+            return;
+          }
+        }
+
         const sessionRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-checkout-session`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -53,7 +69,7 @@ export default function Checkout() {
       }
     };
     load();
-  }, [bookingId]);
+  }, [bookingId, navigate]);
 
   const options = useMemo(() => {
     if (!clientSecret || !booking) return null;
