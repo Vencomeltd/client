@@ -934,7 +934,6 @@ export default function Homepage() {
             const { data, timestamp } = JSON.parse(cached);
             if (Date.now() - timestamp < CACHE_TTL) {
               setFeaturedListings(data);
-              setPopularListings(data);
               setLoadingListings(false);
               // Still fetch fresh data in background
             }
@@ -946,7 +945,6 @@ export default function Homepage() {
         const data = await response.json();
         const properties = data.properties || [];
         setFeaturedListings(properties);
-        setPopularListings(properties);
 
         // Save to cache
         localStorage.setItem(
@@ -964,6 +962,23 @@ export default function Homepage() {
     };
 
     fetchListings();
+  }, []);
+
+  // "Popular Spaces Near You" previously just reused the same unsorted
+  // fetch above -- fired from the browser (not the SSR loader) so the
+  // request carries the visitor's real IP for GET /properties/near-me to
+  // geolocate, rather than the server's own egress IP.
+  useEffect(() => {
+    const fetchNearby = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/near-me`);
+        const data = await res.json();
+        if (data.properties?.length) setPopularListings(data.properties);
+      } catch (err) {
+        console.error("Failed to fetch nearby listings:", err);
+      }
+    };
+    fetchNearby();
   }, []);
 
   useEffect(() => {
