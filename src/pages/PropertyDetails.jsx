@@ -708,15 +708,18 @@ const parseBookingInputValue = (value, duration, boundary = "start") => {
   return new Date(`${value}T${boundary === "end" ? "23:59" : "00:00"}:00`);
 };
 
-export async function loader({ params }) {
+export async function loader({ params, request }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
   if (!res.ok) return { property: null };
   const data = await res.json();
   const property = data.property || data;
   // Canonicalize old ObjectId links to the slug URL once one exists, so
-  // search engines index a single URL per listing instead of two.
+  // search engines index a single URL per listing instead of two. Keep the
+  // query string (e.g. Checkout.jsx's ?success=true&bookingId=...) so the
+  // post-checkout success modal and GA4 purchase event still fire.
   if (property?.slug && params.id !== property.slug) {
-    return redirect(`/property/${property.slug}`, 301);
+    const search = new URL(request.url).search;
+    return redirect(`/property/${property.slug}${search}`, 301);
   }
   return { property };
 }
