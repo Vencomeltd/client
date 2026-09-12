@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { CalendarDays, MapPin, ShieldCheck, Users } from "lucide-react";
@@ -14,6 +14,7 @@ const UNIT_WORD = { hour: "hour", day: "night", week: "week", month: "month", ye
 
 export default function Checkout() {
   const { bookingId } = useParams();
+  const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
   const [property, setProperty] = useState(null);
   const [clientSecret, setClientSecret] = useState(null);
@@ -54,7 +55,19 @@ export default function Checkout() {
     load();
   }, [bookingId]);
 
-  const options = useMemo(() => (clientSecret ? { clientSecret } : null), [clientSecret]);
+  const options = useMemo(() => {
+    if (!clientSecret || !booking) return null;
+    return {
+      clientSecret,
+      // Embedded mode has no success_url/cancel_url -- this is the
+      // equivalent for card payments that complete inline (no redirect-based
+      // step like 3D Secure needed). Matches the exact query params
+      // PropertyDetails.jsx's existing success-modal effect already reads.
+      onComplete: () => {
+        navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${booking.totalPrice}`);
+      },
+    };
+  }, [clientSecret, booking, navigate]);
 
   const durationUnits = booking?.totalUnits ?? booking?.totalNights;
   const durationWord = UNIT_WORD[booking?.pricingUnit] || "night";
