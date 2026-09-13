@@ -68,7 +68,9 @@ export default function ChatPage() {
               const otherUser = isHost ? conv.guest : conv.host;
               const otherName = otherUser?.displayName ||
                 [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
-                "User";
+                otherUser?.name ||
+                otherUser?.email?.split("@")[0] ||
+                (isHost ? "Guest" : "Host");
               const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
               return (

@@ -18,9 +18,11 @@ import {
   Menu,
   MessageSquare,
   Plus,
+  Receipt,
   Settings,
   Star,
   User,
+  Wallet,
   X,
 } from "lucide-react";
 import { getUser } from "../utils/auth";
@@ -98,6 +100,8 @@ const HOSTING_ITEMS = [
   { label: "Calendar", path: "/host/calendar", icon: CalendarDays },
   { label: "Add New Space", path: "/host/create", icon: Plus },
   { label: "Analytics", path: "/host/analytics", icon: BarChart2 },
+  { label: "Wallet", path: "/host/wallet", icon: Wallet },
+  { label: "Transactions", path: "/host/transactions", icon: Receipt },
 ];
 
 function SidebarContent({ pathname, onNavigate, mainItems, collapsed = false, onToggleCollapse }) {

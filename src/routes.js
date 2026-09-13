@@ -82,6 +82,8 @@ export default [
     route("bookings/:id", "pages/BookingDetails.jsx"),
     route("host/listings", "pages/MyListings.jsx"),
     route("host/analytics", "pages/Analytics.jsx"),
+    route("host/wallet", "pages/Wallet.jsx"),
+    route("host/transactions", "pages/Transactions.jsx"),
     route("host/bookings", "pages/HostBookings.jsx", { id: "host-bookings-requirehost" }),
     route("host/calendar", "pages/HostCalendar.jsx"),
     route("host/availability/:listingId", "pages/PropertyAvailability.jsx"),
