@@ -115,10 +115,10 @@ export function Layout({ children }) {
             />
           </>
         ) : null}
-        {/* Support chat -- trying Tidio in place of the custom
-            SupportChatWidget (commented out below, in Root()). Revert to
-            that one if Tidio turns out to need a paid plan. */}
-        <script src="//code.tidio.co/yjmac2m7fryuhbiev6yp5judlxyipbmj.js" async />
+        {/* Tried Tidio here in place of the custom SupportChatWidget, but its
+            widget script (code.tidio.co/...) now returns 403 Forbidden --
+            looks like the free plan lapsed. Reverted to SupportChatWidget
+            below, in Root(). */}
         {/* Google requires a favicon that's a real multiple of 48px, in a
             supported format, on a stable crawlable URL. */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -184,9 +184,7 @@ export default function Root() {
                 <QueryClientProvider client={queryClient}>
                   <ToastContainer position="top-right" autoClose={4000} />
                   <Outlet />
-                  {/* Trying Tidio (see the <script> in Layout() above) instead
-                      of this for now -- revert if Tidio needs a paid plan. */}
-                  {/* <SupportChatWidget /> */}
+                  <SupportChatWidget />
                 </QueryClientProvider>
               </CurrencyProvider>
             </TranslationProvider>
