@@ -773,6 +773,18 @@ export function meta({ data }) {
           addressLocality: prop.location?.city || "",
           addressCountry: prop.location?.country || "GB",
         },
+        // Google requires AggregateRating to reflect real reviews -- only
+        // include it once this listing actually has at least one, rather
+        // than shipping a 0-review rating on every listing.
+        ...(prop.reviewNumber > 0
+          ? {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: prop.rating,
+                reviewCount: prop.reviewNumber,
+              },
+            }
+          : {}),
       },
     },
   ];
