@@ -1385,6 +1385,11 @@ export default function PropertyDetails() {
     });
   };
 
+  const selectImage = (index) => {
+    setLightboxDirection(index >= activeImageIndex ? 1 : -1);
+    setActiveImageIndex(index);
+  };
+
   const focusCalendar = () => {
     calendarRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -1710,6 +1715,7 @@ export default function PropertyDetails() {
           onShowAll={() => openImage(0, true)}
           activeImageIndex={activeImageIndex}
           onChangeImage={changeImage}
+          onSelectImage={selectImage}
         />
 
         <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6 md:py-12">
@@ -2239,7 +2245,7 @@ export default function PropertyDetails() {
   );
 }
 
-function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage }) {
+function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage, onSelectImage }) {
   const hasDraggedRef = useRef(false);
 
   return (
@@ -2362,6 +2368,29 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
           ))}
         </div>
       </div>
+
+      {images.length > 1 ? (
+        <div className="mt-2 flex gap-2 overflow-x-auto md:hidden">
+          {images.map((image, index) => (
+            <button
+              key={`thumb-${index}`}
+              type="button"
+              onClick={() => onSelectImage(index)}
+              aria-label={`View photo ${index + 1}`}
+              className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${
+                index === activeImageIndex ? "border-[#111827]" : "border-transparent opacity-60"
+              }`}
+            >
+              <img
+                {...getResponsiveImageProps(image)}
+                sizes="56px"
+                alt={`Property thumbnail ${index + 1}`}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
