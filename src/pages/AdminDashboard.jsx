@@ -805,7 +805,11 @@ function BarChart({ data }) {
             <g key={tick}>
               <line x1={padding.left} x2={padding.left + innerW} y1={y} y2={y} stroke="#F3F4F6" strokeWidth={1} />
               <text x={padding.left - 6} y={y + 4} textAnchor="end" fontSize={10} fill="#9CA3AF">
-                {tick === 0 ? "0" : `£${Math.round((tick * maxRevenue) / 1000)}k`}
+                {tick === 0
+                  ? "0"
+                  : tick * maxRevenue >= 1000
+                  ? `£${Math.round((tick * maxRevenue) / 1000)}k`
+                  : `£${Math.round(tick * maxRevenue)}`}
               </text>
             </g>
           );
