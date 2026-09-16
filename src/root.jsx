@@ -36,7 +36,10 @@ export async function loader() {
     const categories = categoriesRes.ok ? await categoriesRes.json() : [];
     const citiesData = citiesRes.ok ? await citiesRes.json() : { countries: [] };
     return {
-      footerCategories: Array.isArray(categories) ? categories.filter((c) => c.hasListings) : [],
+      // Footer now links every category and subcategory (not just ones
+      // with current listings) so the full taxonomy is crawlable/browsable
+      // from day one -- see Footer.jsx's category grid.
+      footerCategories: Array.isArray(categories) ? categories : [],
       footerCities: (citiesData.countries || []).flatMap((c) => c.cities || []),
     };
   } catch {

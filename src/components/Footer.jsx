@@ -117,25 +117,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {categories.length > 0 && (
-            <div className="pr-20">
-              <div className="font-semibold mb-2">Popular Categories</div>
-              <ul className="text-gray-500 text-sm space-y-1">
-                {categories
-                  .slice()
-                  .sort((a, b) => (b.listingCount || 0) - (a.listingCount || 0))
-                  .slice(0, 10)
-                  .map((category) => (
-                    <li key={category._id}>
-                      <Link to={`/category/${category.slug || category._id}`}>
-                        {category.name}
-                      </Link>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-
           {cities.length > 0 && (
             <div className="pr-20">
               <div className="font-semibold mb-2">Browse by City</div>
@@ -154,6 +135,39 @@ export default function Footer() {
           )}
         </div>
       </div>
+
+      {categories.length > 0 && (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-gray-200">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-10">
+            {categories.map((category) => {
+              const subs = category.subcategories?.length
+                ? category.subcategories
+                : [{ _id: category._id, name: category.name, slug: category.slug, isCategoryLink: true }];
+              return (
+                <div key={category._id}>
+                  <div className="font-semibold text-[#305CDE] mb-3">{category.name}</div>
+                  <ul className="text-gray-500 text-sm space-y-1.5">
+                    {subs.map((sub) => (
+                      <li key={sub._id}>
+                        <Link
+                          to={
+                            sub.isCategoryLink
+                              ? `/category/${category.slug || category._id}`
+                              : `/search?${new URLSearchParams({ category: category.name, subcategory: sub.name }).toString()}`
+                          }
+                          className="hover:text-[#0A1628] transition"
+                        >
+                          {sub.name} to Rent
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center border-t border-gray-200 mt-8 pt-6 text-gray-400 text-sm">
         <span>© {new Date().getFullYear()} Vencome Ltd. All rights reserved.</span>
