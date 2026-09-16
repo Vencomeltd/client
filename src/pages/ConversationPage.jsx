@@ -71,7 +71,13 @@ export default function ConversationPage() {
         method: "POST",
         body: { conversationId: id, text: text.trim() },
       });
-      setMessages((prev) => [...prev, msg]);
+      // The server also echoes this message back over the socket (to every
+      // participant including the sender), which often arrives before this
+      // POST response does -- dedupe the same way handleIncoming does, or
+      // whichever of the two lands second re-adds the same message.
+      setMessages((prev) =>
+        prev.some((m) => m._id === msg._id) ? prev : [...prev, msg]
+      );
       setText("");
     } catch (err) {
       console.error("Failed to send message:", err);
