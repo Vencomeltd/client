@@ -258,12 +258,14 @@ export async function loader({ request }) {
   const url = new URL(request.url);
   const query = url.searchParams.get("query") || url.searchParams.get("city") || url.searchParams.get("location") || "";
   const category = url.searchParams.get("category") || "";
+  const subcategory = url.searchParams.get("subcategory") || "";
   const checkIn = url.searchParams.get("checkIn") || "";
   const checkOut = url.searchParams.get("checkOut") || "";
 
   const queryParams = new URLSearchParams();
   if (query) queryParams.set("query", query);
   if (category) queryParams.set("category", category);
+  if (subcategory) queryParams.set("subcategory", subcategory);
   if (checkIn && checkOut) {
     queryParams.set("checkIn", checkIn);
     queryParams.set("checkOut", checkOut);
@@ -291,13 +293,14 @@ export default function SearchPage() {
 
   const initialCity = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
   const initialCategory = searchParams.get("category") || "";
+  const initialSubcategory = searchParams.get("subcategory") || "";
   const initialCapacity = Number(searchParams.get("capacity")) || 1;
   const initialCheckIn = searchParams.get("checkIn") || "";
   const initialCheckOut = searchParams.get("checkOut") || "";
 
   const [selectedCity, setSelectedCity] = useState(initialCity);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [selectedSubcategory, setSelectedSubcategory] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState(initialSubcategory);
   const [categories, setCategories] = useState([]);
   const [selectedDuration, setSelectedDuration] = useState("");
   const [minPrice, setMinPrice] = useState(0);

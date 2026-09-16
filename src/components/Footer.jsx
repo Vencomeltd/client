@@ -153,7 +153,7 @@ export default function Footer() {
                           to={
                             sub.isCategoryLink
                               ? `/category/${category.slug || category._id}`
-                              : `/search?${new URLSearchParams({ category: category.name, subcategory: sub.name }).toString()}`
+                              : `/search?${new URLSearchParams({ category: category._id, subcategory: sub.name }).toString()}`
                           }
                           className="hover:text-[#0A1628] transition"
                         >
