@@ -2240,6 +2240,8 @@ export default function PropertyDetails() {
 }
 
 function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage }) {
+  const hasDraggedRef = useRef(false);
+
   return (
     <div className="mx-auto max-w-[1280px] px-4 pt-24 md:px-6 md:pt-28">
       <div className="relative overflow-hidden rounded-2xl">
@@ -2258,6 +2260,10 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
             drag={images.length > 1 ? "x" : false}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.08}
+            style={{ touchAction: "pan-y" }}
+            onDragStart={() => {
+              hasDraggedRef.current = true;
+            }}
             onDragEnd={(_, info) => {
               if (images.length < 2) return;
               if (info.offset.x > 60) onChangeImage(-1);
@@ -2266,7 +2272,13 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
           >
             <button
               type="button"
-              onClick={() => onOpen(activeImageIndex)}
+              onClick={() => {
+                if (hasDraggedRef.current) {
+                  hasDraggedRef.current = false;
+                  return;
+                }
+                onOpen(activeImageIndex);
+              }}
               className="block h-full w-full"
             >
               <img
