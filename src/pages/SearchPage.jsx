@@ -421,12 +421,13 @@ export default function SearchPage() {
   useEffect(() => {
     const nextCity = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
     const nextCategory = searchParams.get("category") || "";
+    const nextSubcategory = searchParams.get("subcategory") || "";
     const nextCapacity = Number(searchParams.get("capacity")) || 1;
     const nextCheckIn = searchParams.get("checkIn") || "";
     const nextCheckOut = searchParams.get("checkOut") || "";
     setSelectedCity(nextCity);
     setSelectedCategory(nextCategory);
-    setSelectedSubcategory("");
+    setSelectedSubcategory(nextSubcategory);
     setSelectedDuration("");
     setMinPrice(0);
     setMaxPrice(10000);
