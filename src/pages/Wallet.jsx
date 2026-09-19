@@ -94,6 +94,64 @@ export default function Wallet() {
         </div>
 
         <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", padding: "24px" }}>
+          <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "4px" }}>
+            Booking Payments
+          </p>
+          <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "20px" }}>
+            Rental income from your bookings — separate from security deposits above. Releases to your payout
+            account automatically 24 hours after each booking's checkout.
+          </p>
+          {!data.bookings || data.bookings.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 0" }}>
+              <WalletIcon size={32} color="#D1D5DB" style={{ marginBottom: "12px" }} />
+              <p style={{ color: "#9CA3AF", fontSize: "14px", margin: 0 }}>No booking payments yet.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {data.bookings.map((b, index) => (
+                <div
+                  key={b._id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "14px",
+                    padding: "14px 0",
+                    borderBottom: index < data.bookings.length - 1 ? "1px solid #F3F4F6" : "none",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: "14px", fontWeight: "600", color: "#0A1628", margin: "0 0 2px" }}>
+                      {b.propertyTitle}
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>
+                      {b.checkOut ? new Date(b.checkOut).toLocaleDateString() : ""}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <p style={{ fontSize: "15px", fontWeight: "700", color: "#0A1628", margin: "0 0 2px" }}>
+                      {formatCurrency(b.amount)}
+                    </p>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        background: b.status === "completed" ? "#DCFCE7" : "#FEF3C7",
+                        color: b.status === "completed" ? "#16A34A" : "#B45309",
+                      }}
+                    >
+                      {b.status === "completed" ? "Completed" : "Pending"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", padding: "24px" }}>
           <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "20px" }}>
             Deposit Activity
           </p>
