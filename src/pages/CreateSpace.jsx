@@ -1280,34 +1280,48 @@ export default function CreateSpace() {
       // {} and crash the Photos/Lease steps on restore) — upload anything
       // pending to R2 first and store the URLs instead. Also update local
       // state so re-saving the same draft doesn't re-upload duplicates.
-      const resolvedImages = await Promise.all(
-        (form.images || []).map((image) =>
-          image instanceof File ? uploadFileToR2(image) : image
-        )
+      //
+      // Uploads can take a few seconds, and this autosave fires on a timer
+      // independently of what the host is doing -- if they add more photos
+      // while an earlier autosave's uploads are still in flight, writing
+      // `resolvedImages` straight back to state would overwrite those newer
+      // additions with the stale snapshot this pass started with. Resolve
+      // against a File->URL map instead and merge into whatever `images`
+      // actually is at commit time, so anything added mid-upload survives
+      // (it just gets picked up as a pending File on the next autosave).
+      const filesToUpload = (form.images || []).filter((image) => image instanceof File);
+      const resolvedPairs = await Promise.all(
+        filesToUpload.map(async (file) => [file, await uploadFileToR2(file)])
       );
-      const resolvedLease =
-        form.leaseAgreement instanceof File
-          ? await uploadFileToR2(form.leaseAgreement)
-          : form.leaseAgreement;
-      const resolvedVideo =
-        form.video instanceof File ? await uploadFileToR2(form.video) : form.video;
+      const resolvedMap = new Map(resolvedPairs);
+      const leaseFileToUpload = form.leaseAgreement instanceof File ? form.leaseAgreement : null;
+      const resolvedLeaseUrl = leaseFileToUpload ? await uploadFileToR2(leaseFileToUpload) : null;
+      const videoFileToUpload = form.video instanceof File ? form.video : null;
+      const resolvedVideoUrl = videoFileToUpload ? await uploadFileToR2(videoFileToUpload) : null;
 
-      setForm((prev) => ({
-        ...prev,
-        images: resolvedImages,
-        leaseAgreement: resolvedLease,
-        video: resolvedVideo,
-      }));
+      let mergedImages;
+      let mergedLease;
+      let mergedVideo;
+      setForm((prev) => {
+        mergedImages = (prev.images || []).map((image) => resolvedMap.get(image) ?? image);
+        mergedLease =
+          prev.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl
+            ? resolvedLeaseUrl
+            : prev.leaseAgreement;
+        mergedVideo =
+          prev.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : prev.video;
+        return { ...prev, images: mergedImages, leaseAgreement: mergedLease, video: mergedVideo };
+      });
 
       const payload = {
         title: form.title || form.locationName || "Untitled space",
         step,
-        coverImage: resolvedImages[0] || "",
+        coverImage: mergedImages[0] || "",
         formData: {
           ...form,
-          images: resolvedImages,
-          leaseAgreement: resolvedLease,
-          video: resolvedVideo,
+          images: mergedImages,
+          leaseAgreement: mergedLease,
+          video: mergedVideo,
           bufferBefore: effectiveBufferBefore,
           bufferAfter: effectiveBufferAfter,
         },

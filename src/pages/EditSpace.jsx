@@ -430,6 +430,11 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         ...prev,
         photoUrls: prev.photoUrls.filter((u) => u !== url),
       }));
+      if (data.unpublished) {
+        setPhotoError(
+          "This listing is now unpublished (no photos left) — it'll go live again as soon as you add a new one."
+        );
+      }
     } catch (err) {
       setPhotoError(err.message || "Failed to delete photo. Please try again.");
     } finally {
