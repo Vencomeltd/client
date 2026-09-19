@@ -4147,14 +4147,18 @@ function SimilarSpaces({ spaces }) {
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
         {spaces.length > 0
           ? spaces.map((space) => {
+              const p = space.pricing || {};
               const price =
-                space.pricing?.hourly ||
-                space.pricing?.hourlyPrice ||
-                space.pricing?.daily ||
-                space.pricing?.weekdayPrice ||
-                0;
-              const unit =
-                space.pricing?.hourly || space.pricing?.hourlyPrice ? "/hr" : "/day";
+                p.hourly || p.hourlyPrice || p.daily || p.weekdayPrice || p.weekly || p.monthly || 0;
+              const unit = p.hourly || p.hourlyPrice
+                ? "/hr"
+                : p.daily || p.weekdayPrice
+                ? "/day"
+                : p.weekly
+                ? "/week"
+                : p.monthly
+                ? "/month"
+                : "/day";
 
               return (
                 <div
