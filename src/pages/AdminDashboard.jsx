@@ -7130,8 +7130,22 @@ export default function AdminDashboard() {
             host: getListingHostName(listing),
             category: listing.category?.name || "",
             location: listing.location?.city || "",
-            price: listing.pricing?.hourly || listing.pricing?.daily || 0,
-            priceUnit: listing.pricing?.hourly ? "hour" : "day",
+            price:
+              listing.pricing?.hourly ||
+              listing.pricing?.daily ||
+              listing.pricing?.weekly ||
+              listing.pricing?.monthly ||
+              listing.pricing?.annual ||
+              0,
+            priceUnit: listing.pricing?.hourly
+              ? "hour"
+              : listing.pricing?.daily
+              ? "day"
+              : listing.pricing?.weekly
+              ? "week"
+              : listing.pricing?.monthly
+              ? "month"
+              : "year",
             submittedAt: formatDate(listing.createdAt),
             status: "pending_review",
             image: listing.coverImage,
