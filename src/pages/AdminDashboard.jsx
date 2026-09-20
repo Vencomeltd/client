@@ -2258,9 +2258,26 @@ function ListingsSection({
   onListingsPageChange,
   onRefresh,
   searchQuery,
+  highlightListingId,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
+
+  // Deep-linked from the "new listing" admin email -- scroll straight to
+  // the specific pending listing instead of leaving the admin to search a
+  // Pending Review queue that can hold up to 50 entries.
+  useEffect(() => {
+    if (!highlightListingId) return;
+    const el = document.getElementById(`pending-review-${highlightListingId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.style.transition = "background-color 0.3s ease";
+    el.style.backgroundColor = "#FEF3C7";
+    const timer = setTimeout(() => {
+      el.style.backgroundColor = "";
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [highlightListingId, moderationQueue]);
   const [locationFilter, setLocationFilter] = useState("");
   const [showReorder, setShowReorder] = useState(false);
 
@@ -2362,6 +2379,7 @@ function ListingsSection({
           {filteredQueue.map((listing) => (
             <motion.div
               key={listing.id}
+              id={`pending-review-${listing.id}`}
               initial={{ opacity: 0, x: 0 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ x: -100, opacity: 0 }}
@@ -6666,6 +6684,12 @@ function PlaceholderSection({ title }) {
 
 export default function AdminDashboard() {
   const token = localStorage.getItem("vencome_token");
+  // "New listing" admin email links to /admin?section=listings&review=<id>
+  // so a click goes straight to that specific listing instead of a bare
+  // /admin the admin then has to search the Listings tab from.
+  const [highlightListingId] = useState(
+    () => new URLSearchParams(window.location.search).get("review") || null
+  );
   const [activeSection, setActiveSection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("section") || "overview";
@@ -7359,6 +7383,7 @@ export default function AdminDashboard() {
         onListingsPageChange={setListingsPage}
         onRefresh={() => fetchListings(listingsPage)}
         searchQuery={searchQuery}
+        highlightListingId={highlightListingId}
       />
     );
   } else if (activeSection === "bookings") {
