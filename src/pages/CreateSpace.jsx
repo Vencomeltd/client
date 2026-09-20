@@ -4576,7 +4576,7 @@ export default function CreateSpace() {
                   marginBottom: "12px",
                 }}
               >
-                Your listing is live!
+                Submitted for review
               </h2>
               <p
                 style={{
@@ -4586,8 +4586,8 @@ export default function CreateSpace() {
                   marginBottom: "32px",
                 }}
               >
-                {form.title || "Your listing"} has been published successfully.
-                Tenants can now discover and book your space.
+                {form.title || "Your listing"} has been submitted and is now awaiting approval.
+                We'll let you know as soon as it's approved and live for tenants to discover.
               </p>
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                 <button

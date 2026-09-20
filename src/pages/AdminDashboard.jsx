@@ -7065,27 +7065,44 @@ export default function AdminDashboard() {
           // pendingListings comes from GET /admin/stats (platform-wide),
           // not computed here -- this page only ever has 50 listings on it.
         }));
-        setModerationQueue(
-          allListings
-            .filter((listing) => !listing.isActive)
-            .slice(0, 10)
-            .map((listing) => ({
-              id: listing._id,
-              title: listing.title,
-              host: getListingHostName(listing),
-              category: listing.category?.name || "",
-              location: listing.location?.city || "",
-              price: listing.pricing?.hourly || listing.pricing?.daily || 0,
-              priceUnit: listing.pricing?.hourly ? "hour" : "day",
-              submittedAt: formatDate(listing.createdAt),
-              status: "pending_review",
-              image: listing.coverImage,
-              flags: [],
-            }))
-        );
       }
     } catch (err) {
       console.error("Failed to fetch listings:", err);
+    }
+  }, []);
+
+  // Deliberately independent of fetchListings/listingsPage -- the queue
+  // needs to see every pending_review listing platform-wide, not just
+  // whichever page of "all listings" happens to be loaded, and needs to
+  // reflect the real moderationStatus rather than inferring "pending" from
+  // isActive (which is also false for auto-deactivated/rejected listings).
+  const fetchModerationQueue = useCallback(async () => {
+    try {
+      const authToken = localStorage.getItem("vencome_token");
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/admin/properties?moderationStatus=pending_review&limit=50`,
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setModerationQueue(
+          (data.properties || []).map((listing) => ({
+            id: listing._id,
+            title: listing.title,
+            host: getListingHostName(listing),
+            category: listing.category?.name || "",
+            location: listing.location?.city || "",
+            price: listing.pricing?.hourly || listing.pricing?.daily || 0,
+            priceUnit: listing.pricing?.hourly ? "hour" : "day",
+            submittedAt: formatDate(listing.createdAt),
+            status: "pending_review",
+            image: listing.coverImage,
+            flags: [],
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch moderation queue:", err);
     }
   }, []);
 
@@ -7180,6 +7197,11 @@ export default function AdminDashboard() {
     if (!token) return;
     fetchListings(listingsPage);
   }, [token, listingsPage, fetchListings]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchModerationQueue();
+  }, [token, fetchModerationQueue]);
 
   const showToast = (message) => {
     setToastMessage(message);

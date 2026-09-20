@@ -30,21 +30,34 @@ export default function MyListings() {
           body: JSON.stringify({ isActive: nextIsActive }),
         }
       );
-      if (!response.ok) throw new Error("Failed to update listing status");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Failed to update listing status");
       setListings((current) =>
         current.map((item) =>
           item._id === listing._id ? { ...item, isActive: nextIsActive } : item
         )
       );
     } catch (err) {
-      alert(
-        listing.isActive
-          ? "Failed to unpublish listing. Please try again."
-          : "Failed to republish listing. Please try again."
-      );
+      // The server now has real, specific reasons this can fail (still
+      // awaiting approval, or was rejected) -- show those instead of a
+      // generic message that hides why.
+      alert(err.message || "Failed to update listing status. Please try again.");
     } finally {
       setTogglingId(null);
     }
+  };
+
+  // isActive alone can't tell a host why their listing isn't live -- it's
+  // false for a brand new listing awaiting its first review, a rejected
+  // one, or an already-approved one they (or the zero-photos auto-
+  // unpublish) simply turned off. moderationStatus disambiguates.
+  const getListingStatusInfo = (listing) => {
+    if (listing.isActive) return { label: "Live", className: "bg-[#16A34A] text-white" };
+    if (listing.moderationStatus === "pending_review")
+      return { label: "Pending Review", className: "bg-[#D97706] text-white" };
+    if (listing.moderationStatus === "rejected")
+      return { label: "Not Approved", className: "bg-[#DC2626] text-white" };
+    return { label: "Draft", className: "bg-[#9CA3AF] text-white" };
   };
 
   useEffect(() => {
@@ -140,10 +153,10 @@ export default function MyListings() {
                   )}
                   <span
                     className={`absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-bold ${
-                      listing.isActive ? "bg-[#16A34A] text-white" : "bg-[#9CA3AF] text-white"
+                      getListingStatusInfo(listing).className
                     }`}
                   >
-                    {listing.isActive ? "Live" : "Draft"}
+                    {getListingStatusInfo(listing).label}
                   </span>
                 </div>
 
@@ -178,21 +191,29 @@ export default function MyListings() {
                         <Eye size={14} />
                         View
                       </a>
-                      <button
-                        type="button"
-                        onClick={() => toggleListingStatus(listing)}
-                        disabled={togglingId === listing._id}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border-[1.5px] px-3.5 py-2 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                          listing.isActive
-                            ? "border-[#E5E7EB] text-[#DC2626] hover:border-[#DC2626]"
-                            : "border-[#E5E7EB] text-[#16A34A] hover:border-[#16A34A]"
-                        }`}
-                      >
-                        {togglingId === listing._id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : null}
-                        {listing.isActive ? "Unpublish" : "Republish"}
-                      </button>
+                      {listing.isActive || listing.moderationStatus === "approved" ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleListingStatus(listing)}
+                          disabled={togglingId === listing._id}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border-[1.5px] px-3.5 py-2 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            listing.isActive
+                              ? "border-[#E5E7EB] text-[#DC2626] hover:border-[#DC2626]"
+                              : "border-[#E5E7EB] text-[#16A34A] hover:border-[#16A34A]"
+                          }`}
+                        >
+                          {togglingId === listing._id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : null}
+                          {listing.isActive ? "Unpublish" : "Republish"}
+                        </button>
+                      ) : (
+                        <span className="text-[13px] text-[#9CA3AF]">
+                          {listing.moderationStatus === "rejected"
+                            ? "Edit and resubmit for review"
+                            : "Awaiting admin approval"}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
