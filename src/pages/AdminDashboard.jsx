@@ -897,7 +897,7 @@ function MetricCard({ icon: Icon, label, value, subtitle, growth, iconClasses, p
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit, onViewDetail }) {
   // Support-access status now lives in its own request/response lifecycle
   // (see routes/admin.js support-access/status), not a flag on the user —
   // fetched lazily here, only when the admin actually opens this menu.
@@ -927,6 +927,11 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
       exit={{ opacity: 0, scale: 0.95, y: -8 }}
       className="absolute right-4 top-12 z-20 min-w-[180px] rounded-xl border border-[#E5E7EB] bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
     >
+      <UserMenuItem
+        icon={FileText}
+        label="View Details"
+        onClick={() => { onViewDetail(user); onClose(); }}
+      />
       {user.isHost ? (
         <UserMenuItem
           icon={Eye}
@@ -1316,6 +1321,117 @@ function CreateHostModal({ isOpen, onClose, onSubmit }) {
         >
           {submitting ? "Creating..." : "Create Host Account"}
         </button>
+      </div>
+    </Modal>
+  );
+}
+
+// Aggregated drill-down for a single user -- fetches GET
+// /admin/users/:id/detail (listings + bookings as guest/host) lazily each
+// time it's opened, since the summary row data alone isn't enough to answer
+// "what has this person actually listed/booked" without leaving the panel.
+function UserDetailPanel({ user, onClose }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    (async () => {
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/detail`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load user detail");
+        if (!cancelled) setDetail(data);
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Failed to load user detail");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const bookingRow = (b) => (
+    <div
+      key={b._id}
+      style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}
+    >
+      <div>
+        <div style={{ fontWeight: 600, color: "#0A1628" }}>{b.property?.title || "—"}</div>
+        <div style={{ color: "#6B7280", fontSize: 12 }}>
+          {b.checkIn ? new Date(b.checkIn).toLocaleDateString() : ""} · {b.status}
+        </div>
+      </div>
+      <div style={{ fontWeight: 700, color: "#0A1628" }}>£{b.totalPrice}</div>
+    </div>
+  );
+
+  return (
+    <Modal isOpen={!!user} onClose={onClose}>
+      <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 4 }}>
+          {user?.displayName || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email}
+        </h3>
+        <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
+          {user?.email} · {user?.isHost ? "Host" : "Customer"}
+        </p>
+
+        {loading ? (
+          <p style={{ fontSize: 13, color: "#6B7280" }}>Loading…</p>
+        ) : error ? (
+          <p style={{ fontSize: 13, color: "#DC2626" }}>{error}</p>
+        ) : (
+          <>
+            {detail?.user?.isHost && (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
+                  Listings ({detail.listings.length})
+                </p>
+                {detail.listings.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "#9CA3AF" }}>No listings yet.</p>
+                ) : (
+                  detail.listings.map((l) => (
+                    <div key={l._id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 13 }}>
+                      <span>{l.title}</span>
+                      <span style={{ color: l.isActive ? "#16A34A" : "#9CA3AF" }}>{l.isActive ? "Live" : "Inactive"}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            <div style={{ marginBottom: detail?.user?.isHost ? 20 : 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
+                Bookings as guest ({detail?.bookingsAsGuest?.length || 0})
+              </p>
+              {!detail?.bookingsAsGuest?.length ? (
+                <p style={{ fontSize: 13, color: "#9CA3AF" }}>No bookings yet.</p>
+              ) : (
+                detail.bookingsAsGuest.map(bookingRow)
+              )}
+            </div>
+
+            {detail?.user?.isHost && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
+                  Bookings received as host ({detail.bookingsAsHost.length})
+                </p>
+                {detail.bookingsAsHost.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "#9CA3AF" }}>No bookings yet.</p>
+                ) : (
+                  detail.bookingsAsHost.map(bookingRow)
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </Modal>
   );
@@ -1823,6 +1939,7 @@ function UsersSection({
   onRequestAccessUser,
   onOpenCreateHost,
   onEditUser,
+  onViewUserDetail,
   usersPage,
   usersTotalPages,
   onUsersPageChange,
@@ -2005,6 +2122,7 @@ function UsersSection({
                           onImpersonate={onImpersonateUser}
                           onRequestAccess={onRequestAccessUser}
                           onEdit={onEditUser}
+                          onViewDetail={onViewUserDetail}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -6652,6 +6770,7 @@ export default function AdminDashboard() {
   const [createdHostCreds, setCreatedHostCreds] = useState(null);
 
   const [editingUser, setEditingUser] = useState(null);
+  const [viewingUserDetail, setViewingUserDetail] = useState(null);
   const handleSubmitEditUser = async (userId, form) => {
     const token = localStorage.getItem("vencome_token");
     const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${userId}`, {
@@ -7120,6 +7239,7 @@ export default function AdminDashboard() {
         onRequestAccessUser={handleRequestAccess}
         onOpenCreateHost={() => setShowCreateHostModal(true)}
         onEditUser={setEditingUser}
+        onViewUserDetail={setViewingUserDetail}
         usersPage={usersPage}
         usersTotalPages={usersTotalPages}
         onUsersPageChange={setUsersPage}
@@ -7137,6 +7257,13 @@ export default function AdminDashboard() {
         onClose={() => setEditingUser(null)}
         onSubmit={handleSubmitEditUser}
       />
+
+      {viewingUserDetail ? (
+        <UserDetailPanel
+          user={viewingUserDetail}
+          onClose={() => setViewingUserDetail(null)}
+        />
+      ) : null}
 
       <Modal isOpen={!!createdHostCreds} onClose={() => setCreatedHostCreds(null)}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Host Account Created</h3>
