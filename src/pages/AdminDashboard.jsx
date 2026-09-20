@@ -283,8 +283,16 @@ function getUserRole(user = {}) {
 
 function getUserStatus(user = {}) {
   if (user.isBanned) return "suspended";
-  if (user.isVerified) return "active";
-  return "pending";
+  // Two genuinely different things were both being called "pending" here:
+  // not having finished signup OTP verification, vs (for hosts) having
+  // submitted business verification and still awaiting an admin decision.
+  // GET /admin/stats already computes pendingVerifications as only the
+  // second one -- this made "Pending" here mean something else, and gave
+  // admins no actual way to see who's awaiting a business-verification
+  // decision, which is the real, actionable queue.
+  if (!user.isVerified) return "unverified";
+  if (user.isHost && user.businessVerification?.status === "under_review") return "pending verification";
+  return "active";
 }
 
 function getListingStatus(listing = {}) {
@@ -1950,7 +1958,7 @@ function UsersSection({
     { key: "hosts", label: `Hosts (${users.filter((item) => getUserRole(item) === "host").length})` },
     { key: "unverified", label: `Unverified (${users.filter((item) => !item.isVerified).length})` },
     { key: "suspended", label: `Suspended (${users.filter((item) => item.isBanned).length})` },
-    { key: "pending", label: `Pending (${users.filter((item) => !item.isVerified && !item.isBanned).length})` },
+    { key: "pending", label: `Pending Verification (${users.filter((item) => item.isHost && item.businessVerification?.status === "under_review").length})` },
   ];
 
   return (
@@ -2000,7 +2008,8 @@ function UsersSection({
             <option>All Status</option>
             <option>Active</option>
             <option>Suspended</option>
-            <option>Pending</option>
+            <option>Unverified</option>
+            <option>Pending Verification</option>
           </select>
         </div>
       </div>
@@ -7193,7 +7202,7 @@ export default function AdminDashboard() {
         (activeUserTab === "hosts" && getUserRole(user) === "host") ||
         (activeUserTab === "unverified" && !user.isVerified) ||
         (activeUserTab === "suspended" && user.isBanned) ||
-        (activeUserTab === "pending" && !user.isVerified && !user.isBanned);
+        (activeUserTab === "pending" && user.isHost && user.businessVerification?.status === "under_review");
 
       return matchesQuery && matchesRole && matchesStatus && matchesTab;
     });
