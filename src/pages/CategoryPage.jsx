@@ -148,6 +148,20 @@ const CategoryPage = () => {
               {category.description}
             </p>
           )}
+          {category.subcategories?.length > 0 && (
+            <div className="mt-4">
+              <TagList
+                tags={category.subcategories.map((sub) => sub.name)}
+                type="cat"
+                activeTags={[]}
+                onToggle={(subName) =>
+                  navigate(
+                    `/search?${new URLSearchParams({ category: category._id, subcategory: subName }).toString()}`
+                  )
+                }
+              />
+            </div>
+          )}
         </div>
 
         {/* Properties Grid */}

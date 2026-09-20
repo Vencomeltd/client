@@ -351,8 +351,8 @@ export async function loader() {
     blogRes.json().catch(() => ({})),
   ]);
 
-  // Server now returns categories pre-sorted by Category.order (admin
-  // drag-reorder) -- no client-side reordering needed.
+  // Server sorts by Category.order once the admin has manually reordered at
+  // all, otherwise by live listing count -- no client-side reordering needed.
   const categoryList = Array.isArray(categoriesData) ? categoriesData : [];
 
   const properties = propertiesData.properties || [];
@@ -394,7 +394,7 @@ function CategoryStrip() {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];
 
-        // Server now returns categories pre-sorted by Category.order.
+        // Server already applies the manual-order/listing-count hybrid sort.
         setCategories(list);
       } catch (err) {
         console.error("Failed to fetch categories:", err);
