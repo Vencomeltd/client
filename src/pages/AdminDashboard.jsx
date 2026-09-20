@@ -7017,13 +7017,16 @@ export default function AdminDashboard() {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
       const API = import.meta.env.VITE_API_URL;
-      const [res, hostsRes, customersRes] = await Promise.all([
+      const [res, hostsRes, customersRes, totalRes] = await Promise.all([
         fetch(`${API}/admin/users?page=${page}&limit=20`, { headers }),
         // "Total Users" alone didn't say whether it meant hosts or renters --
         // these two give the breakdown shown under it. limit=1 since only
         // the pagination `total` is needed, not the actual user records.
-        fetch(`${API}/admin/users?role=host&limit=1`, { headers }),
-        fetch(`${API}/admin/users?role=customer&limit=1`, { headers }),
+        // excludeTest so this breakdown matches the real-activity-only
+        // "Total Users" figure, not the browsable list's full count.
+        fetch(`${API}/admin/users?role=host&limit=1&excludeTest=true`, { headers }),
+        fetch(`${API}/admin/users?role=customer&limit=1&excludeTest=true`, { headers }),
+        fetch(`${API}/admin/users?limit=1&excludeTest=true`, { headers }),
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -7033,9 +7036,13 @@ export default function AdminDashboard() {
         setUsersTotalPages(data.pages || 1);
         const hostsData = hostsRes.ok ? await hostsRes.json() : null;
         const customersData = customersRes.ok ? await customersRes.json() : null;
+        const totalData = totalRes.ok ? await totalRes.json() : null;
         setStats((prev) => ({
           ...prev,
-          totalUsers: data.total || allUsers.length,
+          // Was data.total (the unfiltered browse-list count) -- now the
+          // same excludeTest count as the hosts/customers breakdown below,
+          // so the headline number and its own subtitle can't disagree.
+          totalUsers: totalData?.total ?? prev.totalUsers,
           totalHosts: hostsData?.total ?? prev.totalHosts,
           totalCustomers: customersData?.total ?? prev.totalCustomers,
           // activeUsers comes from GET /admin/stats (platform-wide), not
@@ -7050,18 +7057,25 @@ export default function AdminDashboard() {
   const fetchListings = useCallback(async (page) => {
     try {
       const authToken = localStorage.getItem("vencome_token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties?page=${page}&limit=50`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      const headers = { Authorization: `Bearer ${authToken}` };
+      const API = import.meta.env.VITE_API_URL;
+      const [res, totalRes] = await Promise.all([
+        fetch(`${API}/admin/properties?page=${page}&limit=50`, { headers }),
+        // Same excludeTest count as GET /stats -- data.total below is the
+        // unfiltered browse-list count, which isn't what "Total Listings"
+        // on the Overview page should show.
+        fetch(`${API}/admin/properties?limit=1&excludeTest=true`, { headers }),
+      ]);
       if (res.ok) {
         const data = await res.json();
         const allListings = data.properties || [];
         setListings(allListings);
         setListingsPage(data.page || page);
         setListingsTotalPages(data.pages || 1);
+        const totalData = totalRes.ok ? await totalRes.json() : null;
         setStats((prev) => ({
           ...prev,
-          totalListings: data.total || allListings.length,
+          totalListings: totalData?.total ?? prev.totalListings,
           // pendingListings comes from GET /admin/stats (platform-wide),
           // not computed here -- this page only ever has 50 listings on it.
         }));
