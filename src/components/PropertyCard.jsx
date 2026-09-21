@@ -93,9 +93,17 @@ const resolveListingData = ({
       source.location ??
       "Location unavailable",
     category: category ?? source.category ?? "Commercial Space",
-    categories: source.categories?.length > 0
-      ? source.categories.map((c) => c?.name || c).filter(Boolean)
-      : [],
+    // Capped to keep the card's tag row from wrapping into a wall of pills
+    // on a listing tagged with many categories -- first 2 main categories
+    // plus the listing's first subcategory (if any) is enough to convey
+    // what the space is without dominating the card.
+    categories: (() => {
+      const mainCategories = source.categories?.length > 0
+        ? source.categories.map((c) => c?.name || c).filter(Boolean).slice(0, 2)
+        : [];
+      const firstSubcategory = source.subcategories?.[0];
+      return firstSubcategory ? [...mainCategories, firstSubcategory] : mainCategories;
+    })(),
     price: price ?? listingPrice.price ?? getLegacyPrice(source),
     priceUnit: priceUnit ?? listingPrice.unit ?? getLegacyPriceUnit(source),
     priceFromPrefix: listingPrice.fromPrefix ?? false,
