@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   LogIn,
   LogOut,
+  Mail,
   MapPin,
   Megaphone,
   MessageSquare,
@@ -97,6 +98,12 @@ const NAV_ITEMS = [
     section: "support",
     group: "MANAGEMENT",
     icon: LifeBuoy,
+  },
+  {
+    label: "Communications",
+    section: "communications",
+    group: "MANAGEMENT",
+    icon: Mail,
   },
   {
     label: "Invoices",
@@ -173,7 +180,7 @@ const ADMIN_ROLES = [
 // unknown/loading role) sees everything; team + settings stay full_admin-only.
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
-  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "communications"],
   content: ["overview", "analytics", "markets", "categories", "broadcast", "content"],
 };
 
@@ -190,6 +197,7 @@ const SECTION_TITLES = {
   payments: "Payments",
   disputes: "Disputes",
   support: "Support",
+  communications: "Communications",
   invoices: "Invoices",
   analytics: "Analytics",
   commission: "Commission",
@@ -6245,6 +6253,169 @@ function SupportTicketsSection({ onToast, myAdmin }) {
   );
 }
 
+// Every email the platform has sent since the EmailLog feature was added
+// (utils/sendEmail.js logs every send) — hosts, guests, everyone. No
+// historical backfill: emails sent before this feature existed aren't here.
+function CommunicationsSection() {
+  const [emails, setEmails] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [selectedEmail, setSelectedEmail] = useState(null);
+
+  const fetchEmails = useCallback(
+    async (pageNum) => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const params = new URLSearchParams({ page: String(pageNum), limit: "25" });
+        if (search) params.set("search", search);
+        if (statusFilter) params.set("status", statusFilter);
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/emails?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEmails(data.emails || []);
+          setPage(data.page || pageNum);
+          setTotalPages(data.pages || 1);
+          setTotal(data.total || 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch emails:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [search, statusFilter]
+  );
+
+  useEffect(() => {
+    const timeout = setTimeout(() => fetchEmails(1), search ? 300 : 0);
+    return () => clearTimeout(timeout);
+  }, [fetchEmails, search]);
+
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} emails sent</p>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name, email, or subject"
+            className="h-10 w-72 rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
+          />
+        </div>
+
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="">All statuses</option>
+          <option value="sent">Sent</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+
+      <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+        {loading ? (
+          <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading emails...</div>
+        ) : emails.length === 0 ? (
+          <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No emails in this view</div>
+        ) : (
+          <div className="flex flex-col">
+            {emails.map((email) => (
+              <button
+                key={email._id}
+                type="button"
+                onClick={() => setSelectedEmail(email)}
+                className="flex flex-col gap-2 border-b border-[#F3F4F6] px-4 py-4 text-left transition last:border-b-0 hover:bg-[#FAFAFA] md:flex-row md:items-center md:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-[#0A1628]">
+                      {email.toUser ? getUserDisplayName(email.toUser) : email.to}
+                    </span>
+                    {email.toUser?.isHost ? (
+                      <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[11px] font-bold text-[#305CDE]">Host</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-[13px] text-[#374151]">{email.subject || "(no subject)"}</p>
+                  <p className="mt-0.5 text-[12px] text-[#6B7280]">{email.to}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-[12px] text-[#6B7280]">{timeAgo(email.sentAt)}</span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.04em] ${
+                      email.status === "failed" ? "bg-[#FEF2F2] text-[#DC2626]" : "bg-[#ECFDF5] text-[#059669]"
+                    }`}
+                  >
+                    {email.status}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-[13px] text-[#6B7280]">
+            Page {page} of {totalPages} — {formatNumber(total)} emails total
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => fetchEmails(page - 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => fetchEmails(page + 1)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-4 text-[14px] text-[#111827] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Modal isOpen={!!selectedEmail} onClose={() => setSelectedEmail(null)}>
+        {selectedEmail ? (
+          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto p-6">
+            <h3 className="text-[18px] font-bold text-[#0A1628]">{selectedEmail.subject || "(no subject)"}</h3>
+            <p className="mt-1 text-[13px] text-[#6B7280]">
+              To {selectedEmail.toUser ? getUserDisplayName(selectedEmail.toUser) : selectedEmail.to} ({selectedEmail.to}) ·{" "}
+              {new Date(selectedEmail.sentAt).toLocaleString()}
+            </p>
+            <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-[#FAFAFA] p-4">
+              {selectedEmail.html ? (
+                <div dangerouslySetInnerHTML={{ __html: selectedEmail.html }} />
+              ) : (
+                <p className="whitespace-pre-wrap text-[13px] text-[#374151]">{selectedEmail.text || "No content"}</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
 function CommissionSection({ onToast }) {
   const [loading, setLoading] = useState(true);
   const [defaultRate, setDefaultRate] = useState(10);
@@ -7466,6 +7637,8 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "support") {
     sectionContent = <SupportTicketsSection onToast={showToast} myAdmin={myAdmin} />;
+  } else if (activeSection === "communications") {
+    sectionContent = <CommunicationsSection />;
   } else if (activeSection === "invoices") {
     sectionContent = <InvoicesSection onToast={showToast} />;
   } else if (activeSection === "commission") {
