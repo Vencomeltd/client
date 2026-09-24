@@ -48,10 +48,10 @@ const HelpSupport = () => {
                 <li>Instant Book: Charged immediately</li>
                 <li>Request to Book: Charged after host approval</li>
                 <li>
-                  Funds are held in escrow until 24 hours after the event ends
+                  Funds are held in escrow until 48 hours after the event ends
                 </li>
                 <li>
-                  Hosts receive payout automatically after the 24-hour period
+                  Hosts receive payout automatically after the 48-hour period
                 </li>
               </ul>
               <p className="mt-4">
@@ -123,7 +123,7 @@ const HelpSupport = () => {
           title: "How do I get paid?",
           content: (
             <>
-              <p>After the event ends + 24 hours:</p>
+              <p>After the event ends + 48 hours:</p>
               <ul className="list-disc pl-6 mt-3 space-y-2">
                 <li>
                   Funds are automatically transferred to your connected payout

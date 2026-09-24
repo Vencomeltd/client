@@ -105,7 +105,7 @@ export default function Transactions() {
             <div style={{ textAlign: "center", padding: "40px 0" }}>
               <Receipt size={32} color="#D1D5DB" style={{ marginBottom: "12px" }} />
               <p style={{ color: "#9CA3AF", fontSize: "14px", margin: 0 }}>
-                No payouts yet. Payouts appear here 24 hours after each booking completes.
+                No payouts yet. Payouts appear here 48 hours after each booking completes.
               </p>
             </div>
           ) : (
