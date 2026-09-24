@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import DepositSection, { depositPolicyPayload } from "../components/DepositSection";
 import {
   Building2,
   Calendar,
@@ -218,6 +219,8 @@ const defaultState = {
   graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
   // Optional security deposit, charged alongside rent at checkout.
   deposit: { enabled: false, amount: "" },
+  // Payments v2 damage deposit (only shown when the platform has v2 on).
+  depositPolicy: { mode: "none", amount: "", longStayFallback: "none" },
   // DAILY pricing only -- restricts a booking to exactly one calendar day
   // instead of allowing a multi-night stay. See bookingSettings.singleDayOnly.
   singleDayOnly: false,
@@ -1178,6 +1181,7 @@ export default function CreateSpace() {
           amount: form.deposit?.enabled ? parseFloat(form.deposit.amount) || 0 : 0,
         })
       );
+      formData.append("depositPolicy", JSON.stringify(depositPolicyPayload(form.depositPolicy)));
       formData.append("coverImageIndex", form.coverImageIndex ?? 0);
       formData.append("wifi", form.wifi || false);
       formData.append("restrooms", form.restrooms || 0);
@@ -3053,6 +3057,10 @@ export default function CreateSpace() {
                     </div>
                   )}
 
+                  <DepositSection
+                    value={form.depositPolicy}
+                    onChange={(depositPolicy) => setForm((prev) => ({ ...prev, depositPolicy }))}
+                  >
                   <div style={{ marginTop: "24px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "20px" }}>
                     <label
                       style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
@@ -3090,6 +3098,7 @@ export default function CreateSpace() {
                       </div>
                     )}
                   </div>
+                  </DepositSection>
 
                   {form.pricing.daily?.enabled && (
                     <div

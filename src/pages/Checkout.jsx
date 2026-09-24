@@ -4,6 +4,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { CalendarDays, MapPin, ShieldCheck, Users } from "lucide-react";
 import Navbar from "../components/Navbar";
+import { PaymentElementForm } from "../components/PaymentForms";
 
 if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
   console.error("VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout will not work.");
@@ -20,6 +21,8 @@ export default function Checkout() {
   const [clientSecret, setClientSecret] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // Payments v2 checkout (PaymentIntent + Payment Element); null = legacy embedded checkout.
+  const [v2, setV2] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +56,19 @@ export default function Checkout() {
             return;
           }
         }
+
+        // Payments v2: the server answers { enabled: false } (or 404 on an
+        // older server) when it's off, and we fall through to legacy checkout.
+        const v2Res = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${bookingId}/payment-intent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+        const v2Data = await v2Res.json().catch(() => ({}));
+        if (v2Res.ok && v2Data.enabled) {
+          setV2(v2Data);
+          return;
+        }
+        if (!v2Res.ok && v2Res.status !== 404) throw new Error(v2Data.error || "Failed to start checkout");
 
         const sessionRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-checkout-session`, {
           method: "POST",
@@ -90,6 +106,17 @@ export default function Checkout() {
   const rentTotal = booking?.totalPrice || 0;
   const depositAmount = booking?.deposit?.amount || 0;
 
+  const v2Deposit = v2?.deposit && v2.deposit.mode !== "none" ? v2.deposit : null;
+  const v2DepositGbp = v2Deposit ? (v2Deposit.amountPence / 100).toFixed(2) : null;
+  const v2DepositCopy = !v2Deposit
+    ? ""
+    : v2Deposit.mode === "charged"
+    ? `A refundable £${v2DepositGbp} deposit is charged to your card at booking and refunded after your stay unless the host reports damage.`
+    : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before check-in. You're only charged if there's damage.`;
+  const v2Consent = v2Deposit
+    ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.`
+    : "";
+
   return (
     <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
       <Navbar />
@@ -109,6 +136,16 @@ export default function Checkout() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 32, alignItems: "start" }} className="checkout-grid">
             <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 8, minHeight: 480 }}>
+              {v2 && booking && (
+                <PaymentElementForm
+                  clientSecret={v2.clientSecret}
+                  payLabel={booking.status === "pending" ? "Send booking request" : `Pay £${rentTotal.toFixed(2)}`}
+                  consentText={v2Consent}
+                  onSuccess={() =>
+                    navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${booking.totalPrice}`)
+                  }
+                />
+              )}
               {options && (
                 <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
                   <EmbeddedCheckout />
@@ -161,6 +198,12 @@ export default function Checkout() {
                       <span>£{(rentTotal + depositAmount).toFixed(2)}</span>
                     </div>
                   </div>
+
+                  {v2Deposit && (
+                    <div style={{ marginTop: 16, background: "#F5F7FF", borderRadius: 10, padding: "10px 12px", fontSize: 12, color: "#374151", lineHeight: 1.5 }}>
+                      <strong>Deposit £{v2DepositGbp}</strong> — not part of the total above. {v2DepositCopy}
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 20, fontSize: 12, color: "#6B7280" }}>
                     <ShieldCheck size={16} color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />

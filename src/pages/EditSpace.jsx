@@ -4,6 +4,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
 import { COUNTRIES } from "../components/CountrySelect";
+import DepositSection, { depositPolicyPayload, depositPolicyFromListing } from "../components/DepositSection";
 
 export default function EditSpace({ embedded = false, idOverride, onClose } = {}) {
   const { id: routeId } = useParams();
@@ -58,6 +59,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
     customDayPricing: [],
     graduatedWeekly: { enabled: false, thresholdWeeks: "", rateAfterThreshold: "" },
     deposit: { enabled: false, amount: "" },
+    depositPolicy: { mode: "none", amount: "", longStayFallback: "none" },
     singleDayOnly: false,
     discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: 0 },
     blockedDates: [],
@@ -141,6 +143,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             enabled: p.deposit?.enabled || false,
             amount: p.deposit?.amount || "",
           },
+          depositPolicy: depositPolicyFromListing(p.depositPolicy),
           customDayPricing: p.pricing?.customDayPricing || [],
           singleDayOnly: p.bookingSettings?.singleDayOnly || false,
           discounts: {
@@ -318,6 +321,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           amount: formData.deposit?.enabled ? parseFloat(formData.deposit.amount) || 0 : 0,
         })
       );
+      payload.append("depositPolicy", JSON.stringify(depositPolicyPayload(formData.depositPolicy)));
       payload.append(
         "coordinates",
         JSON.stringify({
@@ -1096,6 +1100,10 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             </div>
           )}
 
+          <DepositSection
+            value={formData.depositPolicy}
+            onChange={(depositPolicy) => setFormData((prev) => ({ ...prev, depositPolicy }))}
+          >
           <div style={{ marginTop: "16px", border: "1.5px solid #E5E7EB", borderRadius: "12px", padding: "16px" }}>
             <label
               style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}
@@ -1127,6 +1135,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               </div>
             )}
           </div>
+          </DepositSection>
 
           {formData.pricing.daily?.enabled && (
             <div

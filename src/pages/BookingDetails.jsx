@@ -438,6 +438,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import SignaturePad from "../components/SignaturePad";
+import DepositV2Panel from "../components/DepositV2Panel";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -1604,6 +1605,13 @@ export default function BookingDetails() {
                 )
               )}
             </div>
+
+            <DepositV2Panel
+              booking={booking}
+              isHost={isHost}
+              onUpdate={(patch) => setBooking((prev) => ({ ...prev, ...patch }))}
+              showToast={showToast}
+            />
 
             {/* Actions */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">

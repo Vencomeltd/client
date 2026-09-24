@@ -100,6 +100,12 @@ const NAV_ITEMS = [
     icon: LifeBuoy,
   },
   {
+    label: "Claims",
+    section: "claims",
+    group: "MANAGEMENT",
+    icon: ShieldQuestion,
+  },
+  {
     label: "Communications",
     section: "communications",
     group: "MANAGEMENT",
@@ -180,7 +186,7 @@ const ADMIN_ROLES = [
 // unknown/loading role) sees everything; team + settings stay full_admin-only.
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
-  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "communications"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "communications"],
   content: ["overview", "analytics", "markets", "categories", "broadcast", "content"],
 };
 
@@ -197,6 +203,7 @@ const SECTION_TITLES = {
   payments: "Payments",
   disputes: "Disputes",
   support: "Support",
+  claims: "Claims",
   communications: "Communications",
   invoices: "Invoices",
   analytics: "Analytics",
@@ -6416,6 +6423,177 @@ function CommunicationsSection() {
   );
 }
 
+const penceToGbp = (pence) => `£${(Number(pence || 0) / 100).toFixed(2)}`;
+
+function holdExpiryLabel(captureBefore) {
+  if (!captureBefore) return null;
+  const hours = Math.floor((new Date(captureBefore).getTime() - Date.now()) / 3600000);
+  return hours < 0 ? "Hold expired" : `Hold expires in ${hours}h`;
+}
+
+// Damage claims opened by hosts against a booking's deposit. Approving takes
+// only the approved amount (the rest of a card hold is released); rejecting
+// releases/refunds everything. Every action is audit-logged server-side.
+function ClaimsSection({ onToast }) {
+  const [claims, setClaims] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("open");
+  const [busyId, setBusyId] = useState(null);
+  const [amounts, setAmounts] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/claims?status=${status}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClaims(data.claims || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch claims:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const resolve = async (booking, decision) => {
+    const approvedGbp = parseFloat(amounts[booking._id] ?? booking.damageClaim.amountPence / 100);
+    if (decision === "approve" && !(approvedGbp > 0)) {
+      onToast("Enter an amount to approve");
+      return;
+    }
+    setBusyId(booking._id);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/claims/${booking._id}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          decision,
+          ...(decision === "approve" && { approvedAmountPence: Math.round(approvedGbp * 100) }),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not resolve the claim");
+      onToast(decision === "approve" ? "Claim approved" : "Claim rejected");
+      await load();
+    } catch (err) {
+      onToast(err.message || "Could not resolve the claim");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Damage Claims</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Claims hosts have opened against a booking's deposit</p>
+      </div>
+
+      <div className="mb-5">
+        <select
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="open">Open</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {loading ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading claims...</div>
+        ) : claims.length === 0 ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">No claims in this view</div>
+        ) : (
+          claims.map((booking) => {
+            const claim = booking.damageClaim;
+            const dh = booking.depositHold || {};
+            const expiry = claim.status === "open" && dh.status === "held" ? holdExpiryLabel(dh.captureBefore) : null;
+            return (
+              <div key={booking._id} className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+                <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-[15px] font-bold text-[#0A1628]">{booking.property?.title || "Booking"}</p>
+                    <p className="mt-0.5 text-[12px] text-[#6B7280]">
+                      Host {getUserDisplayName(booking.host)} · Guest {getUserDisplayName(booking.guest)} · Checkout{" "}
+                      {new Date(booking.checkOut).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[15px] font-extrabold text-[#0A1628]">Claimed {penceToGbp(claim.amountPence)}</p>
+                    <p className="text-[12px] text-[#6B7280]">
+                      Deposit {penceToGbp(dh.amountPence)} · {dh.mode === "charged" ? "charged" : "card hold"} ({dh.status})
+                    </p>
+                    {expiry && <p className="text-[12px] font-semibold text-[#B45309]">{expiry}</p>}
+                  </div>
+                </div>
+
+                <p className="mt-3 text-[13px] text-[#374151]">{claim.reason}</p>
+
+                {claim.evidenceUrls?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {claim.evidenceUrls.map((url) => (
+                      <a key={url} href={url} target="_blank" rel="noreferrer">
+                        <img src={url} alt="Claim evidence" className="h-20 w-28 rounded-lg object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {claim.status === "open" ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <label className="text-[12px] font-semibold text-[#6B7280]">Approve (£)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue={(claim.amountPence / 100).toFixed(2)}
+                      onChange={(event) => setAmounts((current) => ({ ...current, [booking._id]: event.target.value }))}
+                      className="h-10 w-28 rounded-lg border border-[#E5E7EB] px-3 text-[13px] outline-none focus:border-[#0A1628]"
+                    />
+                    <button
+                      type="button"
+                      disabled={busyId === booking._id}
+                      onClick={() => resolve(booking, "approve")}
+                      className="h-10 rounded-lg bg-[#0A1628] px-4 text-[13px] font-semibold text-white disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === booking._id}
+                      onClick={() => resolve(booking, "reject")}
+                      className="h-10 rounded-lg border border-[#FCA5A5] px-4 text-[13px] font-semibold text-[#DC2626] disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-[13px] font-semibold text-[#374151]">
+                    {claim.status === "approved" ? `Approved for ${penceToGbp(claim.approvedAmountPence)}` : "Rejected"}
+                  </p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
 function CommissionSection({ onToast }) {
   const [loading, setLoading] = useState(true);
   const [defaultRate, setDefaultRate] = useState(10);
@@ -7637,6 +7815,8 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "support") {
     sectionContent = <SupportTicketsSection onToast={showToast} myAdmin={myAdmin} />;
+  } else if (activeSection === "claims") {
+    sectionContent = <ClaimsSection onToast={showToast} />;
   } else if (activeSection === "communications") {
     sectionContent = <CommunicationsSection />;
   } else if (activeSection === "invoices") {
