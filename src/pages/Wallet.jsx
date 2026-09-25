@@ -67,9 +67,17 @@ export default function Wallet() {
     );
   }
 
+  // The deposit balances and activity below belong to the old deposit system.
+  // Hosts who have none of it (everyone on card-hold deposits) just see their
+  // booking payments, with no deposit wording.
+  const showDeposits =
+    (data.reservedBalance || 0) > 0 || (data.availableBalance || 0) > 0 || (data.transactions || []).length > 0;
+
   return (
     <DashboardLayout title="Wallet">
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        {showDeposits && (
+        <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
           <BalanceCard
             label="Reserved Balance"
@@ -92,13 +100,15 @@ export default function Wallet() {
             account automatically.
           </p>
         </div>
+        </>
+        )}
 
         <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", padding: "24px" }}>
           <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "4px" }}>
             Booking Payments
           </p>
           <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "20px" }}>
-            Rental income from your bookings — separate from security deposits above. Releases to your payout
+            Rental income from your bookings. Releases to your payout
             account automatically 48 hours after each booking's checkout.
           </p>
           {!data.bookings || data.bookings.length === 0 ? (
@@ -151,6 +161,7 @@ export default function Wallet() {
           )}
         </div>
 
+        {showDeposits && (
         <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", padding: "24px" }}>
           <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "20px" }}>
             Deposit Activity
@@ -198,6 +209,7 @@ export default function Wallet() {
             </div>
           )}
         </div>
+        )}
       </div>
     </DashboardLayout>
   );
