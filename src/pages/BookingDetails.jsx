@@ -1036,6 +1036,18 @@ export default function BookingDetails() {
   const [leaseSignedAt, setLeaseSignedAt] = useState(null);
   const [signedIp, setSignedIp] = useState(null);
   const [hostContact, setHostContact] = useState(null);
+  // What cancelling now would refund -- shown in the cancel confirmation.
+  const [cancelPreview, setCancelPreview] = useState(null);
+
+  useEffect(() => {
+    if (modal !== "cancel") {
+      setCancelPreview(null);
+      return;
+    }
+    apiFetch({ endpoint: `/bookings/${id}/cancel-preview`, showErrorToast: false })
+      .then(setCancelPreview)
+      .catch(() => setCancelPreview({ error: true }));
+  }, [modal, id]);
 
   // Determine if current user is the host
   const isHost = Boolean(
@@ -1340,7 +1352,15 @@ export default function BookingDetails() {
       {modal === "cancel" && (
         <ConfirmModal
           title="Cancel this booking?"
-          message="This may trigger a refund based on your cancellation policy. This cannot be undone."
+          message={
+            cancelPreview === null
+              ? "Checking your refund…"
+              : cancelPreview.error
+              ? "This may trigger a refund based on your cancellation policy. This cannot be undone."
+              : cancelPreview.charged
+              ? `You'll be refunded £${cancelPreview.refundAmount.toFixed(2)} (${cancelPreview.percent}%). ${cancelPreview.reason}. This cannot be undone.`
+              : `${cancelPreview.reason} This cannot be undone.`
+          }
           confirmLabel="Yes, Cancel"
           confirmClass="bg-red-600 hover:bg-red-700"
           onConfirm={handleCancel}
