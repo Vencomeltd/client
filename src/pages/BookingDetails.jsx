@@ -1414,7 +1414,7 @@ export default function BookingDetails() {
               Booking #{id?.slice(-6).toUpperCase()}
             </p>
             <h1 className="text-2xl lg:text-3xl font-bold text-white leading-tight">
-              {property?.name || "Property Booking"}
+              {property?.title || property?.name || "Property Booking"}
             </h1>
             <p className="text-slate-200 text-sm mt-1">
               {property?.address ||
@@ -1442,7 +1442,7 @@ export default function BookingDetails() {
                 {property.images?.[0] && (
                   <img
                     src={property.images[0]}
-                    alt={property.name}
+                    alt={property.title || property.name}
                     className="w-full h-44 object-cover"
                   />
                 )}
@@ -1451,7 +1451,7 @@ export default function BookingDetails() {
                     Property
                   </p>
                   <p className="font-semibold text-slate-900 text-sm">
-                    {property.name}
+                    {property.title || property.name}
                   </p>
                   <p className="text-slate-400 text-xs mt-1">
                     {property.address ||
