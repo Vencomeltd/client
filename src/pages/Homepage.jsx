@@ -34,7 +34,7 @@ const BRAND = {
   navy: "#0A1628",
   gold: "#305CDE",
   goldDark: "#305CDE",
-  bg: "#F8F6F0",
+  bg: "#FFFFFF",
   white: "#FFFFFF",
   text: "#111827",
   mid: "#6B7280",
@@ -758,7 +758,7 @@ function RecentBlogs({ blogs, loading }) {
           {blogs.slice(0, 3).map((blog) => (
             <a key={blog._id} href={`/blog/${blog.slug}`} style={{ textDecoration: "none" }}>
               <div
-                style={{ background: "#F8F6F0", borderRadius: 16, overflow: "hidden", border: "1.5px solid #E5E7EB", transition: "box-shadow 0.2s", cursor: "pointer" }}
+                style={{ background: "#FFFFFF", borderRadius: 16, overflow: "hidden", border: "1.5px solid #E5E7EB", transition: "box-shadow 0.2s", cursor: "pointer" }}
                 onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.10)"}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
               >

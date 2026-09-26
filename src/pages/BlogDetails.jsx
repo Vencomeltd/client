@@ -120,7 +120,7 @@ export default function BlogDetails() {
   };
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "80px 24px" }}>
         <div style={{ height: 40, background: "#F3F4F6", borderRadius: 8, marginBottom: 20, width: "70%" }} />
@@ -134,7 +134,7 @@ export default function BlogDetails() {
   );
 
   if (notFound) return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "80px 24px", textAlign: "center" }}>
         <h1 style={{ fontSize: 32, fontWeight: 800, color: "#0A1628", marginBottom: 16 }}>Blog not found</h1>
@@ -145,7 +145,7 @@ export default function BlogDetails() {
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <article style={{ maxWidth: 760, margin: "0 auto", padding: "60px 24px 80px" }}>
         <Link to="/blog" style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 32 }}>
@@ -193,7 +193,7 @@ export default function BlogDetails() {
         )}
 
         {/* Share Section */}
-        <div style={{ marginTop: 32, padding: 24, background: "#F8F6F0", borderRadius: 16, border: "1.5px solid #E5E7EB" }}>
+        <div style={{ marginTop: 32, padding: 24, background: "#FFFFFF", borderRadius: 16, border: "1.5px solid #E5E7EB" }}>
           <p style={{ fontSize: 14, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Share this article</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <a
@@ -346,7 +346,7 @@ export default function BlogDetails() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
               {recentBlogs.map((rb) => (
                 <a key={rb._id} href={`/blog/${rb.slug}`} style={{ textDecoration: "none" }}>
-                  <div style={{ background: "#F8F6F0", borderRadius: 14, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
+                  <div style={{ background: "#FFFFFF", borderRadius: 14, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
                     {rb.coverImage ? (
                       <img src={rb.coverImage} alt={rb.title} style={{ width: "100%", height: 130, objectFit: "cover" }} />
                     ) : (

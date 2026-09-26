@@ -10,7 +10,7 @@ const COLORS = {
   blue: "#2E58EC",
   navy: "#0A1628",
   white: "#FFFFFF",
-  bg: "#F8F6F0",
+  bg: "#FFFFFF",
   border: "#E5E7EB",
   grey: "#6B7280",
   error: "#DC2626",

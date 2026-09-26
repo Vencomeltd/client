@@ -14,7 +14,7 @@ export default function PlatformReviewsSection() {
   if (reviews.length === 0) return null;
 
   return (
-    <section style={{ background: "#F8F6F0", padding: "80px 24px" }}>
+    <section style={{ background: "#FFFFFF", padding: "80px 24px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <h2 style={{ fontSize: 32, fontWeight: 800, color: "#0A1628", marginBottom: 8 }}>

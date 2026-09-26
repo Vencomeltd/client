@@ -70,7 +70,7 @@ export default function ReferHost() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "80px 24px 60px" }}>
         {/* Hero */}

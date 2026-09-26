@@ -4,7 +4,7 @@ import Footer from "./Footer";
 
 const COLORS = {
   navy: "#0A1628",
-  background: "#F8F6F0",
+  background: "#FFFFFF",
   border: "#E5E7EB",
   text: "#374151",
   muted: "#6B7280",

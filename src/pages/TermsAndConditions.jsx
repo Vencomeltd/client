@@ -49,7 +49,7 @@ export default function TermsAndConditions() {
   }, []);
 
   return (
-    <div style={{ background: "#F8F6F0", minHeight: "100vh" }}>
+    <div style={{ background: "#FFFFFF", minHeight: "100vh" }}>
       <Navbar />
 
       {/* Hero */}

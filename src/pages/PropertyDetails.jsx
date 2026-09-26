@@ -44,7 +44,7 @@ const BRAND = {
   navy: "#0A1628",
   gold: "#305CDE",
   goldDark: "#254FC7",
-  bg: "#F8F6F0",
+  bg: "#FFFFFF",
   white: "#FFFFFF",
   text: "#111827",
   mid: "#6B7280",
@@ -1708,7 +1708,7 @@ export default function PropertyDetails() {
     <>
       <Navbar />
 
-      <div className="min-h-screen overflow-x-hidden bg-[#F8F6F0] pb-24 md:pb-0">
+      <div className="min-h-screen overflow-x-hidden bg-white pb-24 md:pb-0">
         <PhotoGallery
           images={propertyView.images}
           onOpen={openImage}
@@ -2608,7 +2608,7 @@ function TitleBlock({ property, isSaved, saveLoading, onToggleSave, onReport }) 
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
-            background: "#F8F6F0",
+            background: "#FFFFFF",
             border: "1px solid #E5E7EB",
             borderRadius: "9999px",
             padding: "6px 14px",
@@ -4062,7 +4062,7 @@ function BookingSidebar({
       ) : null}
 
       {bookingMetrics?.subtotal > 0 && (
-        <div style={{ background: "#F8F6F0", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
+        <div style={{ background: "#FFFFFF", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "13px", color: "#6B7280" }}>
               {bookingMetrics.breakdown || bookingMetrics.label}

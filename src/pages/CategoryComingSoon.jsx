@@ -13,7 +13,7 @@ export default function CategoryComingSoon() {
       <Navbar />
       <main
         className="flex min-h-[70vh] items-center justify-center px-4 py-20"
-        style={{ backgroundColor: "#F8F6F0" }}
+        style={{ backgroundColor: "#FFFFFF" }}
       >
         <motion.div
           initial={{ opacity: 0, y: 20 }}

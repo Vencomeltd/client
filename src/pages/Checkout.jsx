@@ -118,7 +118,7 @@ export default function Checkout() {
     : "";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "100px 20px 40px" }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, color: "#0A1628", marginBottom: 28 }}>

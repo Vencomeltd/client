@@ -67,7 +67,7 @@ const NotFound = () => {
         .nf-root {
           font-family: 'Barlow', sans-serif;
           min-height: 100vh;
-          background: #f7f7f5;
+          background: #ffffff;
           display: flex;
           align-items: center;
           justify-content: center;

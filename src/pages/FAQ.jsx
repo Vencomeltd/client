@@ -52,7 +52,7 @@ export default function FAQ() {
   const [openItem, setOpenItem] = useState(null);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8F6F0" }}>
+    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <Navbar />
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "80px 24px 80px" }}>
         <div style={{ textAlign: "center", marginBottom: 56 }}>
