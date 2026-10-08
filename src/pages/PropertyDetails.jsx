@@ -4296,6 +4296,13 @@ function Lightbox({
 }) {
   const [zoomLevel, setZoomLevel] = useState(1);
   const currentLightboxImage = images[activeImageIndex];
+  // Single tap used to cycle zoom on every click, which fought with the swipe
+  // gesture below -- on mobile a swipe that didn't clear the drag threshold
+  // still fired as a tap, so swiping to the next photo randomly zoomed in
+  // instead (reported by the team: "sometimes it will zoom in instead of
+  // moving pictures"). Zooming now needs a deliberate double-tap, same as
+  // any native photo viewer; the +/- buttons below remain for explicit zoom.
+  const lastTapRef = useRef(0);
 
   useEffect(() => {
     const navbar =
@@ -4425,10 +4432,15 @@ function Lightbox({
                       transition: "transform 0.2s ease",
                       cursor: zoomLevel > 1 ? "zoom-out" : "zoom-in",
                       userSelect: "none",
+                      touchAction: "pan-y",
                     }}
-                    onClick={() =>
-                      setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1))
-                    }
+                    onClick={() => {
+                      const now = Date.now();
+                      if (now - lastTapRef.current < 300) {
+                        setZoomLevel((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1));
+                      }
+                      lastTapRef.current = now;
+                    }}
                   />
                 </div>
               </motion.div>
