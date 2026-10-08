@@ -335,7 +335,14 @@ const normalizePropertyData = (property) => {
   ]
     .filter(Boolean)
     .join(", ");
-  const imageList = [property.coverImage, ...(property.images || [])].filter(Boolean);
+  // coverImage is set to images[0] on every save (see Property.coverImage in
+  // the server schema/routes), so prepending it unconditionally duplicated
+  // the first photo in every gallery -- de-dupe instead of blindly
+  // concatenating, so a listing only ever shows its cover photo once.
+  const baseImages = (property.images || []).filter(Boolean);
+  const imageList = property.coverImage
+    ? [property.coverImage, ...baseImages.filter((img) => img !== property.coverImage)]
+    : baseImages;
   const pricing = buildPricingTiers(property.pricing || {});
   const amenities = (property.features?.amenities || []).map((amenity) => ({
     label: amenity,
@@ -2245,145 +2252,148 @@ export default function PropertyDetails() {
   );
 }
 
+// Single full-width hero photo + thumbnail strip, on both mobile and
+// desktop (was a cropped 1-big+4-small grid on desktop and a separate
+// mobile-only swiper -- hosts' photos were never shown at full width, and
+// desktop had no way to page through photos without opening the lightbox).
+// Swipe/drag is mobile-only; desktop uses the arrow buttons and thumbnails
+// instead, per request.
 function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage, onSelectImage }) {
   const hasDraggedRef = useRef(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [loadedSet, setLoadedSet] = useState(() => new Set());
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const currentSrc = images[activeImageIndex];
+  const markLoaded = (src) =>
+    setLoadedSet((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
+  const isLoaded = loadedSet.has(currentSrc);
+
+  // Changing activeImageIndex swaps the <img>'s src immediately regardless
+  // of whether that photo has loaded yet -- browsers don't keep showing the
+  // old photo while the new one downloads, so without this the swipe looked
+  // like it hadn't registered. Preloading the next/previous photo means a
+  // swipe you've already passed through once is instant from cache, and the
+  // skeleton below covers the gap on a genuinely new photo.
+  useEffect(() => {
+    [activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
+      const src = images[i];
+      if (!src || loadedSet.has(src)) return;
+      const preload = new window.Image();
+      preload.onload = () => markLoaded(src);
+      preload.src = src;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeImageIndex, images]);
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 pt-24 md:px-6 md:pt-28">
       <div className="relative overflow-hidden rounded-2xl">
-        <button
-          type="button"
-          onClick={onShowAll}
-          className="absolute bottom-4 right-4 z-10 hidden items-center gap-2 rounded-lg border border-[#111827] bg-white px-4 py-2 text-[13px] font-semibold text-[#111827] shadow-sm md:inline-flex"
+        <motion.div
+          className="relative h-[300px] w-full sm:h-[380px] md:h-[520px]"
+          drag={!isDesktop && images.length > 1 ? "x" : false}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.08}
+          style={{ touchAction: "pan-y" }}
+          onDragStart={() => {
+            hasDraggedRef.current = true;
+          }}
+          onDragEnd={(_, info) => {
+            if (images.length < 2) return;
+            if (info.offset.x > 60) onChangeImage(-1);
+            else if (info.offset.x < -60) onChangeImage(1);
+          }}
         >
-          <Grid size={16} />
-          <span>Show all photos</span>
-        </button>
-
-        <div className="relative md:hidden">
-          <motion.div
-            className="relative h-[260px] w-full"
-            drag={images.length > 1 ? "x" : false}
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.08}
-            style={{ touchAction: "pan-y" }}
-            onDragStart={() => {
-              hasDraggedRef.current = true;
+          <button
+            type="button"
+            onClick={() => {
+              if (hasDraggedRef.current) {
+                hasDraggedRef.current = false;
+                return;
+              }
+              onOpen(activeImageIndex);
             }}
-            onDragEnd={(_, info) => {
-              if (images.length < 2) return;
-              if (info.offset.x > 60) onChangeImage(-1);
-              else if (info.offset.x < -60) onChangeImage(1);
-            }}
+            className="relative block h-full w-full"
           >
+            {!isLoaded ? <div className="absolute inset-0 animate-pulse bg-[#F3F4F6]" /> : null}
+            <img
+              key={currentSrc}
+              {...getResponsiveImageProps(currentSrc)}
+              sizes="100vw"
+              alt={`Property view ${activeImageIndex + 1}`}
+              className="h-full w-full select-none object-cover"
+              draggable={false}
+              onLoad={() => markLoaded(currentSrc)}
+            />
+          </button>
+        </motion.div>
+
+        {images.length > 1 ? (
+          <>
+            <span className="pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-sm">
+              <Grid size={13} />
+              {activeImageIndex + 1} / {images.length}
+            </span>
+
             <button
               type="button"
-              onClick={() => {
-                if (hasDraggedRef.current) {
-                  hasDraggedRef.current = false;
-                  return;
-                }
-                onOpen(activeImageIndex);
+              aria-label="Next photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChangeImage(1);
               }}
-              className="block h-full w-full"
+              className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm md:h-11 md:w-11"
             >
-              <img
-                {...getResponsiveImageProps(images[activeImageIndex])}
-                sizes="100vw"
-                alt={`Property view ${activeImageIndex + 1}`}
-                className="h-full w-full select-none object-cover"
-                draggable={false}
-              />
+              <ChevronRight size={22} />
             </button>
-          </motion.div>
 
-          {images.length > 1 ? (
-            <>
-              <span className="pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-sm">
-                <Grid size={13} />
-                {activeImageIndex + 1} / {images.length}
-              </span>
-
+            {activeImageIndex > 0 ? (
               <button
                 type="button"
-                aria-label="Next photo"
+                aria-label="Previous photo"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onChangeImage(1);
+                  onChangeImage(-1);
                 }}
-                className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
+                className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm md:h-11 md:w-11"
               >
-                <ChevronRight size={22} />
+                <ChevronLeft size={22} />
               </button>
+            ) : null}
 
-              {activeImageIndex > 0 ? (
-                <button
-                  type="button"
-                  aria-label="Previous photo"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onChangeImage(-1);
-                  }}
-                  className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm"
-                >
-                  <ChevronLeft size={22} />
-                </button>
-              ) : null}
-            </>
-          ) : null}
-        </div>
-
-        <div className="hidden grid-cols-[2fr_1fr_1fr] grid-rows-[240px_240px] gap-1.5 md:grid">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.01 }}
-            onClick={() => onOpen(0)}
-            className="row-span-2 overflow-hidden"
-          >
-            <img
-              {...getResponsiveImageProps(images[0])}
-              sizes="50vw"
-              alt="Property view 1"
-              className="h-full w-full object-cover"
-            />
-          </motion.button>
-
-          {images.slice(1).map((image, index) => (
-            <motion.button
-              key={image}
+            <button
               type="button"
-              whileHover={{ scale: 1.03 }}
-              onClick={() => onOpen(index + 1)}
-              className={`overflow-hidden ${
-                index === 1 ? "rounded-tr-[12px]" : ""
-              } ${index === 3 ? "rounded-br-[12px]" : ""}`}
+              onClick={onShowAll}
+              className="absolute bottom-4 left-4 z-10 hidden items-center gap-2 rounded-lg border border-[#111827] bg-white px-4 py-2 text-[13px] font-semibold text-[#111827] shadow-sm md:inline-flex"
             >
-              <img
-                {...getResponsiveImageProps(image)}
-                sizes="25vw"
-                alt={`Property view ${index + 2}`}
-                className="h-full w-full object-cover"
-              />
-            </motion.button>
-          ))}
-        </div>
+              <Grid size={16} />
+              <span>Show all photos</span>
+            </button>
+          </>
+        ) : null}
       </div>
 
       {images.length > 1 ? (
-        <div className="mt-2 flex gap-2 overflow-x-auto md:hidden">
+        <div className="mt-2 flex gap-2 overflow-x-auto">
           {images.map((image, index) => (
             <button
               key={`thumb-${index}`}
               type="button"
               onClick={() => onSelectImage(index)}
               aria-label={`View photo ${index + 1}`}
-              className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 ${
+              className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 md:h-16 md:w-16 ${
                 index === activeImageIndex ? "border-[#111827]" : "border-transparent opacity-60"
               }`}
             >
               <img
                 {...getResponsiveImageProps(image)}
-                sizes="56px"
+                sizes="64px"
                 alt={`Property thumbnail ${index + 1}`}
                 className="h-full w-full object-cover"
               />
