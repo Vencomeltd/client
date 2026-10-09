@@ -23,6 +23,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
   const [deleteError, setDeleteError] = useState(null);
   const [deletingPhotoUrl, setDeletingPhotoUrl] = useState(null);
   const [photoError, setPhotoError] = useState("");
+  const [viewingPhoto, setViewingPhoto] = useState(null);
 
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
@@ -401,13 +402,34 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save");
+        // A gateway timeout or server crash can return an HTML error page
+        // instead of JSON -- response.json() would then throw its own
+        // cryptic "Unexpected token <..." parse error, which is exactly
+        // the kind of unclear message reported ("can these error messages
+        // be clear what the reason is"). Fall back to a plain
+        // status-code message instead of letting that parse error surface.
+        let message = `Failed to save (server error ${response.status}). Please try again.`;
+        try {
+          const data = await response.json();
+          if (data.error) message = data.error;
+        } catch {
+          // not JSON -- keep the status-code fallback above
+        }
+        throw new Error(message);
       }
 
       setSuccessModal(true);
     } catch (err) {
-      alert(err.message);
+      // fetch() itself throws a TypeError (not an HTTP error response) when
+      // the request never reached the server at all -- no connection, DNS
+      // failure, etc. That's the "has to do with their WiFi" case asked
+      // about; everything else is a real response from our server.
+      const isConnectionError = err instanceof TypeError;
+      alert(
+        isConnectionError
+          ? "Couldn't reach the server. Check your internet connection and try again."
+          : err.message
+      );
     } finally {
       setSaving(false);
     }
@@ -686,18 +708,24 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                   <img
                     src={url}
                     alt=""
+                    onClick={() => setViewingPhoto(url)}
                     style={{
                       width: "100%",
                       height: "110px",
-                      objectFit: "cover",
+                      objectFit: "contain",
+                      background: "#F3F4F6",
                       display: "block",
+                      cursor: "pointer",
                       opacity: deletingPhotoUrl === url ? 0.4 : 1,
                     }}
                   />
                   <button
                     type="button"
                     aria-label="Delete photo"
-                    onClick={() => handleDeletePhoto(url)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePhoto(url);
+                    }}
                     disabled={deletingPhotoUrl === url}
                     style={{
                       position: "absolute",
@@ -741,7 +769,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                   <img
                     src={URL.createObjectURL(file)}
                     alt=""
-                    style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
+                    onClick={() => setViewingPhoto(URL.createObjectURL(file))}
+                    style={{ width: "100%", height: "110px", objectFit: "contain", background: "#F3F4F6", display: "block", cursor: "pointer" }}
                   />
                   <span
                     style={{
@@ -761,7 +790,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                   <button
                     type="button"
                     aria-label="Remove new photo"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const updated = formData.photos.filter((_, i) => i !== index);
                       setFormData((prev) => ({ ...prev, photos: updated }));
                     }}
@@ -821,6 +851,35 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               JPEG, PNG, WebP up to 10MB each
             </p>
           </label>
+
+          {viewingPhoto ? (
+            <div
+              onClick={() => setViewingPhoto(null)}
+              style={{
+                position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.85)",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+              }}
+            >
+              <img
+                src={viewingPhoto}
+                alt=""
+                onClick={(e) => e.stopPropagation()}
+                style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }}
+              />
+              <button
+                type="button"
+                onClick={() => setViewingPhoto(null)}
+                aria-label="Close"
+                style={{
+                  position: "fixed", top: 20, right: 20, width: 40, height: 40, borderRadius: "50%",
+                  border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 18,
+                  cursor: "pointer", backdropFilter: "blur(4px)",
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
         </div>
 
         <div
