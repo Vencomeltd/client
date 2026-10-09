@@ -236,14 +236,14 @@ export default function PropertyCard({
       >
         <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition duration-200 ease-out group-hover:border-[#305CDE] group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)]">
           <Link to={`/property/${listing.slug || listing.id}`} className="flex flex-1 flex-col">
-            <div className="relative overflow-hidden rounded-[12px]">
+            <div className="relative overflow-hidden rounded-[12px] bg-[#F3F4F6]">
               <div className="aspect-[4/3] w-full" />
 
               <img
                 {...getResponsiveImageProps(listing.image)}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                 alt={listing.title}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.05]"
+                className="absolute inset-0 h-full w-full object-contain transition-transform duration-[400ms] ease-out group-hover:scale-[1.05]"
                 loading="lazy"
               />
 

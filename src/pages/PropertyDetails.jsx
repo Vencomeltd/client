@@ -2265,13 +2265,25 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
   // this, swiping looked stuck because the browser just shows nothing while
   // the new src downloads. Preloading the neighbour means a swipe back to a
   // photo you've already passed is instant from cache.
+  //
+  // Also probes the CURRENT photo, not just the neighbours -- the very
+  // first photo is already sitting in the server-rendered HTML, so the
+  // browser can finish loading it (and fire its native 'load' event)
+  // before React even hydrates and attaches the <img>'s onLoad handler.
+  // That event firing before any listener exists meant markLoaded(src)
+  // never ran for it, so the skeleton stayed up forever unless something
+  // else (like clicking next) happened to trigger a re-check. Creating a
+  // fresh Image() and checking .complete catches an already-cached photo
+  // synchronously instead of depending on a load event that may already
+  // be in the past.
   useEffect(() => {
-    [activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
+    [activeImageIndex, activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
       const src = images[i];
       if (!src || loadedSet.has(src)) return;
-      const preload = new window.Image();
-      preload.onload = () => markLoaded(src);
-      preload.src = src;
+      const probe = new window.Image();
+      probe.onload = () => markLoaded(src);
+      probe.src = src;
+      if (probe.complete) markLoaded(src);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeImageIndex, images]);
@@ -2321,10 +2333,11 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 {...getResponsiveImageProps(currentSrc)}
                 sizes="100vw"
                 alt={`Property view ${activeImageIndex + 1}`}
-                className="h-full w-full select-none object-cover"
+                className="h-full w-full select-none object-contain"
                 draggable={false}
                 fetchPriority={activeImageIndex === 0 ? "high" : "auto"}
                 onLoad={() => markLoaded(currentSrc)}
+                style={{ opacity: isCurrentLoaded ? 1 : 0 }}
               />
             </button>
           </motion.div>
@@ -2376,7 +2389,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
               {...getResponsiveImageProps(images[0])}
               sizes="50vw"
               alt="Property view 1"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
               fetchPriority="high"
             />
           </motion.button>
@@ -2395,7 +2408,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 {...getResponsiveImageProps(image)}
                 sizes="25vw"
                 alt={`Property view ${index + 2}`}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 loading="lazy"
               />
             </motion.button>
@@ -4347,15 +4360,21 @@ function Lightbox({
   // the swap to the next photo shouldn't wait on it finishing loading. This
   // preloads the neighbours so stepping through photos you've already
   // passed is instant, and shows a loading state below for a genuinely new
-  // one instead of a blank/broken-looking gap.
+  // one instead of a blank/broken-looking gap. Also probes the CURRENT
+  // photo (not just neighbours) via .complete -- if it's already in the
+  // browser's cache (e.g. the same photo was just shown in the hero behind
+  // this lightbox), a plain onLoad handler can miss it entirely because the
+  // image finishes before the handler is attached, leaving the loading
+  // state stuck on indefinitely.
   useEffect(() => {
     if (!isOpen) return;
-    [activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
+    [activeImageIndex, activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
       const src = images[i];
       if (!src || loadedSet.has(src)) return;
-      const preload = new window.Image();
-      preload.onload = () => markLoaded(src);
-      preload.src = src;
+      const probe = new window.Image();
+      probe.onload = () => markLoaded(src);
+      probe.src = src;
+      if (probe.complete) markLoaded(src);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeImageIndex, images, isOpen]);
