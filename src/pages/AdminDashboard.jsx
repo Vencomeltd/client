@@ -1583,6 +1583,7 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
   const [propertyDbId, setPropertyDbId] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(null);
+  const [viewingPhoto, setViewingPhoto] = useState(null);
 
   const reloadListing = () => {
     if (!listingId) return;
@@ -1769,11 +1770,15 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
                   <img
                     src={url}
                     alt=""
-                    style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F3F4F6" }}
+                    onClick={() => setViewingPhoto(url)}
+                    style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F3F4F6", cursor: "pointer" }}
                   />
                   <button
                     type="button"
-                    onClick={() => handleDeletePhoto(url)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePhoto(url);
+                    }}
                     disabled={deletingPhoto === url}
                     aria-label="Delete photo"
                     style={{
@@ -1797,6 +1802,35 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
                 <input type="file" accept="image/*" onChange={handleUploadPhoto} disabled={uploadingPhoto} style={{ display: "none" }} />
               </label>
             </div>
+
+            {viewingPhoto ? (
+              <div
+                onClick={() => setViewingPhoto(null)}
+                style={{
+                  position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.85)",
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+                }}
+              >
+                <img
+                  src={viewingPhoto}
+                  alt=""
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setViewingPhoto(null)}
+                  aria-label="Close"
+                  style={{
+                    position: "fixed", top: 20, right: 20, width: 40, height: 40, borderRadius: "50%",
+                    border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", fontSize: 18,
+                    cursor: "pointer", backdropFilter: "blur(4px)",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
 
             <div style={section}>Location</div>
             <label style={label}>Address</label>
