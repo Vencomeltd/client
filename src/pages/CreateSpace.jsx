@@ -2238,9 +2238,19 @@ export default function CreateSpace() {
                       style={{ display: "none" }}
                       onChange={(e) => {
                         const files = Array.from(e.target.files || []);
-                        const current = form.images || [];
-                        const combined = [...current, ...files].slice(0, 10);
-                        updateField("images", combined);
+                        // Was reading form.images from this closure instead
+                        // of current state -- the autosave effect below can
+                        // commit its own setForm (resolving uploaded photos
+                        // to their R2 URLs) between renders, so adding
+                        // photos in quick succession could silently drop
+                        // whatever that in-flight update had just written
+                        // (reported: photos disappearing while uploading,
+                        // all but the first one gone). setForm's functional
+                        // form always reads the true latest state.
+                        setForm((current) => ({
+                          ...current,
+                          images: [...(current.images || []), ...files].slice(0, 10),
+                        }));
                         e.target.value = "";
                       }}
                     />
