@@ -1264,24 +1264,30 @@ export default function PropertyDetails() {
   const unavailableDates = useMemo(() => {
     const set = new Set();
     const blocked = property?.blockedDates || [];
-    blocked.forEach(({ start, end }) => {
-      const cursor = new Date(start);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    // An hourly booking/block only occupies part of a day -- walking every
+    // calendar day it touches and marking the whole thing unavailable blocked
+    // every OTHER hour that day too (reported: "hourly unit listing blocks
+    // whole day in calendar"). While the user's viewing in hourly mode, skip
+    // marking the day for any range shorter than a full 24h (a genuine
+    // full-day block/booking still blocks the day either way). The server
+    // independently re-checks the exact time range at booking time, so this
+    // is purely a display fix, not a source of real double-booking.
+    const addRange = (start, end) => {
+      const startDate = new Date(start);
       const endDate = new Date(end);
+      const spansFullDay = endDate - startDate >= MS_PER_DAY;
+      if (selectedDurationType === "hourly" && !spansFullDay) return;
+      const cursor = new Date(startDate);
       while (cursor <= endDate) {
         set.add(new Date(cursor).toDateString());
         cursor.setDate(cursor.getDate() + 1);
       }
-    });
-    bookedDates.forEach(({ start, end }) => {
-      const cursor = new Date(start);
-      const endDate = new Date(end);
-      while (cursor <= endDate) {
-        set.add(new Date(cursor).toDateString());
-        cursor.setDate(cursor.getDate() + 1);
-      }
-    });
+    };
+    blocked.forEach(({ start, end }) => addRange(start, end));
+    bookedDates.forEach(({ start, end }) => addRange(start, end));
     return set;
-  }, [property, bookedDates]);
+  }, [property, bookedDates, selectedDurationType]);
 
   const calendarDays = useMemo(() => createMonthDays(visibleMonth), [visibleMonth]);
 

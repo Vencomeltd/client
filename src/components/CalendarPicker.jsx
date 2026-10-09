@@ -314,7 +314,16 @@ export default function CalendarPicker({
                   const tMin = timeToMinutes(t);
                   const openMin = openTime ? timeToMinutes(openTime) : 0;
                   const closeMin = closeTime ? timeToMinutes(closeTime) : 23 * 60 + 30;
-                  const isRestricted = openTime && closeTime && (tMin < openMin || tMin > closeMin);
+                  // This only ever checked business hours -- a time slot
+                  // earlier today than right now was still bookable
+                  // (reported: past time slots bookable). isToday + a
+                  // now-minutes check closes that for the current day only;
+                  // any future date is unaffected.
+                  const now = new Date();
+                  const isToday = selectedDate && selectedDate.getTime() === startOfDay(now).getTime();
+                  const nowMin = now.getHours() * 60 + now.getMinutes();
+                  const isPastTime = isToday && tMin <= nowMin;
+                  const isRestricted = (openTime && closeTime && (tMin < openMin || tMin > closeMin)) || isPastTime;
                   const isSelected = selectedTime === t;
                   return (
                     <button
@@ -322,7 +331,7 @@ export default function CalendarPicker({
                       type="button"
                       onClick={() => !isRestricted && handleTimeSelect(t)}
                       disabled={isRestricted}
-                      title={isRestricted ? `Available ${openTime} - ${closeTime} only` : ""}
+                      title={isPastTime ? "This time has already passed" : isRestricted ? `Available ${openTime} - ${closeTime} only` : ""}
                       style={{
                         padding: "8px",
                         borderRadius: "8px",
