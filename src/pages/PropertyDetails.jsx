@@ -2252,13 +2252,30 @@ export default function PropertyDetails() {
   );
 }
 
+// Mobile hero container never renders shorter (more "square") than this --
+// a landscape photo's own (wider) ratio is used as-is, but a portrait photo
+// gets floored up to this so it displays inside a horizontal rectangle
+// (letterboxed, not cropped) instead of stretching the whole gallery down
+// into a tall strip.
+const MIN_HERO_ASPECT_RATIO = 4 / 3;
+
 function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage, onSelectImage }) {
   const hasDraggedRef = useRef(false);
   const [loadedSet, setLoadedSet] = useState(() => new Set());
+  const [aspectRatios, setAspectRatios] = useState({});
   const markLoaded = (src) =>
     setLoadedSet((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
+  const recordAspectRatio = (src, img) => {
+    if (img.naturalWidth && img.naturalHeight) {
+      setAspectRatios((prev) => ({ ...prev, [src]: img.naturalWidth / img.naturalHeight }));
+    }
+  };
   const currentSrc = images[activeImageIndex];
   const isCurrentLoaded = loadedSet.has(currentSrc);
+  const currentAspectRatio = Math.max(
+    aspectRatios[currentSrc] || MIN_HERO_ASPECT_RATIO,
+    MIN_HERO_ASPECT_RATIO
+  );
 
   // Mobile only: swapping activeImageIndex swaps this single <img>'s src
   // immediately regardless of whether that photo has loaded yet -- without
@@ -2281,9 +2298,15 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
       const src = images[i];
       if (!src || loadedSet.has(src)) return;
       const probe = new window.Image();
-      probe.onload = () => markLoaded(src);
+      probe.onload = () => {
+        markLoaded(src);
+        recordAspectRatio(src, probe);
+      };
       probe.src = src;
-      if (probe.complete) markLoaded(src);
+      if (probe.complete) {
+        markLoaded(src);
+        recordAspectRatio(src, probe);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeImageIndex, images]);
@@ -2302,11 +2325,11 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
 
         <div className="relative md:hidden">
           <motion.div
-            className="relative h-[260px] w-full"
+            className="relative w-full"
             drag={images.length > 1 ? "x" : false}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.08}
-            style={{ touchAction: "pan-y" }}
+            style={{ touchAction: "pan-y", aspectRatio: currentAspectRatio }}
             onDragStart={() => {
               hasDraggedRef.current = true;
             }}
@@ -2389,7 +2412,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
               {...getResponsiveImageProps(images[0])}
               sizes="50vw"
               alt="Property view 1"
-              className="h-full w-full object-contain"
+              className="h-full w-full object-cover"
               fetchPriority="high"
             />
           </motion.button>
@@ -2408,7 +2431,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 {...getResponsiveImageProps(image)}
                 sizes="25vw"
                 alt={`Property view ${index + 2}`}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
                 loading="lazy"
               />
             </motion.button>

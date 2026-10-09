@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
@@ -86,6 +86,10 @@ const resolveListingData = ({
       source.coverImage ??
       source.images?.[0] ??
       "https://via.placeholder.com/800x600?text=VenCome",
+    // Full gallery, used so the card can swap to the next photo on hover.
+    images: source.images?.length
+      ? source.images
+      : [image ?? source.image ?? source.coverImage].filter(Boolean),
     title: title ?? source.title ?? "Untitled space",
     location:
       location ??
@@ -214,6 +218,9 @@ export default function PropertyCard({
     if (onSave) onSave(listing.id);
   };
 
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverImage = isHovered && listing.images[1] ? listing.images[1] : listing.image;
+
   if (listing.isLoading) {
     return <SkeletonCard />;
   }
@@ -235,15 +242,20 @@ export default function PropertyCard({
         className="group h-full w-full"
       >
         <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition duration-200 ease-out group-hover:border-[#305CDE] group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)]">
-          <Link to={`/property/${listing.slug || listing.id}`} className="flex flex-1 flex-col">
-            <div className="relative overflow-hidden rounded-[12px] bg-[#F3F4F6]">
+          <Link
+            to={`/property/${listing.slug || listing.id}`}
+            className="flex flex-1 flex-col"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            <div className="relative overflow-hidden rounded-[12px]">
               <div className="aspect-[4/3] w-full" />
 
               <img
-                {...getResponsiveImageProps(listing.image)}
+                {...getResponsiveImageProps(hoverImage)}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                 alt={listing.title}
-                className="absolute inset-0 h-full w-full object-contain transition-transform duration-[400ms] ease-out group-hover:scale-[1.05]"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.02]"
                 loading="lazy"
               />
 
