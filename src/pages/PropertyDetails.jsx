@@ -2254,6 +2254,27 @@ export default function PropertyDetails() {
 
 function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeImage, onSelectImage }) {
   const hasDraggedRef = useRef(false);
+  const [loadedSet, setLoadedSet] = useState(() => new Set());
+  const markLoaded = (src) =>
+    setLoadedSet((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
+  const currentSrc = images[activeImageIndex];
+  const isCurrentLoaded = loadedSet.has(currentSrc);
+
+  // Mobile only: swapping activeImageIndex swaps this single <img>'s src
+  // immediately regardless of whether that photo has loaded yet -- without
+  // this, swiping looked stuck because the browser just shows nothing while
+  // the new src downloads. Preloading the neighbour means a swipe back to a
+  // photo you've already passed is instant from cache.
+  useEffect(() => {
+    [activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
+      const src = images[i];
+      if (!src || loadedSet.has(src)) return;
+      const preload = new window.Image();
+      preload.onload = () => markLoaded(src);
+      preload.src = src;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeImageIndex, images]);
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 pt-24 md:px-6 md:pt-28">
@@ -2292,14 +2313,18 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 }
                 onOpen(activeImageIndex);
               }}
-              className="block h-full w-full"
+              className="relative block h-full w-full"
             >
+              {!isCurrentLoaded ? <div className="absolute inset-0 animate-pulse bg-[#F3F4F6]" /> : null}
               <img
-                {...getResponsiveImageProps(images[activeImageIndex])}
+                key={currentSrc}
+                {...getResponsiveImageProps(currentSrc)}
                 sizes="100vw"
                 alt={`Property view ${activeImageIndex + 1}`}
                 className="h-full w-full select-none object-cover"
                 draggable={false}
+                fetchPriority={activeImageIndex === 0 ? "high" : "auto"}
+                onLoad={() => markLoaded(currentSrc)}
               />
             </button>
           </motion.div>
@@ -2352,6 +2377,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
               sizes="50vw"
               alt="Property view 1"
               className="h-full w-full object-cover"
+              fetchPriority="high"
             />
           </motion.button>
 
@@ -2370,6 +2396,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 sizes="25vw"
                 alt={`Property view ${index + 2}`}
                 className="h-full w-full object-cover"
+                loading="lazy"
               />
             </motion.button>
           ))}
@@ -2393,6 +2420,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
                 sizes="56px"
                 alt={`Property thumbnail ${index + 1}`}
                 className="h-full w-full object-cover"
+                loading="lazy"
               />
             </button>
           ))}
@@ -4310,6 +4338,27 @@ function Lightbox({
   // moving pictures"). Zooming now needs a deliberate double-tap, same as
   // any native photo viewer; the +/- buttons below remain for explicit zoom.
   const lastTapRef = useRef(0);
+  const [loadedSet, setLoadedSet] = useState(() => new Set());
+  const markLoaded = (src) =>
+    setLoadedSet((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
+  const isCurrentLoaded = loadedSet.has(currentLightboxImage);
+
+  // Swiping/clicking next always advances the active index immediately --
+  // the swap to the next photo shouldn't wait on it finishing loading. This
+  // preloads the neighbours so stepping through photos you've already
+  // passed is instant, and shows a loading state below for a genuinely new
+  // one instead of a blank/broken-looking gap.
+  useEffect(() => {
+    if (!isOpen) return;
+    [activeImageIndex - 1, activeImageIndex + 1].forEach((i) => {
+      const src = images[i];
+      if (!src || loadedSet.has(src)) return;
+      const preload = new window.Image();
+      preload.onload = () => markLoaded(src);
+      preload.src = src;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeImageIndex, images, isOpen]);
 
   useEffect(() => {
     const navbar =
@@ -4420,6 +4469,20 @@ function Lightbox({
                     height: "100%",
                   }}
                 >
+                  {!isCurrentLoaded ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        width: "90vw",
+                        height: "90vh",
+                        maxWidth: 600,
+                        maxHeight: 600,
+                        borderRadius: 12,
+                        background: "rgba(255,255,255,0.08)",
+                      }}
+                      className="animate-pulse"
+                    />
+                  ) : null}
                   <motion.img
                     src={currentLightboxImage}
                     alt={`Property image ${activeImageIndex + 1}`}
@@ -4429,6 +4492,7 @@ function Lightbox({
                       if (info.offset.x > 80) onChangeImage(-1);
                       if (info.offset.x < -80) onChangeImage(1);
                     }}
+                    onLoad={() => markLoaded(currentLightboxImage)}
                     style={{
                       maxWidth: zoomLevel === 1 ? "90vw" : "none",
                       maxHeight: zoomLevel === 1 ? "90vh" : "none",
@@ -4440,6 +4504,7 @@ function Lightbox({
                       cursor: zoomLevel > 1 ? "zoom-out" : "zoom-in",
                       userSelect: "none",
                       touchAction: "pan-y",
+                      opacity: isCurrentLoaded ? 1 : 0,
                     }}
                     onClick={() => {
                       const now = Date.now();

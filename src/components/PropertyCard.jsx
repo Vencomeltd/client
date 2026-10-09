@@ -244,6 +244,7 @@ export default function PropertyCard({
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 400px"
                 alt={listing.title}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.05]"
+                loading="lazy"
               />
 
               {displayBadge ? (
