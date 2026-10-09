@@ -1723,7 +1723,18 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
       onSaved?.();
       onClose();
     } catch (err) {
-      setError(err.message || "Failed to save listing");
+      // fetch() throws a TypeError (not an HTTP error response) when the
+      // request never reached the server at all -- no connection, DNS
+      // failure, etc. Same gap reported on the host-facing edit page
+      // ("can these error messages be clear ... has to do with their WiFi
+      // or any other reason"); everything else below is a real response
+      // our own server sent back.
+      const isConnectionError = err instanceof TypeError;
+      setError(
+        isConnectionError
+          ? "Couldn't reach the server. Check your internet connection and try again."
+          : err.message || "Failed to save listing"
+      );
     } finally {
       setSaving(false);
     }
@@ -1988,6 +1999,7 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
 
 function UsersSection({
   users,
+  allUsers,
   totalUsers,
   loading,
   userQuery,
@@ -2013,13 +2025,19 @@ function UsersSection({
   usersTotalPages,
   onUsersPageChange,
 }) {
+  // Counts must come from the full, unfiltered user list -- `users` here is
+  // already narrowed by the active tab/search/role/status filters, so
+  // computing each tab's own badge count from it made every badge collapse
+  // to match whatever filter was currently applied (reported: "when we
+  // click on the host item or customer at the top all the numbers on
+  // their card changes").
   const tabs = [
-    { key: "all", label: `All (${users.length})` },
-    { key: "customers", label: `Customers (${users.filter((item) => getUserRole(item) === "customer").length})` },
-    { key: "hosts", label: `Hosts (${users.filter((item) => getUserRole(item) === "host").length})` },
-    { key: "unverified", label: `Unverified (${users.filter((item) => !item.isVerified).length})` },
-    { key: "suspended", label: `Suspended (${users.filter((item) => item.isBanned).length})` },
-    { key: "pending", label: `Pending Verification (${users.filter((item) => item.isHost && item.businessVerification?.status === "under_review").length})` },
+    { key: "all", label: `All (${allUsers.length})` },
+    { key: "customers", label: `Customers (${allUsers.filter((item) => getUserRole(item) === "customer").length})` },
+    { key: "hosts", label: `Hosts (${allUsers.filter((item) => getUserRole(item) === "host").length})` },
+    { key: "unverified", label: `Unverified (${allUsers.filter((item) => !item.isVerified).length})` },
+    { key: "suspended", label: `Suspended (${allUsers.filter((item) => item.isBanned).length})` },
+    { key: "pending", label: `Pending Verification (${allUsers.filter((item) => item.isHost && item.businessVerification?.status === "under_review").length})` },
   ];
 
   return (
@@ -7697,6 +7715,7 @@ export default function AdminDashboard() {
       <>
       <UsersSection
         users={filteredUsers}
+        allUsers={users}
         totalUsers={stats.totalUsers}
         loading={loading}
         userQuery={userQuery}
