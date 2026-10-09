@@ -1757,8 +1757,20 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
             <div style={section}>Photos</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
               {photos.map((url) => (
-                <div key={url} style={{ position: "relative", width: 90, height: 90 }}>
-                  <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB" }} />
+                // Was a 90x90 square with object-fit: cover -- cropped every
+                // photo to a square regardless of its real shape, and you
+                // had to click through to actually see what it looked like
+                // (reported: "make it regardless of size all visible here
+                // without having to click it"). Bigger, non-square box +
+                // object-fit: contain shows the whole photo uncropped; the
+                // neutral background fills the letterboxed gaps instead of
+                // leaving them blank.
+                <div key={url} style={{ position: "relative", width: 140, height: 100 }}>
+                  <img
+                    src={url}
+                    alt=""
+                    style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F3F4F6" }}
+                  />
                   <button
                     type="button"
                     onClick={() => handleDeletePhoto(url)}
@@ -1776,7 +1788,7 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
               ))}
               <label
                 style={{
-                  width: 90, height: 90, borderRadius: 8, border: "1.5px dashed #E5E7EB",
+                  width: 140, height: 100, borderRadius: 8, border: "1.5px dashed #E5E7EB",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 12, color: "#6B7280", cursor: uploadingPhoto ? "not-allowed" : "pointer", textAlign: "center",
                 }}
