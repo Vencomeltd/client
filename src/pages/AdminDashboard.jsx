@@ -1713,7 +1713,8 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
     setError("");
     try {
       const token = localStorage.getItem("vencome_token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/${listingId}`, {
+      // listingId may be a slug; the admin PATCH route looks listings up by database id.
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties/${propertyDbId || listingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(form),
