@@ -53,6 +53,9 @@ const HelpSupport = () => {
                 <li>
                   Hosts receive payout automatically after the 48-hour period
                 </li>
+                <li>
+                  Once released, payouts take 24–72 hours to reach your bank account
+                </li>
               </ul>
               <p className="mt-4">
                 You can see payment status in <strong>My Bookings</strong>.

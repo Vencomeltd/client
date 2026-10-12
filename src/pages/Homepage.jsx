@@ -807,7 +807,7 @@ function FAQSection() {
     },
     {
       q: "How does payment work?",
-      a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings."
+      a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings. Once released, payouts take 24–72 hours to reach your bank account."
     },
     {
       q: "Can I cancel a booking?",
