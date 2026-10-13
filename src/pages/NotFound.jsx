@@ -1,5 +1,15 @@
 import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { data } from "react-router";
+
+// Catch-all route: send a real 404 status, not a 200 (soft 404).
+export function loader() {
+  return data(null, { status: 404 });
+}
+
+export function meta() {
+  return [{ title: "Page not found | VenCome" }, { name: "robots", content: "noindex" }];
+}
 
 const NotFound = () => {
   const navigate = useNavigate();
