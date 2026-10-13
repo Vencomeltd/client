@@ -21,6 +21,15 @@ export default [
     // existing route regardless of array order.
     route(":subcategorySlug/:locationSlug", "pages/ServiceLocationPage.jsx"),
     route("host/:id", "pages/HostProfile.jsx"),
+    // SEO landing pages (vault item 29). "uk" is a static segment so it
+    // outranks the two-segment service+location route above; a new country
+    // needs its own three lines here, a new city is just data.
+    route("uk", "pages/LandingPage.jsx", { id: "landing-country" }),
+    route("uk/:city", "pages/LandingPage.jsx", { id: "landing-city" }),
+    route("uk/:city/:service", "pages/LandingPage.jsx", { id: "landing-city-service" }),
+    // Service hubs, e.g. /treatment-rooms. Static routes (about, faq, ...)
+    // always outrank this; unknown slugs get a real 404 from the loader.
+    route(":serviceSlug", "pages/LandingPage.jsx", { id: "landing-service" }),
     route("help-support", "pages/HelpSupport.jsx"),
   ]),
 
