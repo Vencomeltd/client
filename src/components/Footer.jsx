@@ -67,7 +67,7 @@ export default function Footer() {
                 <Link to="/press">Press</Link>
               </li>
               <li>
-                <Link to="/blogs">Blog</Link>
+                <Link to="/blog">Blog</Link>
               </li>
               <li>
                 <Link to="/partners">Partners</Link>
@@ -112,7 +112,7 @@ export default function Footer() {
                 <Link to="/sitemap">Sitemap</Link>
               </li>
               <li>
-                <Link to="/blogs">Blog</Link>
+                <Link to="/blog">Blog</Link>
               </li>
             </ul>
           </div>
