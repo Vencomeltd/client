@@ -885,7 +885,7 @@ export default function Settings() {
                   }}>
                     <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "16px" }}>
                       {payoutStatus === "connected"
-                        ? "Payouts release automatically 48 hours after each completed booking, then take 24–72 hours to reach your bank account."
+                        ? "Payouts reach your bank account automatically 24–72 hours after each booking's checkout."
                         : payoutStatus === "pending"
                         ? "You've started onboarding, but Stripe still needs a few more details before payouts can go out."
                         : "You'll need to connect a bank account before you can receive payouts."}
