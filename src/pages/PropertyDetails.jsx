@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useLoaderData, useNavigate } from "react-router-dom";
-import { redirect } from "react-router";
+import { data, redirect } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Accessibility,
@@ -716,10 +716,24 @@ const parseBookingInputValue = (value, duration, boundary = "start") => {
 };
 
 export async function loader({ params, request }) {
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
-  if (!res.ok) return { property: null };
-  const data = await res.json();
-  const property = data.property || data;
+  // A failed API call must not render a live listing as "not found" with a
+  // 200 -- Google records that as a soft 404 and drops the page. Retry once,
+  // then answer 404 only when the listing really doesn't exist, and 503
+  // (retry later) for anything else. The component re-fetches client-side
+  // when property is null, so human visitors still get the listing.
+  let res = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
+      if (res.ok || res.status === 404) break;
+    } catch {
+      res = null;
+    }
+  }
+  if (res?.status === 404) return data({ property: null }, { status: 404 });
+  if (!res?.ok) return data({ property: null }, { status: 503, headers: { "Retry-After": "120" } });
+  const body = await res.json();
+  const property = body.property || body;
   // Canonicalize old ObjectId links to the slug URL once one exists, so
   // search engines index a single URL per listing instead of two. Keep the
   // query string (e.g. Checkout.jsx's ?success=true&bookingId=...) so the
@@ -733,7 +747,7 @@ export async function loader({ params, request }) {
 
 export function meta({ data }) {
   const prop = data?.property;
-  if (!prop) return [{ title: "Space not found | VenCome" }];
+  if (!prop) return [{ title: "Space not found | VenCome" }, { name: "robots", content: "noindex" }];
 
   const title = `${prop.title} | VenCome`;
   const location = [prop.location?.city, prop.location?.country].filter(Boolean).join(", ");

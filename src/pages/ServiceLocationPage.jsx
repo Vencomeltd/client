@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useLoaderData, Link } from "react-router-dom";
+import { data } from "react-router";
 import { Sparkles, Building2 } from "lucide-react";
 import PropertyCard from "../components/PropertyCard";
 import VencomeLoader from "../components/Loader";
@@ -16,7 +17,7 @@ const titleCaseSlug = (slug) =>
 
 async function fetchServiceLocation(subcategorySlug, locationSlug) {
   const subRes = await fetch(`${import.meta.env.VITE_API_URL}/categories/subcategory/${subcategorySlug}`);
-  if (!subRes.ok) return { category: null, subcategory: null, properties: [] };
+  if (!subRes.ok) return { category: null, subcategory: null, properties: [], unavailable: subRes.status !== 404 };
   const subData = await subRes.json();
 
   const propsRes = await fetch(
@@ -34,7 +35,19 @@ async function fetchServiceLocation(subcategorySlug, locationSlug) {
 }
 
 export async function loader({ params }) {
-  return fetchServiceLocation(params.subcategorySlug, params.locationSlug);
+  // Any two-segment URL lands here, so an unknown service (e.g.
+  // /zzz-fake/nowhere) must answer a real 404, not a 200 page.
+  let result;
+  try {
+    result = await fetchServiceLocation(params.subcategorySlug, params.locationSlug);
+  } catch {
+    result = { category: null, subcategory: null, properties: [], unavailable: true };
+  }
+  // API trouble is temporary (503, retry later) -- only a confirmed-unknown
+  // service is a 404.
+  if (result.unavailable) return data(result, { status: 503, headers: { "Retry-After": "120" } });
+  if (!result.subcategory) return data(result, { status: 404 });
+  return result;
 }
 
 export function shouldRevalidate({ currentParams, nextParams, defaultShouldRevalidate }) {
@@ -51,7 +64,7 @@ export function meta({ data, params }) {
   const subcategory = data?.subcategory;
   const locationName =
     data?.properties?.[0]?.location?.neighborhood || titleCaseSlug(params.locationSlug);
-  if (!subcategory) return [{ title: "Spaces | VenCome" }];
+  if (!subcategory) return [{ title: "Page not found | VenCome" }, { name: "robots", content: "noindex" }];
   const title = `${subcategory.name} in ${locationName} | VenCome`;
   const description =
     subcategory.description ||
@@ -64,6 +77,9 @@ export function meta({ data, params }) {
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { tagName: "link", rel: "canonical", href: url },
+    // No matching listings: still useful to visitors, but thin -- keep it
+    // out of the index while letting link equity flow.
+    ...((data?.properties?.length || 0) === 0 ? [{ name: "robots", content: "noindex, follow" }] : []),
   ];
 }
 
