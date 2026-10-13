@@ -72,7 +72,7 @@ const HOW_IT_WORKS_STEPS = [
     icon: Building2,
     title: "Move Right In",
     description:
-      "Access your space on the agreed date. Payment is released to the host 48 hours after your booking ends. If something isn't as described, you can raise it with us directly and we'll review it case by case.",
+      "Access your space on the agreed date. Payment reaches the host 24–72 hours after your booking ends. If something isn't as described, you can raise it with us directly and we'll review it case by case.",
   },
 ];
 
@@ -807,7 +807,7 @@ function FAQSection() {
     },
     {
       q: "How does payment work?",
-      a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings. Once released, payouts take 24–72 hours to reach your bank account."
+      a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout in their bank account 24–72 hours after checkout for short-term bookings."
     },
     {
       q: "Can I cancel a booking?",

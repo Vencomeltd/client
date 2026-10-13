@@ -23,7 +23,7 @@ const FAQ_CATEGORIES = [
   {
     category: "Payments",
     faqs: [
-      { q: "How does payment work?", a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout 24–48 hours after check-in for short-term bookings. Once released, payouts take 24–72 hours to reach your bank account." },
+      { q: "How does payment work?", a: "Payments are processed securely through Stripe. Your payment is held in escrow until after your booking is confirmed and completed. Hosts receive their payout in their bank account 24–72 hours after checkout for short-term bookings." },
       { q: "What currencies does VenCome support?", a: "VenCome supports GBP, USD, EUR, AED, and SAR. The currency shown depends on the listing's market." },
       { q: "Is my payment information secure?", a: "Yes. All payments are processed through Stripe, which is PCI DSS compliant. VenCome never stores your card details." },
       { q: "What happens if a host declines my booking?", a: "If a host declines your request (or doesn't respond within 24 hours), your card is never charged — your payment authorization is simply released. No charges are applied for declined or expired booking requests." },
@@ -34,7 +34,7 @@ const FAQ_CATEGORIES = [
     faqs: [
       { q: "How do I list my space on VenCome?", a: "Click 'Publish your space' in the top navigation. You'll be guided through a step-by-step wizard to add your space details, photos, pricing, and availability. Your listing will be live once reviewed." },
       { q: "How much does it cost to list a space?", a: "Listing your space on VenCome is completely free. VenCome charges a 10% platform commission on each completed booking, automatically deducted before your payout." },
-      { q: "When do I get paid?", a: "For short-term bookings, payouts are processed 24–48 hours after check-in. For monthly bookings, payouts are processed monthly. Once released, payouts take 24–72 hours to reach your bank account." },
+      { q: "When do I get paid?", a: "For short-term bookings, payouts reach your bank account 24–72 hours after checkout. For monthly bookings, payouts are processed monthly." },
       { q: "Can I set my own pricing?", a: "Yes. You have full control over your pricing. You can set hourly, daily, weekly, monthly, and annual rates, as well as discounts for longer stays." },
     ]
   },

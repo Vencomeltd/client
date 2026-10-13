@@ -108,8 +108,8 @@ export default function Wallet() {
             Booking Payments
           </p>
           <p style={{ fontSize: "12px", color: "#9CA3AF", marginBottom: "20px" }}>
-            Rental income from your bookings. Releases to your payout
-            account automatically 48 hours after each booking's checkout.
+            Rental income from your bookings. Reaches your bank account
+            automatically 24–72 hours after each booking's checkout.
           </p>
           {!data.bookings || data.bookings.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
