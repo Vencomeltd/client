@@ -70,6 +70,16 @@ export async function loader({ request }) {
 // (deepest matched route wins for same-named tags; multiple
 // "script:ld+json" entries across matched routes all render, so this
 // Organization/WebSite schema coexists with a route's own Product schema).
+// The root loader's data (footer categories + city/service links) is the
+// same on every page, but React Router re-runs it on every client-side
+// navigation by default -- so every click waited on a server round-trip,
+// even to pages with no data of their own (About, FAQ, ...). Load it once
+// per visit; still refresh after form submissions.
+export function shouldRevalidate({ formMethod, defaultShouldRevalidate }) {
+  if (formMethod && formMethod.toUpperCase() !== "GET") return defaultShouldRevalidate;
+  return false;
+}
+
 export function meta() {
   const title = "VenCome – Book & List Commercial Spaces | UK";
   const description =

@@ -24,5 +24,8 @@ export default defineConfig(({ command }) => ({
   // runner evaluates noExternal packages differently and crashes on
   // react-router-dom's `module` reference ("module is not defined") when
   // this is on, so local dev needs it left external as before.
-  ssr: command === "build" ? { noExternal: ["react-router", "react-router/dom", "react-router-dom"] } : undefined,
+  // @vercel/react-router is bundled too because src/entry.server.jsx imports
+  // its handleRequest: left external it would load its own react-router copy
+  // and break SSR ("useLoaderData must be used within a data router").
+  ssr: command === "build" ? { noExternal: ["react-router", "react-router/dom", "react-router-dom", "@vercel/react-router"] } : undefined,
 }));
