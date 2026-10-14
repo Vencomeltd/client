@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { data, redirect } from "react-router";
 import PropertyCard from "../components/PropertyCard";
+import Footer from "../components/Footer";
 import NotFound from "./NotFound";
 
 // SEO landing pages: /uk, /uk/:city, /uk/:city/:service and /:serviceSlug
@@ -231,6 +232,7 @@ export default function LandingPage() {
           </dl>
         </section>
       </div>
+      <Footer />
     </div>
   );
 }
