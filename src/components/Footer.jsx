@@ -1,13 +1,11 @@
 import { Link, useRouteLoaderData } from "react-router-dom";
 import { Facebook, Instagram, Linkedin } from "lucide-react";
 
-const buildSearchHref = (city) =>
-  `/search?${new URLSearchParams({ location: city }).toString()}`;
-
 export default function Footer() {
   const rootData = useRouteLoaderData("root");
   const categories = rootData?.footerCategories || [];
   const cities = rootData?.footerCities || [];
+  const servicePaths = rootData?.footerServicePaths || {};
 
   return (
     <footer className="bg-gray-50 py-8">
@@ -123,11 +121,11 @@ export default function Footer() {
               <ul className="text-gray-500 text-sm space-y-1">
                 {cities
                   .slice()
-                  .sort((a, b) => (b.count || 0) - (a.count || 0))
+                  .sort((a, b) => (b.listingCount || 0) - (a.listingCount || 0))
                   .slice(0, 10)
                   .map((city) => (
-                    <li key={city.name}>
-                      <Link to={buildSearchHref(city.name)}>{city.name}</Link>
+                    <li key={city.path}>
+                      <Link to={city.path}>{city.name}</Link>
                     </li>
                   ))}
               </ul>
@@ -153,7 +151,8 @@ export default function Footer() {
                           to={
                             sub.isCategoryLink
                               ? `/category/${category.slug || category._id}`
-                              : `/search?${new URLSearchParams({ category: category._id, subcategory: sub.name }).toString()}`
+                              : servicePaths[sub.name] ||
+                                `/search?${new URLSearchParams({ category: category._id, subcategory: sub.name }).toString()}`
                           }
                           className="hover:text-[#0A1628] transition"
                         >

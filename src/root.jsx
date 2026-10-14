@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Meta, Links, Scripts, Outlet, ScrollRestoration } from "react-router";
+import { Meta, Links, Scripts, Outlet, ScrollRestoration, redirect } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -27,23 +27,40 @@ const queryClient = new QueryClient({
 // Fetched once per request so Footer (rendered on every page) can list real
 // category/city links server-side, instead of a client-only fetch that
 // would defeat the point for crawlers. Same endpoints Homepage already uses.
-export async function loader() {
+// Spec rule 2: lowercase, no trailing slash, one 301 to the canonical form
+// (query string kept). Token routes are left alone -- their case matters.
+const CASE_SENSITIVE_PREFIXES = ["/support-access/"];
+function canonicalPath(pathname) {
+  let path = pathname.length > 1 ? pathname.replace(/\/+$/, "") || "/" : pathname;
+  const lower = path.toLowerCase();
+  if (!CASE_SENSITIVE_PREFIXES.some((prefix) => lower.startsWith(prefix))) path = lower;
+  return path;
+}
+
+export async function loader({ request }) {
+  const url = new URL(request.url);
+  const path = canonicalPath(url.pathname);
+  if (path !== url.pathname) throw redirect(`${path}${url.search}`, 301);
+
   try {
-    const [categoriesRes, citiesRes] = await Promise.all([
+    const [categoriesRes, linksRes] = await Promise.all([
       fetch(`${import.meta.env.VITE_API_URL}/categories/with-counts`),
-      fetch(`${import.meta.env.VITE_API_URL}/properties/cities`),
+      fetch(`${import.meta.env.VITE_API_URL}/landing/links`),
     ]);
     const categories = categoriesRes.ok ? await categoriesRes.json() : [];
-    const citiesData = citiesRes.ok ? await citiesRes.json() : { countries: [] };
+    const links = linksRes.ok ? await linksRes.json() : { cities: [], services: [] };
     return {
       // Footer now links every category and subcategory (not just ones
       // with current listings) so the full taxonomy is crawlable/browsable
       // from day one -- see Footer.jsx's category grid.
       footerCategories: Array.isArray(categories) ? categories : [],
-      footerCities: (citiesData.countries || []).flatMap((c) => c.cities || []),
+      // City and service links point at the SEO landing pages (/uk/london,
+      // /chairs); the server only returns pages that exist.
+      footerCities: links.cities || [],
+      footerServicePaths: Object.fromEntries((links.services || []).map((s) => [s.name, s.path])),
     };
   } catch {
-    return { footerCategories: [], footerCities: [] };
+    return { footerCategories: [], footerCities: [], footerServicePaths: {} };
   }
 }
 

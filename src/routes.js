@@ -14,12 +14,11 @@ export default [
   // routes/layouts/public-navbar.jsx.
   layout("routes/layouts/public-navbar.jsx", [
     route("category/:id", "pages/CategoryPage.jsx"),
-    // Service+location landing pages, e.g. /nail-studio/islington -- two
-    // dynamic segments, both required. React Router's route ranking always
-    // prefers a route with a static segment (e.g. settings/*) over this
-    // fully-dynamic one for the same URL shape, so this can't shadow any
-    // existing route regardless of array order.
-    route(":subcategorySlug/:locationSlug", "pages/ServiceLocationPage.jsx"),
+    // Old service+location URLs, e.g. /nail-studio/islington -- now 301 to
+    // the landing pages below (/uk/london/nail-studio). Two dynamic
+    // segments; any route with a static segment (uk/:city, settings/*, ...)
+    // outranks it, so it only catches the legacy shape.
+    route(":subcategorySlug/:locationSlug", "routes/redirect-service-location.jsx"),
     route("host/:id", "pages/HostProfile.jsx"),
     // SEO landing pages (vault item 29). "uk" is a static segment so it
     // outranks the two-segment service+location route above; a new country

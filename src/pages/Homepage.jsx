@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router-dom";
+import { Link, useLoaderData, useNavigate, useRouteLoaderData } from "react-router-dom";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import {
   Building2,
@@ -535,6 +535,11 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
 
 function BrowseByCity() {
   const loaderData = useLoaderData();
+  // City landing pages (/uk/london) from the root loader; cities without one
+  // (e.g. outside the UK) still fall back to a search link.
+  const cityPaths = Object.fromEntries(
+    (useRouteLoaderData("root")?.footerCities || []).map((c) => [c.name, c.path])
+  );
   const [countries, setCountries] = useState(loaderData?.countries || []);
   const [loaded, setLoaded] = useState(!!loaderData?.countries);
 
@@ -587,7 +592,7 @@ function BrowseByCity() {
                   {group.cities.map((city) => (
                     <Link
                       key={city.name}
-                      to={buildSearchHref({ location: city.name })}
+                      to={cityPaths[city.name] || buildSearchHref({ location: city.name })}
                       className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-[13px] font-medium text-[#111827] transition hover:border-[#305CDE] hover:text-[#305CDE]"
                     >
                       {city.name} <span className="text-[#6B7280]">{city.count}</span>

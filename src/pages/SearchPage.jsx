@@ -283,6 +283,10 @@ export function meta() {
   return [
     { title: "Search Commercial Spaces | VenCome" },
     { name: "description", content: "Search and browse beauty, wellness, and commercial spaces available to book on VenCome." },
+    // Spec rule 6: search/filter/sort URLs are crawlable but never indexed
+    // (the landing pages are the indexable versions), canonical to /search.
+    { name: "robots", content: "noindex, follow" },
+    { tagName: "link", rel: "canonical", href: "https://www.vencome.com/search" },
   ];
 }
 
