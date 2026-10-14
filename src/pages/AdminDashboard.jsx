@@ -154,6 +154,12 @@ const NAV_ITEMS = [
     icon: MessageSquare,
   },
   {
+    label: "SEO Pages",
+    section: "seo-pages",
+    group: "PLATFORM",
+    icon: MapPin,
+  },
+  {
     label: "Team",
     section: "team",
     group: "PLATFORM",
@@ -187,7 +193,7 @@ const ADMIN_ROLES = [
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
   support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "communications"],
-  content: ["overview", "analytics", "markets", "categories", "broadcast", "content"],
+  content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages"],
 };
 
 function canAccessSection(adminRole, section) {
@@ -3928,6 +3934,252 @@ const MARKET_STATUS_META = {
 };
 
 const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", status: "planned", phase: "", currency: "GBP", primaryLanguage: "English" };
+
+// SEO landing pages (/uk/london, /uk/london/chairs, /chairs, ...): write and
+// approve the intro each page needs before Google is told to index it. The
+// server decides status/indexable with the same rule the public pages use.
+const SEO_STATUS = {
+  indexable: { label: "Indexable", bg: "#ECFDF5", color: "#047857" },
+  needs_approval: { label: "Awaiting approval", bg: "#FFFBEB", color: "#B45309" },
+  needs_intro: { label: "Needs intro", bg: "#EFF6FF", color: "#1D4ED8" },
+  needs_listings: { label: "Needs more listings", bg: "#F3F4F6", color: "#6B7280" },
+  waiting_on_cities: { label: "Follows its city pages", bg: "#F3F4F6", color: "#6B7280" },
+};
+const SEO_FILTERS = [
+  { key: "attention", label: "Needs attention", test: (r) => r.status === "needs_intro" || r.status === "needs_approval" },
+  { key: "indexable", label: "Indexable", test: (r) => r.indexable },
+  { key: "listings", label: "Has listings", test: (r) => r.listingCount > 0 },
+  { key: "all", label: "All", test: () => true },
+];
+const SEO_TYPE_LABEL = { country: "Country", city: "City", city_service: "City + service", service: "Service hub" };
+const SEO_MAX_INTRO = 2000;
+
+function SeoPagesSection({ onToast }) {
+  const [rows, setRows] = useState([]);
+  const [minListings, setMinListings] = useState(3);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("attention");
+  const [search, setSearch] = useState("");
+  const [editingPath, setEditingPath] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [busyPath, setBusyPath] = useState(null);
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("vencome_token")}`,
+  });
+
+  const loadRows = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/landing-pages`, { headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setRows(data.rows || []);
+      setMinListings(data.minListings || 3);
+    } catch {
+      onToast("Failed to load SEO pages");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const replaceRow = (row) => setRows((current) => current.map((r) => (r.path === row.path ? row : r)));
+
+  const send = async (url, body, successMessage) => {
+    setBusyPath(body.path);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Something went wrong");
+      replaceRow(data.row);
+      onToast(successMessage);
+      // One page's change can flip others (approving a city makes its
+      // country and service hubs indexable), so refresh every row.
+      loadRows({ quiet: true });
+      return true;
+    } catch (err) {
+      onToast(err.message);
+      return false;
+    } finally {
+      setBusyPath(null);
+    }
+  };
+
+  const saveIntro = async (path) => {
+    const ok = await send("/admin/landing-pages", { path, intro: draft }, "Intro saved — it needs approval before it goes live");
+    if (ok) setEditingPath(null);
+  };
+
+  const setApproval = (path, approved) =>
+    send("/admin/landing-pages/approval", { path, approved }, approved ? "Intro approved" : "Approval removed");
+
+  const counts = Object.keys(SEO_STATUS).reduce(
+    (acc, key) => ({ ...acc, [key]: rows.filter((r) => r.status === key).length }),
+    {}
+  );
+  const activeFilter = SEO_FILTERS.find((f) => f.key === filter);
+  const query = search.trim().toLowerCase();
+  const visible = rows.filter(
+    (r) => activeFilter.test(r) && (!query || r.label.toLowerCase().includes(query) || r.path.includes(query))
+  );
+
+  return (
+    <>
+      <div className="mb-6">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">SEO Pages</h2>
+        <p className="mt-1 max-w-3xl text-[13px] text-[#6B7280]">
+          City and service landing pages. A city or city + service page is only shown to Google once it has{" "}
+          {minListings}+ live listings and an approved intro. Editing an intro removes its approval until it's approved again.
+        </p>
+      </div>
+
+      <div className="mb-5 flex flex-wrap gap-2 text-[12px]">
+        {["indexable", "needs_approval", "needs_intro", "needs_listings"].map((key) => (
+          <span
+            key={key}
+            className="rounded-full px-3 py-1 font-semibold"
+            style={{ background: SEO_STATUS[key].bg, color: SEO_STATUS[key].color }}
+          >
+            {SEO_STATUS[key].label}: {counts[key] || 0}
+          </span>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {SEO_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setFilter(f.key)}
+            className={`rounded-lg px-3 py-2 text-[13px] font-semibold ${
+              filter === f.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#374151]"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+        <div className="relative ml-auto">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search pages"
+            className="rounded-lg border border-[#E5E7EB] py-2 pl-8 pr-3 text-[13px] outline-none"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-[14px] text-[#6B7280]">Loading SEO pages...</div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white py-12 text-center text-[14px] text-[#6B7280]">
+          No pages match this filter.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
+          {visible.map((row) => {
+            const status = SEO_STATUS[row.status];
+            const editing = editingPath === row.path;
+            const busy = busyPath === row.path;
+            return (
+              <div key={row.path} className="border-b border-[#F3F4F6] px-5 py-4 last:border-b-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-[220px] flex-1">
+                    <p className="text-[14px] font-semibold text-[#0A1628]">{row.label}</p>
+                    <a href={row.path} target="_blank" rel="noreferrer" className="text-[12px] text-[#305CDE] hover:underline">
+                      {row.path}
+                    </a>
+                    <span className="ml-2 text-[12px] text-[#9CA3AF]">{SEO_TYPE_LABEL[row.type]}</span>
+                  </div>
+                  <span className="text-[13px] text-[#374151]">
+                    {row.listingCount} {row.listingCount === 1 ? "listing" : "listings"}
+                  </span>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                    style={{ background: status.bg, color: status.color }}
+                  >
+                    {status.label}
+                  </span>
+                  {!editing && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPath(row.path);
+                        setDraft(row.intro || "");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] px-3 py-1.5 text-[13px] font-semibold text-[#374151]"
+                    >
+                      <Pencil size={13} />
+                      {row.intro ? "Edit intro" : "Write intro"}
+                    </button>
+                  )}
+                  {!editing && row.intro && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => setApproval(row.path, !row.introApproved)}
+                      className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold disabled:opacity-50 ${
+                        row.introApproved ? "border border-[#E5E7EB] text-[#B91C1C]" : "bg-[#047857] text-white"
+                      }`}
+                    >
+                      {row.introApproved ? "Unapprove" : "Approve"}
+                    </button>
+                  )}
+                </div>
+
+                {!editing && row.intro && (
+                  <p className="mt-2 line-clamp-2 max-w-3xl whitespace-pre-line text-[13px] text-[#6B7280]">{row.intro}</p>
+                )}
+
+                {editing && (
+                  <div className="mt-3 max-w-3xl">
+                    <textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value.slice(0, SEO_MAX_INTRO))}
+                      rows={5}
+                      placeholder={`A short, original introduction to ${row.label} on VenCome.`}
+                      className="w-full rounded-lg border border-[#E5E7EB] p-3 text-[13px] outline-none focus:border-[#305CDE]"
+                    />
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => saveIntro(row.path)}
+                        className="rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+                      >
+                        {busy ? "Saving..." : "Save intro"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPath(null)}
+                        className="rounded-lg border border-[#E5E7EB] px-4 py-2 text-[13px] font-semibold text-[#374151]"
+                      >
+                        Cancel
+                      </button>
+                      <span className="ml-auto text-[12px] text-[#9CA3AF]">
+                        {draft.length}/{SEO_MAX_INTRO}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
 
 function MarketsSection({ bookings, onToast }) {
   const [markets, setMarkets] = useState([]);
@@ -7823,6 +8075,8 @@ export default function AdminDashboard() {
     );
   } else if (activeSection === "categories") {
     sectionContent = <CategoriesSection onToast={showToast} />;
+  } else if (activeSection === "seo-pages") {
+    sectionContent = <SeoPagesSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
       <BroadcastSection users={users} />
