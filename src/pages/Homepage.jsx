@@ -337,36 +337,46 @@ function HeroSection() {
   );
 }
 
+// One failed API call (network error, Render blip, bad status) used to make
+// fetch() throw out of the loader and turn the whole homepage into a bare
+// "Application Error" page. Each call now fails on its own: that section is
+// left out of the loader data, and the component's own browser-side fetch
+// (categories, listings, city counts and blogs all have one) fills it in.
+async function getJson(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { ok: false };
+    return { ok: true, body: await res.json() };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export async function loader() {
   const API = import.meta.env.VITE_API_URL;
-  const [categoriesRes, propertiesRes, citiesRes, blogRes] = await Promise.all([
-    fetch(`${API}/categories/with-counts`),
-    fetch(`${API}/properties?limit=100`),
-    fetch(`${API}/properties/cities`),
-    fetch(`${API}/blog?limit=3`),
-  ]);
-  const [categoriesData, propertiesData, citiesData, blogData] = await Promise.all([
-    categoriesRes.json().catch(() => []),
-    propertiesRes.json().catch(() => ({})),
-    citiesRes.json().catch(() => ({})),
-    blogRes.json().catch(() => ({})),
+  const [categories, listings, cities, blog] = await Promise.all([
+    getJson(`${API}/categories/with-counts`),
+    getJson(`${API}/properties?limit=100`),
+    getJson(`${API}/properties/cities`),
+    getJson(`${API}/blog?limit=3`),
   ]);
 
   // Server sorts by Category.order once the admin has manually reordered at
   // all, otherwise by live listing count -- no client-side reordering needed.
-  const categoryList = Array.isArray(categoriesData) ? categoriesData : [];
+  const categoryList = Array.isArray(categories.body) ? categories.body : [];
+  const properties = listings.ok ? listings.body?.properties || [] : undefined;
 
-  const properties = propertiesData.properties || [];
-
+  // Failed sections are undefined (not []) so the component shows its
+  // loading state and fetches them, instead of flashing an empty section.
   const payload = {
     categories: categoryList,
-    countries: Array.isArray(citiesData.countries) ? citiesData.countries : [],
+    countries: cities.ok && Array.isArray(cities.body?.countries) ? cities.body.countries : undefined,
     featuredListings: properties,
     popularListings: properties,
-    recentBlogs: blogData.blogs || [],
+    recentBlogs: blog.ok ? blog.body?.blogs || [] : undefined,
   };
-  // Only edge-cache a complete homepage -- a failed call means fallback data.
-  const allOk = [categoriesRes, propertiesRes, citiesRes, blogRes].every((r) => r.ok);
+  // Only edge-cache a complete homepage -- never one with sections missing.
+  const allOk = [categories, listings, cities, blog].every((r) => r.ok);
   return allOk ? edgeCached(payload) : payload;
 }
 
