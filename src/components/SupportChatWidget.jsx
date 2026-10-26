@@ -5,6 +5,29 @@ import apiFetch from "../utils/apiClient";
 import { initSocket } from "../utils/socket";
 import { useAuth } from "../context/AuthContext";
 
+// Movable bubble: it could cover page controls (e.g. "Book now" on mobile),
+// so visitors can drag it; on release it snaps to the nearer side at that
+// height. Remembered per device.
+const CHAT_POS_KEY = "vencome_chat_position";
+const BUBBLE = 56; // bubble diameter, px
+const SIDE_GAP = 24; // distance from the left/right edge
+const EDGE = 16; // minimum distance from any viewport edge
+const DRAG_THRESHOLD = 6; // px of movement before a press counts as a drag
+const clampTo = (value, min, max) => Math.min(Math.max(value, min), max);
+const clampBottom = (bottom) =>
+  clampTo(bottom, EDGE, (typeof window === "undefined" ? 800 : window.innerHeight) - BUBBLE - EDGE);
+
+// Open the panel above the bubble, or below it when the bubble sits too
+// high for the panel to fit above. Client-only (panel renders when open).
+function panelPlacement(pos) {
+  const spaceAbove = window.innerHeight - pos.bottom - BUBBLE - 12 - EDGE;
+  const spaceBelow = pos.bottom - 12 - EDGE;
+  if (spaceAbove >= 320 || spaceAbove >= spaceBelow) {
+    return { bottom: pos.bottom + BUBBLE + 12, maxHeight: spaceAbove };
+  }
+  return { top: window.innerHeight - pos.bottom + 12, maxHeight: spaceBelow };
+}
+
 const WHATSAPP_NUMBER = "447878427090";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I need help with VenCome")}`;
 
@@ -74,6 +97,76 @@ export default function SupportChatWidget() {
   const [unread, setUnread] = useState(false);
   const [showGreeting, setShowGreeting] = useState(false);
   const bottomRef = useRef(null);
+  const [pos, setPos] = useState({ side: "right", bottom: SIDE_GAP });
+  const [dragXY, setDragXY] = useState(null);
+  const dragRef = useRef(null);
+  const suppressClickRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHAT_POS_KEY) || "null");
+      if (saved && (saved.side === "left" || saved.side === "right") && Number.isFinite(saved.bottom)) {
+        setPos({ side: saved.side, bottom: clampBottom(saved.bottom) });
+      }
+    } catch {
+      // Storage unavailable -- keep the default corner.
+    }
+    const onResize = () => setPos((p) => ({ ...p, bottom: clampBottom(p.bottom) }));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handlePointerDown = (e) => {
+    if (e.button !== 0) return;
+    suppressClickRef.current = false;
+    const rect = e.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const dragPoint = (e, d) => ({
+    x: clampTo(e.clientX - d.offsetX, EDGE, window.innerWidth - BUBBLE - EDGE),
+    y: clampTo(e.clientY - d.offsetY, EDGE, window.innerHeight - BUBBLE - EDGE),
+  });
+
+  const handlePointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < DRAG_THRESHOLD) return;
+    d.moved = true;
+    setDragXY(dragPoint(e, d));
+  };
+
+  const handlePointerUp = (e) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d?.moved) return;
+    // The click that follows a drag must not open/close the chat.
+    suppressClickRef.current = true;
+    const { x, y } = dragPoint(e, d);
+    const next = {
+      side: x + BUBBLE / 2 < window.innerWidth / 2 ? "left" : "right",
+      bottom: clampBottom(window.innerHeight - y - BUBBLE),
+    };
+    setPos(next);
+    setDragXY(null);
+    try {
+      localStorage.setItem(CHAT_POS_KEY, JSON.stringify(next));
+    } catch {
+      // Storage unavailable -- position just won't persist.
+    }
+  };
+
+  const handlePointerCancel = () => {
+    dragRef.current = null;
+    setDragXY(null);
+  };
 
   const hidden = isHiddenPath(location.pathname);
 
@@ -194,7 +287,7 @@ export default function SupportChatWidget() {
 
   return (
     <>
-      {showGreeting && !open && (
+      {showGreeting && !open && !dragXY && (
         <button
           type="button"
           onClick={() => {
@@ -203,8 +296,8 @@ export default function SupportChatWidget() {
           }}
           style={{
             position: "fixed",
-            bottom: 36,
-            right: 88,
+            bottom: pos.bottom + 12,
+            [pos.side]: 88,
             zIndex: 999,
             display: "flex",
             alignItems: "center",
@@ -235,20 +328,29 @@ export default function SupportChatWidget() {
       <button
         type="button"
         onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
           dismissGreeting();
           setOpen((o) => !o);
         }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         aria-label={open ? "Close support chat" : "Open support chat"}
+        title="Drag to move"
         style={{
           position: "fixed",
-          bottom: 24,
-          right: 24,
-          width: 56,
-          height: 56,
+          ...(dragXY ? { left: dragXY.x, top: dragXY.y } : { [pos.side]: SIDE_GAP, bottom: pos.bottom }),
+          touchAction: "none",
+          width: BUBBLE,
+          height: BUBBLE,
           borderRadius: "50%",
           background: "#0A1628",
           border: "none",
-          cursor: "pointer",
+          cursor: dragXY ? "grabbing" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -277,12 +379,11 @@ export default function SupportChatWidget() {
         <div
           style={{
             position: "fixed",
-            bottom: 92,
-            right: 24,
+            [pos.side]: SIDE_GAP,
+            ...panelPlacement(pos),
             width: 360,
             maxWidth: "calc(100vw - 32px)",
             height: 480,
-            maxHeight: "calc(100vh - 140px)",
             background: "#fff",
             borderRadius: 16,
             boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
