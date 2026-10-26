@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useLoaderData, useNavigate } from "react-router-dom";
 import { data, redirect } from "react-router";
+import { edgeCached } from "../utils/edgeCache";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Accessibility,
@@ -742,7 +743,13 @@ export async function loader({ params, request }) {
     const search = new URL(request.url).search;
     return redirect(`/property/${property.slug}${search}`, 301);
   }
-  return { property };
+  return edgeCached({ property });
+}
+
+// Pass the loader's headers through so edgeCached() responses carry their
+// Cache-Control on both the HTML and the /<page>.data navigation response.
+export function headers({ loaderHeaders }) {
+  return loaderHeaders;
 }
 
 export function meta({ data }) {
