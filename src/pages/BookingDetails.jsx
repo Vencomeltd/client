@@ -1536,7 +1536,7 @@ export default function BookingDetails() {
                         "Property Host"}
                   </p>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    {isHost ? guest?.email : property?.host?.email || ""}
+                    {isHost ? guest?.email : hostContact?.email || ""}
                   </p>
                 </div>
               </div>
