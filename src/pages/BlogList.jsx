@@ -107,29 +107,34 @@ export default function BlogList() {
               <Link
                 key={blog._id}
                 to={`/blog/${blog.slug}`}
-                style={{ textDecoration: "none" }}
+                style={{ textDecoration: "none", display: "flex" }}
               >
-                <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", border: "1.5px solid #E5E7EB", transition: "box-shadow 0.2s", cursor: "pointer" }}
+                {/* Every card is the same height whatever the text length:
+                    fixed image, one-line meta row, title clamped to exactly
+                    2 lines and excerpt to exactly 3 (space reserved even when
+                    shorter), footer pinned to the bottom, card fills the
+                    grid cell. */}
+                <div style={{ background: "#fff", borderRadius: 16, overflow: "hidden", border: "1.5px solid #E5E7EB", transition: "box-shadow 0.2s", cursor: "pointer", width: "100%", display: "flex", flexDirection: "column" }}
                   onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.10)"}
                   onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
                 >
                   {blog.coverImage ? (
-                    <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", height: 200, objectFit: "cover" }} />
+                    <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", height: 200, objectFit: "cover", flexShrink: 0 }} />
                   ) : (
-                    <div style={{ height: 200, background: "linear-gradient(135deg, #0A1628 0%, #305CDE 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ height: 200, flexShrink: 0, background: "linear-gradient(135deg, #0A1628 0%, #305CDE 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <span style={{ fontSize: 40 }}>✍️</span>
                     </div>
                   )}
-                  <div style={{ padding: 24 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "3px 10px", borderRadius: 999 }}>
+                  <div style={{ padding: 24, flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, whiteSpace: "nowrap", overflow: "hidden" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "3px 10px", borderRadius: 999, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                         {blog.category}
                       </span>
-                      <span style={{ fontSize: 12, color: "#9CA3AF" }}>{blog.readTime} min read</span>
+                      <span style={{ fontSize: 12, color: "#9CA3AF", flexShrink: 0 }}>{blog.readTime} min read</span>
                     </div>
-                    <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 8, lineHeight: 1.4 }}>{blog.title}</h2>
-                    <p style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, marginBottom: 16 }}>{blog.excerpt}</p>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 8, lineHeight: 1.4, height: "2.8em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{blog.title}</h2>
+                    <p style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, marginBottom: 16, height: "4.8em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{blog.excerpt}</p>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto" }}>
                       <span style={{ fontSize: 13, color: "#9CA3AF" }}>
                         {blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}
                       </span>
