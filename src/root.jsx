@@ -10,6 +10,7 @@ import { ChatProvider } from "./context/ChatContext.jsx";
 import { TranslationProvider } from "./context/TranslationContext.jsx";
 import { CurrencyProvider } from "./context/CurrencyContext.jsx";
 import SupportChatWidget from "./components/SupportChatWidget.jsx";
+import NavigationProgress from "./components/NavigationProgress.jsx";
 import "./index.css";
 
 // Same provider tree main.jsx/App.jsx used to set up around
@@ -213,6 +214,7 @@ export default function Root() {
               <CurrencyProvider>
                 <QueryClientProvider client={queryClient}>
                   <ToastContainer position="top-right" autoClose={4000} />
+                  <NavigationProgress />
                   <Outlet />
                   <SupportChatWidget />
                 </QueryClientProvider>
