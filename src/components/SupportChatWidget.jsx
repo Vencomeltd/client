@@ -52,6 +52,8 @@ const CATEGORY_OPTIONS = [
 // "Support" link, or the ticket pages themselves) or aren't a fit for a
 // floating bubble (admin, auth screens). Prefix-matched against pathname.
 const HIDDEN_PREFIXES = [
+  // Listing pages: the bubble covered the fixed "Book Now" bar on mobile.
+  "/property/",
   "/admin",
   "/login",
   "/signup",
