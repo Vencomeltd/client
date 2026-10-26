@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLoaderData, Link } from "react-router-dom";
 import { redirect } from "react-router";
+import { edgeCached } from "../utils/edgeCache";
 import { Sparkles, Building2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import PropertyCard from "../components/PropertyCard";
@@ -20,7 +21,13 @@ export async function loader({ params }) {
   if (category?.slug && params.id !== category.slug) {
     return redirect(`/category/${category.slug}`, 301);
   }
-  return { category, properties: data.properties || [] };
+  return edgeCached({ category, properties: data.properties || [] });
+}
+
+// Pass the loader's headers through so edgeCached() responses carry their
+// Cache-Control on both the HTML and the /<page>.data navigation response.
+export function headers({ loaderHeaders }) {
+  return loaderHeaders;
 }
 
 // Skip refetching when returning to the *same* category (e.g. navigating

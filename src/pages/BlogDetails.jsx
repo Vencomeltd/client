@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useLoaderData } from "react-router-dom";
+import { edgeCached } from "../utils/edgeCache";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -12,7 +13,13 @@ export async function loader({ params }) {
   const res = await fetch(`${import.meta.env.VITE_API_URL}/blog/${params.slug}`);
   if (!res.ok) return { blog: null };
   const data = await res.json();
-  return { blog: data.blog || null };
+  return edgeCached({ blog: data.blog || null });
+}
+
+// Pass the loader's headers through so edgeCached() responses carry their
+// Cache-Control on both the HTML and the /<page>.data navigation response.
+export function headers({ loaderHeaders }) {
+  return loaderHeaders;
 }
 
 export function meta({ data }) {

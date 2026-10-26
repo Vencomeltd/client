@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLoaderData } from "react-router-dom";
 import { data, redirect } from "react-router";
+import { edgeCached } from "../utils/edgeCache";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import NotFound from "./NotFound";
@@ -33,7 +34,13 @@ export async function loader({ request }) {
   }
   if (res?.status === 404) return data({ notFound: true }, { status: 404 });
   if (!res?.ok) return data({ unavailable: true }, { status: 503, headers: { "Retry-After": "120" } });
-  return res.json();
+  return edgeCached(await res.json());
+}
+
+// Pass the loader's headers through so edgeCached() responses carry their
+// Cache-Control on both the HTML and the /<page>.data navigation response.
+export function headers({ loaderHeaders }) {
+  return loaderHeaders;
 }
 
 const withArticle = (name) => (/^United /.test(name) ? `the ${name}` : name);

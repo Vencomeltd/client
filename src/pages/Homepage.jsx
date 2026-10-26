@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRouteLoaderData } from "react-router-dom";
+import { edgeCached } from "../utils/edgeCache";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import {
   Building2,
@@ -357,13 +358,22 @@ export async function loader() {
 
   const properties = propertiesData.properties || [];
 
-  return {
+  const payload = {
     categories: categoryList,
     countries: Array.isArray(citiesData.countries) ? citiesData.countries : [],
     featuredListings: properties,
     popularListings: properties,
     recentBlogs: blogData.blogs || [],
   };
+  // Only edge-cache a complete homepage -- a failed call means fallback data.
+  const allOk = [categoriesRes, propertiesRes, citiesRes, blogRes].every((r) => r.ok);
+  return allOk ? edgeCached(payload) : payload;
+}
+
+// Pass the loader's headers through so edgeCached() responses carry their
+// Cache-Control on both the HTML and the /<page>.data navigation response.
+export function headers({ loaderHeaders }) {
+  return loaderHeaders;
 }
 
 // The loader above does 4 parallel API calls and React Router blocks
