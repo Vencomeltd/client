@@ -81,7 +81,7 @@ export function shouldRevalidate({ formMethod, defaultShouldRevalidate }) {
   return false;
 }
 
-export function meta() {
+export function meta({ location }) {
   const title = "VenCome – Book & List Commercial Spaces | UK";
   const description =
     "VenCome is the UK's B2B marketplace for commercial spaces — book offices, studios, treatment rooms, meeting rooms, and event venues by the hour, day, or month.";
@@ -89,6 +89,9 @@ export function meta() {
     { title },
     { name: "description", content: description },
     { name: "robots", content: "index, follow" },
+    // Default canonical for the homepage and static pages that have no meta of
+    // their own. Pages with their own meta export set their own canonical.
+    { tagName: "link", rel: "canonical", href: `https://www.vencome.com${location?.pathname || "/"}` },
     { property: "og:type", content: "website" },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
