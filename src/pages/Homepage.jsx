@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRouteLoaderData } from "react-router-dom";
 import { edgeCached } from "../utils/edgeCache";
-import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Building2,
   BriefcaseBusiness,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -133,6 +132,47 @@ const CATEGORY_ICON_MAP = {
   "Content Creator Space": Sparkles,
 };
 
+// Hero background clips (muted, looping) -- Kitt-style full-bleed video.
+// Empty until the brand video is ready; the poster image shows instead.
+// Several clips play one after another.
+const HERO_VIDEOS = [];
+const HERO_POSTER = "/hero-poster.jpg";
+
+function HeroBackground() {
+  const [clip, setClip] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    setReduceMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
+
+  if (!HERO_VIDEOS.length || reduceMotion) {
+    return (
+      <img
+        src={HERO_POSTER}
+        alt=""
+        aria-hidden="true"
+        fetchPriority="high"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+    );
+  }
+  return (
+    <video
+      key={HERO_VIDEOS[clip]}
+      src={HERO_VIDEOS[clip]}
+      poster={HERO_POSTER}
+      autoPlay
+      muted
+      playsInline
+      loop={HERO_VIDEOS.length === 1}
+      onEnded={() => setClip((i) => (i + 1) % HERO_VIDEOS.length)}
+      aria-hidden="true"
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+  );
+}
+
 function HeroSection() {
   const navigate = useNavigate();
   const [heroSearchLocation, setHeroSearchLocation] = useState("");
@@ -143,82 +183,70 @@ function HeroSection() {
     navigate(trimmed ? `/search?location=${encodeURIComponent(trimmed)}` : "/search");
   };
 
-  const { scrollY } = useScroll();
-  const bgY = useTransform(scrollY, [0, 500], [0, 150]);
-  const headlineWords = ["The", "Easiest", "Way", "To", "Grow", "Your", "Business"];
+  const buttonBase = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "14px 26px",
+    borderRadius: 4,
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    textDecoration: "none",
+    minHeight: 48,
+    whiteSpace: "nowrap",
+  };
 
   return (
-    <motion.section
-      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4"
-      style={{ backgroundColor: "#0A1628" }}
+    <section
+      className="relative flex min-h-[80vh] items-center overflow-hidden md:min-h-[88vh]"
+      style={{ backgroundColor: BRAND.navy }}
     >
-      <motion.div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          y: bgY,
-          backgroundImage: "url('/hero-collage.jpg')",
-        }}
+      <HeroBackground />
+
+      {/* Darker on the left where the text sits, lighter on the right so the
+          footage shows through; evened out on small screens. */}
+      <div
+        className="absolute inset-0 hidden md:block"
+        style={{ background: "linear-gradient(90deg, rgba(10,22,40,0.82) 0%, rgba(10,22,40,0.55) 45%, rgba(10,22,40,0.15) 100%)" }}
       />
-
-      <div className="absolute inset-0" style={{ backgroundColor: "rgba(10,22,40,0.58)" }} />
+      <div className="absolute inset-0 md:hidden" style={{ backgroundColor: "rgba(10,22,40,0.6)" }} />
 
       <motion.div
-        className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center px-4 pb-16 pt-[144px] text-center md:pb-20 md:pt-[160px]"
-        initial={{ opacity: 0, y: 40 }}
+        className="relative z-10 mx-auto w-full max-w-[1440px] px-5 pb-16 pt-[128px] md:px-10 md:pb-20 md:pt-[150px]"
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
       >
         <h1
-          className="max-w-5xl font-extrabold tracking-[-1px] text-white"
-          style={{ fontSize: "clamp(36px, 8vw, 80px)", lineHeight: 1.05 }}
+          className="max-w-[680px] text-white"
+          style={{
+            fontFamily: '"Fraunces", Georgia, serif',
+            fontWeight: 400,
+            fontSize: "clamp(40px, 6.2vw, 76px)",
+            lineHeight: 1.05,
+            letterSpacing: "-0.01em",
+          }}
         >
-          <span className="block">
-            {headlineWords.slice(0, 3).map((word, index) => (
-              <motion.span
-                key={word}
-                initial={{ opacity: 0, y: 22 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className="mr-[0.28em] inline-block last:mr-0"
-              >
-                {word}
-              </motion.span>
-            ))}
-          </span>
-          <span className="block">
-            {headlineWords.slice(3).map((word, index) => (
-              <motion.span
-                key={word}
-                initial={{ opacity: 0, y: 22 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: (index + 3) * 0.08 }}
-                className="mr-[0.28em] inline-block last:mr-0"
-              >
-                {word}
-              </motion.span>
-            ))}
-          </span>
+          The Easiest Way To Grow Your Business
         </h1>
 
         <p
           style={{
-            fontSize: "clamp(17px, 4vw, 20px)",
-            color: "rgba(255,255,255,0.8)",
+            fontSize: "clamp(16px, 2vw, 20px)",
+            color: "rgba(255,255,255,0.85)",
             maxWidth: 520,
-            lineHeight: 1.65,
-            marginTop: 16,
-            marginBottom: 40,
-            textAlign: "center",
+            lineHeight: 1.6,
+            marginTop: 18,
+            marginBottom: 32,
           }}
         >
           Commercial Spaces, Booked Simply
         </p>
 
-        <motion.form
+        <form
           onSubmit={handleHeroSearch}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.32, ease: [0.22, 1, 0.36, 1] }}
           className="flex w-full max-w-[440px] md:hidden"
           style={{
             marginBottom: 20,
@@ -263,77 +291,21 @@ function HeroSection() {
           >
             <Search size={17} />
           </button>
-        </motion.form>
+        </form>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-            justifyContent: "center",
-            marginBottom: 40,
-          }}
-        >
-          <Link
-            to="/search"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: "14px 32px",
-              borderRadius: 9999,
-              background: "#2E58EC",
-              color: "white",
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-              boxShadow: "0 8px 24px rgba(46,88,236,0.4)",
-              minHeight: 52,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <Search size={17} />
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link to="/search" style={{ ...buttonBase, background: "#2E58EC", color: "white" }}>
             Find a Space
           </Link>
-
           <Link
             to="/create-space"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: "14px 32px",
-              borderRadius: 9999,
-              background: "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
-              border: "1.5px solid rgba(255,255,255,0.35)",
-              color: "white",
-              fontSize: 15,
-              fontWeight: 600,
-              textDecoration: "none",
-              minHeight: 52,
-              whiteSpace: "nowrap",
-            }}
+            style={{ ...buttonBase, background: "transparent", color: "white", border: "1.5px solid rgba(255,255,255,0.75)" }}
           >
             List Your Space
           </Link>
-        </motion.div>
-
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white"
-          animate={{ opacity: [0.35, 1, 0.35], y: [0, 6, 0] }}
-          transition={{ duration: 1.8, repeat: Infinity }}
-        >
-          <ChevronDown size={28} />
-        </motion.div>
+        </div>
       </motion.div>
-    </motion.section>
+    </section>
   );
 }
 
