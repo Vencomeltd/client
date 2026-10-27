@@ -4262,7 +4262,7 @@ function SimilarSpaces({ spaces }) {
                 <div
                   key={space._id}
                   onClick={() => {
-                    window.location.href = `/property/${space._id}`;
+                    window.location.href = `/property/${space.slug || space._id}`;
                   }}
                   style={{
                     cursor: "pointer",
