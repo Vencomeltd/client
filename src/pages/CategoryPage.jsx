@@ -53,6 +53,16 @@ export function meta({ data }) {
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { tagName: "link", rel: "canonical", href: url },
+    {
+      "script:ld+json": {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://www.vencome.com/" },
+          { "@type": "ListItem", position: 2, name: category.name, item: url },
+        ],
+      },
+    },
     // Empty categories render boilerplate "launching soon" copy -- keep
     // them crawlable (follow, so link equity still flows) but out of the
     // index until real listings exist, so they don't compete with real
