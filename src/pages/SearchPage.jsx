@@ -254,6 +254,30 @@ function PropertyMap({ listings }) {
   );
 }
 
+// With no filters the page used to ask for /properties?limit=20, so it could
+// never show (or count) more than 20 spaces. Fetch every page of active
+// listings instead (the server caps one request at 100), keeping the
+// admin-set order. Filtered searches use /properties/search, which already
+// returns every match.
+const LISTINGS_PAGE_SIZE = 100;
+
+async function fetchAllActiveListings() {
+  const base = `${import.meta.env.VITE_API_URL}/properties?limit=${LISTINGS_PAGE_SIZE}`;
+  const first = await fetch(`${base}&page=1`).then((res) => res.json());
+  const totalPages = Math.max(1, Number(first.totalPages) || 1);
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) =>
+      fetch(`${base}&page=${i + 2}`).then((res) => res.json())
+    )
+  );
+  // A listing created or reordered between page requests can shift onto
+  // two pages -- keep the first copy only.
+  const seen = new Set();
+  return [first, ...rest]
+    .flatMap((page) => page.properties || [])
+    .filter((listing) => !seen.has(listing._id) && seen.add(listing._id));
+}
+
 export async function loader({ request }) {
   const url = new URL(request.url);
   const query = url.searchParams.get("query") || url.searchParams.get("city") || url.searchParams.get("location") || "";
@@ -270,13 +294,18 @@ export async function loader({ request }) {
     queryParams.set("checkIn", checkIn);
     queryParams.set("checkOut", checkOut);
   }
-  const apiUrl = queryParams.toString()
-    ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
-    : `${import.meta.env.VITE_API_URL}/properties?limit=20`;
-
-  const res = await fetch(apiUrl);
-  const data = await res.json();
-  return { listings: data.properties || [] };
+  // A failed API call must not become an "Application Error" page: the
+  // component re-fetches on mount anyway, so fall back to an empty list.
+  try {
+    if (!queryParams.toString()) {
+      return { listings: await fetchAllActiveListings() };
+    }
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`);
+    const data = await res.json();
+    return { listings: data.properties || [] };
+  } catch {
+    return { listings: [] };
+  }
 }
 
 export function meta() {
@@ -359,12 +388,15 @@ export default function SearchPage() {
         queryParams.set("checkOut", checkOut);
       }
 
-      const url = queryParams.toString()
-        ? `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`
-        : `${import.meta.env.VITE_API_URL}/properties?limit=20`;
-
-      // Check cache for this exact query
-      const cacheKey = `vencome_search_${url}`;
+      const url = `${import.meta.env.VITE_API_URL}/properties/search?${queryParams.toString()}`;
+      // The duration/capacity/amenity filters are applied after the fetch,
+      // so they're part of the cache key too.
+      const cacheKey = `vencome_search_${JSON.stringify([
+        queryParams.toString() || "all",
+        selectedDuration,
+        minCapacity,
+        selectedAmenities,
+      ])}`;
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         try {
@@ -378,9 +410,14 @@ export default function SearchPage() {
         } catch {}
       }
 
-      const response = await fetch(url);
-      const data = await response.json();
-      let results = data.properties || [];
+      let results;
+      if (queryParams.toString()) {
+        const response = await fetch(url);
+        const data = await response.json();
+        results = data.properties || [];
+      } else {
+        results = await fetchAllActiveListings();
+      }
 
       if (selectedDuration && selectedDuration !== "any") {
         results = results.filter((listing) => {
@@ -405,13 +442,17 @@ export default function SearchPage() {
         });
       }
 
-      sessionStorage.setItem(
-        cacheKey,
-        JSON.stringify({
-          data: results,
-          timestamp: Date.now(),
-        })
-      );
+      try {
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            data: results,
+            timestamp: Date.now(),
+          })
+        );
+      } catch {
+        // Quota exceeded -- skip caching this result set.
+      }
       setListings(results);
       setTotal(results.length);
     } catch (err) {
@@ -490,7 +531,7 @@ export default function SearchPage() {
     sortBy,
   ]);
 
-  // Matches the /properties?limit=20 fetch above -- pagination only kicks
+  // 20 results per page -- pagination only kicks
   // in once results genuinely exceed a full page, instead of splitting off
   // a near-empty trailing page for the client's current, still-small
   // inventory.
