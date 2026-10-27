@@ -191,7 +191,7 @@ function PropertyMap({ listings }) {
               ${image}
               <p style="font-size:13px;font-weight:700;color:#0A1628;margin:0 0 4px;">${listing.title}</p>
               <p style="font-size:12px;color:#6B7280;margin:0 0 8px;">${listing.location?.city || ""}, ${listing.location?.country || ""}</p>
-              <a href="/property/${listing._id}" style="font-size:12px;font-weight:600;color:#2E58EC;text-decoration:none;">View Listing →</a>
+              <a href="/property/${listing.slug || listing._id}" style="font-size:12px;font-weight:600;color:#2E58EC;text-decoration:none;">View Listing →</a>
             </div>
           `;
           infoWindowRef.current.setContent(content);
