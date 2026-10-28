@@ -147,9 +147,11 @@ export default function Checkout() {
   const v2DepositGbp = v2Deposit ? (v2Deposit.amountPence / 100).toFixed(2) : null;
   const v2DepositCopy = !v2Deposit
     ? ""
+    : v2Deposit.series
+    ? `One refundable £${v2DepositGbp} deposit covers every date in this series. It's charged once when your booking is confirmed and refunded 24 hours after your last date, unless the host reports damage.`
     : v2Deposit.mode === "charged"
     ? `A refundable £${v2DepositGbp} deposit is charged to your card at booking and refunded after your stay unless the host reports damage.`
-    : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before ${v2Deposit.perDate ? "each date" : "check-in"}. You're only charged if there's damage.`;
+    : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before check-in. You're only charged if there's damage.`;
   const v2Consent = v2Deposit
     ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.`
     : "";
