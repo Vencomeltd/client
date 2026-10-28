@@ -3961,7 +3961,7 @@ const MARKET_STATUS_META = {
   planned: { label: "Planned", color: "#6B7280" },
 };
 
-const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", status: "planned", phase: "", currency: "GBP", primaryLanguage: "English" };
+const EMPTY_MARKET_FORM = { name: "", flag: "🌍", citiesText: "", plannedCitiesText: "", status: "planned", phase: "", currency: "GBP", primaryLanguage: "English" };
 
 // SEO landing pages (/uk/london, /uk/london/chairs, /chairs, ...): write and
 // approve the intro each page needs before Google is told to index it. The
@@ -4261,6 +4261,7 @@ function MarketsSection({ bookings, onToast }) {
       name: market.name,
       flag: market.flag || "🌍",
       citiesText: (market.cities || []).join(", "),
+      plannedCitiesText: (market.plannedCities || []).join(", "),
       status: market.status,
       phase: market.phase || "",
       currency: market.currency || "GBP",
@@ -4286,6 +4287,7 @@ function MarketsSection({ bookings, onToast }) {
         name: form.name.trim(),
         flag: form.flag.trim() || "🌍",
         cities: form.citiesText.split(",").map((c) => c.trim()).filter(Boolean),
+        plannedCities: form.plannedCitiesText.split(",").map((c) => c.trim()).filter(Boolean),
         status: form.status,
         phase: form.phase.trim(),
         currency: form.currency,
@@ -4373,11 +4375,26 @@ function MarketsSection({ bookings, onToast }) {
                     <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>bookings</p>
                   </div>
                 </div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 6px" }}>Live</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                  {(market.cities || []).map((city) => (
-                    <span key={city} style={{ fontSize: 12, color: "#6B7280", background: "#F3F4F6", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
-                  ))}
+                  {(market.cities || []).length ? (
+                    market.cities.map((city) => (
+                      <span key={city} style={{ fontSize: 12, color: "#166534", background: "#DCFCE7", padding: "3px 10px", borderRadius: 999 }}>{city}</span>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: 12, color: "#9CA3AF" }}>Not launched yet</span>
+                  )}
                 </div>
+                {(market.plannedCities || []).length > 0 && (
+                  <>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 6px" }}>Planned — not launched</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                      {market.plannedCities.map((city) => (
+                        <span key={city} style={{ fontSize: 12, color: "#9CA3AF", border: "1px dashed #D1D5DB", padding: "2px 10px", borderRadius: 999 }}>{city}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 16px" }}>{market.currency || "GBP"} · {market.primaryLanguage || "English"}</p>
                 <div style={{ display: "flex", gap: 8, borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
                   <button
@@ -4415,7 +4432,8 @@ function MarketsSection({ bookings, onToast }) {
                 <div key={market._id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid #F3F4F6" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", width: 90, flexShrink: 0 }}>{market.phase || "—"}</span>
                   <span style={{ fontSize: 14, color: "#374151", flex: 1 }}>
-                    {market.name} — {(market.cities || []).join(", ") || "No cities listed"}
+                    {market.name} — live: {(market.cities || []).join(", ") || "none yet"}
+                    {(market.plannedCities || []).length > 0 ? ` · planned: ${market.plannedCities.join(", ")}` : ""}
                   </span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, background: `${meta.color}18`, padding: "3px 12px", borderRadius: 999 }}>{meta.label}</span>
                 </div>
@@ -4449,9 +4467,16 @@ function MarketsSection({ bookings, onToast }) {
           </div>
           <input
             type="text"
-            placeholder="Cities, comma separated (e.g. London, Manchester)"
+            placeholder="Live cities — launched, comma separated (e.g. London)"
             value={form.citiesText}
             onChange={(e) => setForm((f) => ({ ...f, citiesText: e.target.value }))}
+            style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
+          />
+          <input
+            type="text"
+            placeholder="Planned cities — not launched yet (e.g. Manchester, Birmingham)"
+            value={form.plannedCitiesText}
+            onChange={(e) => setForm((f) => ({ ...f, plannedCitiesText: e.target.value }))}
             style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
           />
           <div style={{ display: "flex", gap: 10 }}>
