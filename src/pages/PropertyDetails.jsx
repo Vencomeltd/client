@@ -759,8 +759,17 @@ export function meta({ data }) {
 
   const title = `${prop.title} | VenCome`;
   const location = [prop.location?.city, prop.location?.country].filter(Boolean).join(", ");
-  const price = prop.pricing?.hourly || prop.pricing?.daily || 0;
-  const priceUnit = prop.pricing?.hourly ? "hr" : "day";
+  // First price tier the host has set, so office listings priced by the
+  // week or month don't send Google a price of 0.
+  const p = prop.pricing || {};
+  const tiers = [
+    [p.hourly || p.hourlyPrice, "HOUR"],
+    [p.daily || p.weekdayPrice, "DAY"],
+    [p.weekly, "WEEK"],
+    [p.monthly, "MONTH"],
+    [p.annual, "YEAR"],
+  ];
+  const [price, priceUnit] = tiers.find(([amount]) => Number(amount) > 0) || [0, ""];
   const description = `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
   const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
   const url = `https://www.vencome.com/property/${prop.slug || prop._id}`;
@@ -784,7 +793,8 @@ export function meta({ data }) {
         description,
         image,
         url,
-        offers: {
+        // No offer at all when the listing has no price, rather than a price of 0.
+        ...(price > 0 ? { offers: {
           "@type": "Offer",
           price,
           priceCurrency: "GBP",
@@ -796,7 +806,7 @@ export function meta({ data }) {
           },
           availability: "https://schema.org/InStock",
           seller: { "@type": "Organization", name: "VenCome" },
-        },
+        } } : {}),
         address: {
           "@type": "PostalAddress",
           addressLocality: prop.location?.city || "",
