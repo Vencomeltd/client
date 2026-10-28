@@ -2004,10 +2004,26 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
   );
 }
 
+// Marks staff and QA accounts so they're never mistaken for real customers.
+function AccountFlags({ user }) {
+  return (
+    <>
+      {user.isAdmin ? (
+        <span className="rounded-full bg-[rgba(124,58,237,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Admin</span>
+      ) : null}
+      {user.isTestAccount ? (
+        <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">Test account</span>
+      ) : null}
+    </>
+  );
+}
+
 function UsersSection({
   users,
-  allUsers,
-  totalUsers,
+  userCounts,
+  usersTotal,
+  showTestAccounts,
+  setShowTestAccounts,
   loading,
   userQuery,
   setUserQuery,
@@ -2032,19 +2048,17 @@ function UsersSection({
   usersTotalPages,
   onUsersPageChange,
 }) {
-  // Counts must come from the full, unfiltered user list -- `users` here is
-  // already narrowed by the active tab/search/role/status filters, so
-  // computing each tab's own badge count from it made every badge collapse
-  // to match whatever filter was currently applied (reported: "when we
-  // click on the host item or customer at the top all the numbers on
-  // their card changes").
+  // Each tab's total across every user (GET /admin/users/counts), with or
+  // without test accounts to match the list below.
+  const counts = userCounts?.[showTestAccounts ? "includingTest" : "excludingTest"];
+  const countLabel = (key) => (counts ? ` (${formatNumber(counts[key])})` : "");
   const tabs = [
-    { key: "all", label: `All (${allUsers.length})` },
-    { key: "customers", label: `Customers (${allUsers.filter((item) => getUserRole(item) === "customer").length})` },
-    { key: "hosts", label: `Hosts (${allUsers.filter((item) => getUserRole(item) === "host").length})` },
-    { key: "unverified", label: `Unverified (${allUsers.filter((item) => !item.isVerified).length})` },
-    { key: "suspended", label: `Suspended (${allUsers.filter((item) => item.isBanned).length})` },
-    { key: "pending", label: `Pending Verification (${allUsers.filter((item) => item.isHost && item.businessVerification?.status === "under_review").length})` },
+    { key: "all", label: `All${countLabel("all")}` },
+    { key: "customers", label: `Customers${countLabel("customers")}` },
+    { key: "hosts", label: `Hosts${countLabel("hosts")}` },
+    { key: "unverified", label: `Unverified${countLabel("unverified")}` },
+    { key: "suspended", label: `Suspended${countLabel("suspended")}` },
+    { key: "pending", label: `Pending Verification${countLabel("pending")}` },
   ];
 
   return (
@@ -2052,7 +2066,11 @@ function UsersSection({
       <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h2 className="text-[20px] font-extrabold text-[#0A1628]">Users</h2>
-          <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(totalUsers)} registered users</p>
+          <p className="mt-1 text-[13px] text-[#6B7280]">
+            {counts
+              ? `${formatNumber(userCounts.excludingTest.all)} registered users (${formatNumber(userCounts.excludingTest.hosts)} hosts · ${formatNumber(userCounts.excludingTest.customers)} customers)${userCounts.testAccounts ? ` · ${formatNumber(userCounts.testAccounts)} test accounts not counted` : ""}`
+              : "Loading users…"}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -2100,7 +2118,7 @@ function UsersSection({
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -2115,6 +2133,14 @@ function UsersSection({
             {tab.label}
           </button>
         ))}
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-[#374151]">
+          <input
+            type="checkbox"
+            checked={showTestAccounts}
+            onChange={(event) => setShowTestAccounts(event.target.checked)}
+          />
+          Show test accounts
+        </label>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
@@ -2152,7 +2178,7 @@ function UsersSection({
                   </td>
                 </tr>
               ) : (
-                users.slice(0, 10).map((user, index) => (
+                users.map((user, index) => (
                 <motion.tr
                   key={user._id}
                   initial={{ opacity: 0 }}
@@ -2167,6 +2193,7 @@ function UsersSection({
                         <div className="flex items-center gap-1.5">
                           <p className="truncate text-[13px] font-semibold text-[#0A1628]">{getUserDisplayName(user)}</p>
                           {user.isVerified ? <UserCheck size={12} className="text-[#305CDE]" /> : null}
+                          <AccountFlags user={user} />
                           {user.isBanned ? (
                             <span className="rounded-full bg-[rgba(220,38,38,0.08)] px-2 py-0.5 text-[10px] font-semibold text-[#DC2626]">
                               Banned
@@ -2243,7 +2270,7 @@ function UsersSection({
               No data yet
             </div>
           ) : (
-            users.slice(0, 10).map((user, index) => (
+            users.map((user, index) => (
             <motion.div
               key={user._id}
               initial={{ opacity: 0, y: 12 }}
@@ -2280,6 +2307,7 @@ function UsersSection({
                   {getUserRole(user) === "host" ? "Host" : "Customer"}
                 </span>
                 <StatusPill status={getUserStatus(user)} type="userStatus" />
+                <AccountFlags user={user} />
                 {user.isBanned ? (
                   <span className="rounded-full bg-[rgba(220,38,38,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[#DC2626]">
                     Banned
@@ -2301,7 +2329,7 @@ function UsersSection({
 
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <p className="text-[13px] text-[#6B7280]">
-            Page {usersPage} of {usersTotalPages} — {formatNumber(totalUsers)} users total
+            Page {usersPage} of {usersTotalPages} — {formatNumber(usersTotal)} {usersTotal === 1 ? "user" : "users"}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -2725,7 +2753,7 @@ function ListingsSection({
               {listings.length === 0 ? "No data yet" : "No listings match your search"}
             </div>
           ) : (
-            filteredListings.slice(0, 10).map((listing, index) => (
+            filteredListings.map((listing, index) => (
               <motion.div
                 key={listing._id}
                 initial={{ opacity: 0, y: 12 }}
@@ -4488,7 +4516,7 @@ function MarketsSection({ bookings, onToast }) {
   );
 }
 
-function BroadcastSection({ users }) {
+function BroadcastSection({ users, stats }) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [target, setTarget] = useState("all");
@@ -4541,11 +4569,12 @@ function BroadcastSection({ users }) {
     loadHistory();
   }, [loadTemplates, loadHistory]);
 
+  // Platform-wide totals (stats), not the one page of users this has.
   const targetCount =
-    target === "all" ? users.length :
-    target === "hosts" ? users.filter(u => u.isHost).length :
+    target === "all" ? stats.totalUsers ?? 0 :
+    target === "hosts" ? stats.totalHosts ?? 0 :
     target === "specific" ? specificUserIds.length :
-    users.filter(u => !u.isHost).length;
+    stats.totalCustomers ?? 0;
 
   const filteredUserOptions = users.filter((u) => {
     if (!userSearch.trim()) return true;
@@ -4790,9 +4819,9 @@ function BroadcastSection({ users }) {
           <div style={{ background: "#fff", borderRadius: 20, padding: 24, border: "1.5px solid #E5E7EB" }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0A1628", marginBottom: 16 }}>Audience</h3>
             {[
-              { label: "Total Users", value: users.length, color: "#305CDE" },
-              { label: "Hosts", value: users.filter(u => u.isHost).length, color: "#16A34A" },
-              { label: "Customers", value: users.filter(u => !u.isHost).length, color: "#D97706" },
+              { label: "Total Users", value: stats.totalUsers ?? "…", color: "#305CDE" },
+              { label: "Hosts", value: stats.totalHosts ?? "…", color: "#16A34A" },
+              { label: "Customers", value: stats.totalCustomers ?? "…", color: "#D97706" },
             ].map(item => (
               <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #F3F4F6" }}>
                 <span style={{ fontSize: 14, color: "#374151" }}>{item.label}</span>
@@ -7391,6 +7420,12 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotalPages, setUsersTotalPages] = useState(1);
+  // The current Users tab/search across every user (from the server) --
+  // and each tab's own total, from GET /admin/users/counts.
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [userCounts, setUserCounts] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
   const [listings, setListings] = useState([]);
   const [listingsPage, setListingsPage] = useState(1);
   const [listingsTotalPages, setListingsTotalPages] = useState(1);
@@ -7702,45 +7737,44 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchUsers = useCallback(async (page) => {
+  // The Users tabs and search are applied on the server, across every user
+  // -- they used to count and filter only the 20 users on the current page.
+  const fetchUsers = useCallback(async (page, { tab, query, showTest }) => {
+    setUsersLoading(true);
     try {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
       const API = import.meta.env.VITE_API_URL;
-      const [res, hostsRes, customersRes, totalRes] = await Promise.all([
-        fetch(`${API}/admin/users?page=${page}&limit=20`, { headers }),
-        // "Total Users" alone didn't say whether it meant hosts or renters --
-        // these two give the breakdown shown under it. limit=1 since only
-        // the pagination `total` is needed, not the actual user records.
-        // excludeTest so this breakdown matches the real-activity-only
-        // "Total Users" figure, not the browsable list's full count.
-        fetch(`${API}/admin/users?role=host&limit=1&excludeTest=true`, { headers }),
-        fetch(`${API}/admin/users?role=customer&limit=1&excludeTest=true`, { headers }),
-        fetch(`${API}/admin/users?limit=1&excludeTest=true`, { headers }),
+      const params = new URLSearchParams({ page, limit: 20, tab });
+      if (query) params.set("q", query);
+      if (!showTest) params.set("excludeTest", "true");
+      const [res, countsRes] = await Promise.all([
+        fetch(`${API}/admin/users?${params}`, { headers }),
+        fetch(`${API}/admin/users/counts`, { headers }),
       ]);
       if (res.ok) {
         const data = await res.json();
-        const allUsers = data.users || [];
-        setUsers(allUsers);
+        setUsers(data.users || []);
         setUsersPage(data.page || page);
         setUsersTotalPages(data.pages || 1);
-        const hostsData = hostsRes.ok ? await hostsRes.json() : null;
-        const customersData = customersRes.ok ? await customersRes.json() : null;
-        const totalData = totalRes.ok ? await totalRes.json() : null;
+        setUsersTotal(data.total || 0);
+      }
+      if (countsRes.ok) {
+        const counts = await countsRes.json();
+        setUserCounts(counts);
+        // Without test accounts -- the same numbers GET /admin/stats uses,
+        // so Overview and Users always agree.
         setStats((prev) => ({
           ...prev,
-          // Was data.total (the unfiltered browse-list count) -- now the
-          // same excludeTest count as the hosts/customers breakdown below,
-          // so the headline number and its own subtitle can't disagree.
-          totalUsers: totalData?.total ?? prev.totalUsers,
-          totalHosts: hostsData?.total ?? prev.totalHosts,
-          totalCustomers: customersData?.total ?? prev.totalCustomers,
-          // activeUsers comes from GET /admin/stats (platform-wide), not
-          // computed here -- this page only ever has 20 users on it.
+          totalUsers: counts.excludingTest.all,
+          totalHosts: counts.excludingTest.hosts,
+          totalCustomers: counts.excludingTest.customers,
         }));
       }
     } catch (err) {
       console.error("Failed to fetch users:", err);
+    } finally {
+      setUsersLoading(false);
     }
   }, []);
 
@@ -7906,10 +7940,22 @@ export default function AdminDashboard() {
     fetchAdminData();
   }, [token]);
 
+  // Search waits for a pause in typing before asking the server.
+  const [debouncedUserQuery, setDebouncedUserQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedUserQuery(userQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [userQuery]);
+
+  // A new tab, search or test-account toggle starts again from page 1.
+  useEffect(() => {
+    setUsersPage(1);
+  }, [activeUserTab, debouncedUserQuery, showTestAccounts]);
+
   useEffect(() => {
     if (!token) return;
-    fetchUsers(usersPage);
-  }, [token, usersPage, fetchUsers]);
+    fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
+  }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
   useEffect(() => {
     if (!token) return;
@@ -7926,27 +7972,18 @@ export default function AdminDashboard() {
   };
 
   const filteredUsers = useMemo(() => {
+    // Tab and search are applied on the server (fetchUsers); the role and
+    // status dropdowns still narrow the current page.
     return users.filter((user) => {
-      const matchesQuery =
-        `${getUserDisplayName(user)} ${user.email}`.toLowerCase().includes(userQuery.toLowerCase());
-
       const matchesRole =
         roleFilter === "All Roles" || getUserRole(user) === roleFilter.toLowerCase();
 
       const matchesStatus =
         statusFilter === "All Status" || getUserStatus(user) === statusFilter.toLowerCase();
 
-      const matchesTab =
-        activeUserTab === "all" ||
-        (activeUserTab === "customers" && getUserRole(user) === "customer") ||
-        (activeUserTab === "hosts" && getUserRole(user) === "host") ||
-        (activeUserTab === "unverified" && !user.isVerified) ||
-        (activeUserTab === "suspended" && user.isBanned) ||
-        (activeUserTab === "pending" && user.isHost && user.businessVerification?.status === "under_review");
-
-      return matchesQuery && matchesRole && matchesStatus && matchesTab;
+      return matchesRole && matchesStatus;
     });
-  }, [activeUserTab, roleFilter, statusFilter, userQuery, users]);
+  }, [roleFilter, statusFilter, users]);
 
   let sectionContent = null;
 
@@ -7968,9 +8005,11 @@ export default function AdminDashboard() {
       <>
       <UsersSection
         users={filteredUsers}
-        allUsers={users}
-        totalUsers={stats.totalUsers}
-        loading={loading}
+        userCounts={userCounts}
+        usersTotal={usersTotal}
+        showTestAccounts={showTestAccounts}
+        setShowTestAccounts={setShowTestAccounts}
+        loading={usersLoading}
         userQuery={userQuery}
         setUserQuery={setUserQuery}
         roleFilter={roleFilter}
@@ -8079,7 +8118,7 @@ export default function AdminDashboard() {
     sectionContent = <SeoPagesSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
-      <BroadcastSection users={users} />
+      <BroadcastSection users={users} stats={stats} />
     );
   } else if (activeSection === "analytics") {
     sectionContent = (
