@@ -13,10 +13,23 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 const UNIT_WORD = { hour: "hour", day: "night", week: "week", month: "month", year: "year" };
 
+// "Wed 4 Nov, 10:00–13:00" for a same-day booking, otherwise "4 Nov – 5 Nov".
+function formatSeriesDate({ checkIn, checkOut }) {
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+  const day = (date) => date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const time = (date) => date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return start.toDateString() === end.toDateString()
+    ? `${day(start)}, ${time(start)}–${time(end)}`
+    : `${day(start)} – ${day(end)}`;
+}
+
 export default function Checkout() {
-  const { bookingId } = useParams();
+  const { bookingId, groupId } = useParams();
   const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
+  // Series checkout (Recurring / Multiple Dates): every date, each with its price.
+  const [series, setSeries] = useState(null);
   const [property, setProperty] = useState(null);
   const [clientSecret, setClientSecret] = useState(null);
   const [error, setError] = useState("");
@@ -30,7 +43,20 @@ export default function Checkout() {
       setError("");
       try {
         const token = localStorage.getItem("vencome_token");
-        const bookingRes = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${bookingId}`, {
+
+        // A series is paid with one payment for all its dates.
+        let seriesData = null;
+        if (groupId) {
+          const seriesRes = await fetch(`${import.meta.env.VITE_API_URL}/bookings/group/${groupId}/payment-intent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          });
+          seriesData = await seriesRes.json().catch(() => ({}));
+          if (!seriesRes.ok || !seriesData.enabled) throw new Error(seriesData.error || "Failed to start checkout");
+        }
+
+        const firstBookingId = seriesData ? seriesData.bookings[0]._id : bookingId;
+        const bookingRes = await fetch(`${import.meta.env.VITE_API_URL}/bookings/${firstBookingId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!bookingRes.ok) throw new Error("Booking not found");
@@ -40,6 +66,12 @@ export default function Checkout() {
         const propertyRes = await fetch(`${import.meta.env.VITE_API_URL}/properties/${bookingData.property}`);
         const propertyData = await propertyRes.json();
         setProperty(propertyData.property || propertyData);
+
+        if (seriesData) {
+          setSeries(seriesData.bookings);
+          setV2(seriesData);
+          return;
+        }
 
         // Stripe redirected back here with a completed session instead of
         // firing onComplete inline (happens when a redirect-based step like
@@ -68,6 +100,11 @@ export default function Checkout() {
           setV2(v2Data);
           return;
         }
+        // Part of a series -- pay for every date together.
+        if (v2Data.groupId) {
+          navigate(`/checkout/series/${v2Data.groupId}`, { replace: true });
+          return;
+        }
         if (!v2Res.ok && v2Res.status !== 404) throw new Error(v2Data.error || "Failed to start checkout");
 
         const sessionRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-checkout-session`, {
@@ -85,7 +122,7 @@ export default function Checkout() {
       }
     };
     load();
-  }, [bookingId, navigate]);
+  }, [bookingId, groupId, navigate]);
 
   const options = useMemo(() => {
     if (!clientSecret || !booking) return null;
@@ -103,7 +140,7 @@ export default function Checkout() {
 
   const durationUnits = booking?.totalUnits ?? booking?.totalNights;
   const durationWord = UNIT_WORD[booking?.pricingUnit] || "night";
-  const rentTotal = booking?.totalPrice || 0;
+  const rentTotal = series ? v2.amountPence / 100 : booking?.totalPrice || 0;
   const depositAmount = booking?.deposit?.amount || 0;
 
   const v2Deposit = v2?.deposit && v2.deposit.mode !== "none" ? v2.deposit : null;
@@ -112,7 +149,7 @@ export default function Checkout() {
     ? ""
     : v2Deposit.mode === "charged"
     ? `A refundable £${v2DepositGbp} deposit is charged to your card at booking and refunded after your stay unless the host reports damage.`
-    : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before check-in. You're only charged if there's damage.`;
+    : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before ${v2Deposit.perDate ? "each date" : "check-in"}. You're only charged if there's damage.`;
   const v2Consent = v2Deposit
     ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.`
     : "";
@@ -142,7 +179,7 @@ export default function Checkout() {
                   payLabel={booking.status === "pending" ? "Send booking request" : `Pay £${rentTotal.toFixed(2)}`}
                   consentText={v2Consent}
                   onSuccess={() =>
-                    navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${booking.totalPrice}`)
+                    navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${rentTotal}`)
                   }
                 />
               )}
@@ -172,10 +209,24 @@ export default function Checkout() {
                   )}
 
                   <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-                      <CalendarDays size={14} />
-                      {new Date(booking.checkIn).toLocaleDateString()} — {new Date(booking.checkOut).toLocaleDateString()}
-                    </div>
+                    {series ? (
+                      <div style={{ fontSize: 13, color: "#374151" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 6 }}>
+                          <CalendarDays size={14} /> {series.length} dates
+                        </div>
+                        {series.map((item) => (
+                          <div key={item._id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "3px 0 3px 22px" }}>
+                            <span>{formatSeriesDate(item)}</span>
+                            <span>£{(item.amountPence / 100).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
+                        <CalendarDays size={14} />
+                        {new Date(booking.checkIn).toLocaleDateString()} — {new Date(booking.checkOut).toLocaleDateString()}
+                      </div>
+                    )}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
                       <Users size={14} />
                       {booking.guests} guest{booking.guests !== 1 ? "s" : ""}
@@ -184,7 +235,11 @@ export default function Checkout() {
 
                   <div style={{ borderTop: "1px solid #F3F4F6", marginTop: 16, paddingTop: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
-                      <span>{durationUnits ? `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}` : "Rent"}</span>
+                      <span>
+                        {series
+                          ? `${series.length} bookings`
+                          : durationUnits ? `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}` : "Rent"}
+                      </span>
                       <span>£{rentTotal.toFixed(2)}</span>
                     </div>
                     {depositAmount > 0 && (

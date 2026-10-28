@@ -40,6 +40,7 @@ import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
+import { buildRecurringDates, formatOccurrence } from "../utils/recurringDates";
 
 const BRAND = {
   navy: "#0A1628",
@@ -849,6 +850,9 @@ export default function PropertyDetails() {
     startDate: "",
     frequency: "weekly",
     occurrences: 1,
+    weekdays: [],
+    startTime: "",
+    endTime: "",
   });
   const [guests, setGuests] = useState(1);
   const [bookingLoading, setBookingLoading] = useState(false);
@@ -1330,6 +1334,29 @@ export default function PropertyDetails() {
     [selectedTier, selectedDays, checkIn, checkOut, selectedStartDate, property?.pricing?.customDayPricing]
   );
 
+  // Recurring: every date the guest will book, each priced the way the
+  // server prices it, so the form can list them all with the total.
+  const recurringPreview = useMemo(() => {
+    if (bookingMode !== "recurring" || !selectedTier) return null;
+    const customDayPricing = property?.pricing?.customDayPricing;
+    const items = buildRecurringDates({
+      ...recurringConfig,
+      periods: recurringConfig.occurrences,
+      durationUnit: selectedTier.unit,
+    }).map((range) => {
+      let price = selectedTier.price;
+      if (selectedTier.unit === "hour") {
+        const hours = Math.round(((range.checkOut - range.checkIn) / (1000 * 60 * 60)) * 10) / 10;
+        price = calculateHourlyPriceWithBreakdown(range.checkIn, hours, selectedTier.price, customDayPricing).totalPrice;
+      } else if (selectedTier.unit === "day") {
+        price = calculateDailyPriceWithBreakdown(range.checkIn, 1, selectedTier.price, customDayPricing).totalPrice;
+      }
+      return { ...range, price };
+    });
+    const total = Math.round(items.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
+    return { items, total, unit: selectedTier.unit };
+  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing]);
+
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
   const bookingTotal = bookingMetrics.subtotal;
@@ -1530,87 +1557,100 @@ export default function PropertyDetails() {
           setBookingLoading(false);
           return;
         }
-        const dates = [];
-        let current = new Date(recurringConfig.startDate);
-        for (let index = 0; index < recurringConfig.occurrences; index += 1) {
-          const start = new Date(current);
-          const end = new Date(current);
-          if (selectedDurationType === "daily") end.setDate(end.getDate() + 1);
-          else if (selectedDurationType === "weekly") end.setDate(end.getDate() + 7);
-          else if (selectedDurationType === "monthly") end.setMonth(end.getMonth() + 1);
-          else end.setDate(end.getDate() + 1);
-          dates.push({ checkIn: start.toISOString(), checkOut: end.toISOString() });
-          if (recurringConfig.frequency === "weekly") current.setDate(current.getDate() + 7);
-          else if (recurringConfig.frequency === "biweekly") {
-            current.setDate(current.getDate() + 14);
-          } else if (recurringConfig.frequency === "monthly") {
-            current.setMonth(current.getMonth() + 1);
-          }
+        if (!recurringPreview?.items.length) {
+          setBookingError(selectedTier?.unit === "hour" ? "Please choose a start and end time" : "Please choose when to repeat");
+          setBookingLoading(false);
+          return;
         }
-        bookingsToCreate = dates;
+        bookingsToCreate = recurringPreview.items.map((item) => ({
+          checkIn: item.checkIn.toISOString(),
+          checkOut: item.checkOut.toISOString(),
+        }));
       }
 
-      const results = await Promise.all(
-        bookingsToCreate.map(async ({ checkIn: bookingCheckIn, checkOut: bookingCheckOut }) => {
-          const formData = new FormData();
-          formData.append("propertyId", property._id);
-          const checkInISO = bookingCheckIn.length === 10
-            ? new Date(bookingCheckIn + "T09:00:00").toISOString()
-            : new Date(bookingCheckIn).toISOString();
+      // The ISO check-in/check-out the backend expects for one picked range.
+      const toBackendRange = ({ checkIn: bookingCheckIn, checkOut: bookingCheckOut }) => {
+        const checkInISO = bookingCheckIn.length === 10
+          ? new Date(bookingCheckIn + "T09:00:00").toISOString()
+          : new Date(bookingCheckIn).toISOString();
 
-          // Only the DAY tier needs the +1 day adjustment: its picked end
-          // date is the LAST day the customer actually uses the space (e.g.
-          // Mon+Tue means 2 full days of use), so it gets pushed forward one
-          // day to match the backend's exclusive-checkout day counting. WEEK/
-          // MONTH/YEAR tiers already pick an exclusive checkOut (the date
-          // picker auto-advances it by whole units, e.g. +7 days for 1 week),
-          // so applying the same +1 day here would double-count a boundary
-          // day and overbill -- see getBookingMetrics() for the matching
-          // tier-specific logic on the price-preview side.
-          let checkOutForBackend = bookingCheckOut;
-          if (bookingCheckOut.length === 10 && selectedTier?.unit === "day") {
-            const nextDay = new Date(bookingCheckOut + "T00:00:00");
-            nextDay.setDate(nextDay.getDate() + 1);
-            checkOutForBackend = formatInputDateValue(nextDay);
-          }
+        // Only the DAY tier needs the +1 day adjustment: its picked end
+        // date is the LAST day the customer actually uses the space (e.g.
+        // Mon+Tue means 2 full days of use), so it gets pushed forward one
+        // day to match the backend's exclusive-checkout day counting. WEEK/
+        // MONTH/YEAR tiers already pick an exclusive checkOut (the date
+        // picker auto-advances it by whole units, e.g. +7 days for 1 week),
+        // so applying the same +1 day here would double-count a boundary
+        // day and overbill -- see getBookingMetrics() for the matching
+        // tier-specific logic on the price-preview side.
+        let checkOutForBackend = bookingCheckOut;
+        if (bookingCheckOut.length === 10 && selectedTier?.unit === "day") {
+          const nextDay = new Date(bookingCheckOut + "T00:00:00");
+          nextDay.setDate(nextDay.getDate() + 1);
+          checkOutForBackend = formatInputDateValue(nextDay);
+        }
 
-          const checkOutISO = checkOutForBackend.length === 10
-            ? new Date(checkOutForBackend + "T18:00:00").toISOString()
-            : new Date(checkOutForBackend).toISOString();
-          formData.append("checkIn", checkInISO);
-          formData.append("checkOut", checkOutISO);
-          formData.append("guests", guests);
-          formData.append("extras", JSON.stringify([]));
-          if (selectedTier?.unit) {
-            formData.append("pricingUnit", selectedTier.unit);
-          }
-          // Only reachable once the customer has ticked the agreement
-          // checkbox in the terms gate (or the listing has no terms to
-          // agree to at all -- see handleBookClick).
-          if (property?.listingTerms?.trim()) {
-            formData.append("agreedToTerms", "true");
-          }
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
-          return response;
-        })
-      );
+        const checkOutISO = checkOutForBackend.length === 10
+          ? new Date(checkOutForBackend + "T18:00:00").toISOString()
+          : new Date(checkOutForBackend).toISOString();
+        return { checkIn: checkInISO, checkOut: checkOutISO };
+      };
+      const ranges = bookingsToCreate.map(toBackendRange);
 
-      const failedResponse = results.find((response) => !response.ok);
-      if (failedResponse) {
-        const firstFailed = await failedResponse.json();
-        setBookingError(firstFailed?.error || "One or more bookings failed");
+      // Recurring / Multiple Dates: the server books every date or none (the
+      // error names any date that's taken), and they're paid for together
+      // on the series checkout.
+      if (ranges.length > 1) {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings/group`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId: property._id,
+            dates: ranges,
+            guests,
+            pricingUnit: selectedTier?.unit,
+            agreedToTerms: Boolean(property?.listingTerms?.trim()),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setBookingError(data.error || "These dates couldn't be booked");
+          return;
+        }
+        navigate(`/checkout/series/${data.groupId}`);
         return;
       }
 
-      // Get the first successful booking and go to our own checkout page
-      // (it creates the Stripe Checkout Session itself -- see Checkout.jsx)
-      // instead of redirecting to a stripe.com-hosted page.
-      const firstResult = results[0];
-      const booking = await firstResult.json();
+      const formData = new FormData();
+      formData.append("propertyId", property._id);
+      formData.append("checkIn", ranges[0].checkIn);
+      formData.append("checkOut", ranges[0].checkOut);
+      formData.append("guests", guests);
+      formData.append("extras", JSON.stringify([]));
+      if (selectedTier?.unit) {
+        formData.append("pricingUnit", selectedTier.unit);
+      }
+      // Only reachable once the customer has ticked the agreement
+      // checkbox in the terms gate (or the listing has no terms to
+      // agree to at all -- see handleBookClick).
+      if (property?.listingTerms?.trim()) {
+        formData.append("agreedToTerms", "true");
+      }
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const failed = await response.json().catch(() => ({}));
+        setBookingError(failed?.error || "Booking failed");
+        return;
+      }
+
+      // Go to our own checkout page (it creates the payment itself -- see
+      // Checkout.jsx) instead of redirecting to a stripe.com-hosted page.
+      const booking = await response.json();
       navigate(`/checkout/${booking._id}`);
     } catch (err) {
       setBookingError("Something went wrong. Please try again.");
@@ -1893,6 +1933,7 @@ export default function PropertyDetails() {
                 onSelectedDatesChange={setSelectedDates}
                 recurringConfig={recurringConfig}
                 onRecurringConfigChange={setRecurringConfig}
+                recurringPreview={recurringPreview}
                 guests={guests}
                 onGuestsChange={setGuests}
                 bookingLoading={bookingLoading}
@@ -3632,6 +3673,58 @@ function ReviewsSection({
   );
 }
 
+const WEEKDAY_CHIPS = [
+  { day: 1, label: "Mon" },
+  { day: 2, label: "Tue" },
+  { day: 3, label: "Wed" },
+  { day: 4, label: "Thu" },
+  { day: 5, label: "Fri" },
+  { day: 6, label: "Sat" },
+  { day: 0, label: "Sun" },
+];
+const PERIOD_LABEL = { weekly: "How many weeks", biweekly: "How many fortnights", monthly: "How many months" };
+const PERIOD_WORD = { weekly: "weeks", biweekly: "fortnights", monthly: "months" };
+const HALF_HOURS = Array.from(
+  { length: 48 },
+  (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`
+);
+const RECURRING_LIST_LIMIT = 8;
+
+// Every date a recurring booking will make, the last date and the total, so
+// the guest knows exactly what they're booking before they click.
+function RecurringSummary({ preview }) {
+  const { items, total, unit } = preview;
+  const samePrice = items.every((item) => item.price === items[0].price);
+  const last = items[items.length - 1];
+  const gbp = (amount) => `£${Number(amount.toFixed(2)).toLocaleString()}`;
+  return (
+    <div style={{ marginTop: "12px", background: "#F5F7FF", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: "#374151" }}>
+      <p style={{ fontWeight: "700", color: "#0A1628", margin: "0 0 6px" }}>
+        {items.length} booking{items.length !== 1 ? "s" : ""}
+      </p>
+      <ul style={{ margin: 0, paddingLeft: "18px", lineHeight: 1.7 }}>
+        {items.slice(0, RECURRING_LIST_LIMIT).map((item) => (
+          <li key={item.checkIn.toISOString()}>
+            {formatOccurrence(item, unit)}
+            {!samePrice && <span style={{ color: "#6B7280" }}> · {gbp(item.price)}</span>}
+          </li>
+        ))}
+      </ul>
+      {items.length > RECURRING_LIST_LIMIT && (
+        <p style={{ margin: "4px 0 0", color: "#6B7280" }}>+ {items.length - RECURRING_LIST_LIMIT} more</p>
+      )}
+      <p style={{ margin: "8px 0 0", color: "#6B7280" }}>
+        Last booking: {last.checkIn.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+      </p>
+      <p style={{ margin: "8px 0 0", paddingTop: "8px", borderTop: "1px solid #E0E7FF", fontWeight: "800", color: "#0A1628", fontSize: "14px" }}>
+        {samePrice
+          ? `${items.length} booking${items.length !== 1 ? "s" : ""} × ${gbp(items[0].price)} = ${gbp(total)}`
+          : `Total ${gbp(total)}`}
+      </p>
+    </div>
+  );
+}
+
 function BookingSidebar({
   property,
   enabledPricingOptions,
@@ -3647,6 +3740,7 @@ function BookingSidebar({
   onSelectedDatesChange,
   recurringConfig,
   onRecurringConfigChange,
+  recurringPreview,
   guests,
   onGuestsChange,
   bookingLoading,
@@ -3669,6 +3763,12 @@ function BookingSidebar({
   const selectedOption = enabledPricingOptions.find(
     (option) => option.key === selectedDurationType
   );
+  // Recurring needs a start date (and times, for hourly) before it can book.
+  const recurringIncomplete = bookingMode === "recurring" && !recurringPreview?.items.length;
+  // Half-hour slots for recurring hourly bookings, inside opening hours if set.
+  const openTime = property?.availability?.openTime || "00:00";
+  const closeTime = property?.availability?.closeTime || "23:30";
+  const timeOptions = HALF_HOURS.filter((time) => time >= openTime && time <= closeTime);
 
   return (
     <div
@@ -3990,6 +4090,86 @@ function BookingSidebar({
               <option value="monthly">Every Month</option>
             </select>
           </div>
+          {recurringConfig.frequency !== "monthly" && ["hour", "day"].includes(recurringPreview?.unit) && (
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
+                Repeat on
+              </label>
+              <div style={{ display: "flex", gap: "4px" }}>
+                {WEEKDAY_CHIPS.map(({ day, label }) => {
+                  const selected = recurringConfig.weekdays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        onRecurringConfigChange({
+                          ...recurringConfig,
+                          weekdays: selected
+                            ? recurringConfig.weekdays.filter((d) => d !== day)
+                            : [...recurringConfig.weekdays, day],
+                        })
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "8px 0",
+                        borderRadius: "8px",
+                        border: `1.5px solid ${selected ? "#0A1628" : "#E5E7EB"}`,
+                        background: selected ? "#0A1628" : "#fff",
+                        color: selected ? "#fff" : "#0A1628",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
+                Pick every day you need each week. None picked = the start date&apos;s day.
+              </p>
+            </div>
+          )}
+          {recurringPreview?.unit === "hour" && (
+            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+              {[
+                { key: "startTime", label: "Start time", options: timeOptions.slice(0, -1) },
+                {
+                  key: "endTime",
+                  label: "End time",
+                  options: timeOptions.filter((time) => !recurringConfig.startTime || time > recurringConfig.startTime),
+                },
+              ].map(({ key, label, options }) => (
+                <div key={key} style={{ flex: 1 }}>
+                  <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
+                    {label}
+                  </label>
+                  <select
+                    value={recurringConfig[key]}
+                    onChange={(event) => onRecurringConfigChange({ ...recurringConfig, [key]: event.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      border: "1.5px solid #E5E7EB",
+                      fontSize: "14px",
+                      outline: "none",
+                      background: "#fff",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <option value="">--:--</option>
+                    {options.map((time) => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
           <div>
             <label
               style={{
@@ -4000,11 +4180,11 @@ function BookingSidebar({
                 marginBottom: "6px",
               }}
             >
-              Number of Occurrences
+              {PERIOD_LABEL[recurringConfig.frequency]}
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <button
-                aria-label="Decrease number of occurrences"
+                aria-label={`Fewer ${PERIOD_WORD[recurringConfig.frequency]}`}
                 onClick={() =>
                   onRecurringConfigChange({
                     ...recurringConfig,
@@ -4038,7 +4218,7 @@ function BookingSidebar({
                 {recurringConfig.occurrences}
               </span>
               <button
-                aria-label="Increase number of occurrences"
+                aria-label={`More ${PERIOD_WORD[recurringConfig.frequency]}`}
                 onClick={() =>
                   onRecurringConfigChange({
                     ...recurringConfig,
@@ -4061,14 +4241,9 @@ function BookingSidebar({
                 +
               </button>
             </div>
-            <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "8px" }}>
-              {recurringConfig.startDate
-                ? `First booking: ${new Date(recurringConfig.startDate).toLocaleDateString(
-                    "en-GB",
-                    { day: "numeric", month: "short", year: "numeric" }
-                  )}`
-                : ""}
-            </p>
+            {recurringPreview?.items.length > 0 && (
+              <RecurringSummary preview={recurringPreview} />
+            )}
           </div>
         </div>
       )}
@@ -4159,7 +4334,7 @@ function BookingSidebar({
         </div>
       ) : null}
 
-      {bookingMetrics?.subtotal > 0 && (
+      {bookingMode !== "recurring" && bookingMetrics?.subtotal > 0 && (
         <div style={{ background: "#FFFFFF", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "13px", color: "#6B7280" }}>
@@ -4174,17 +4349,17 @@ function BookingSidebar({
       )}
       <button
         onClick={onBook}
-        disabled={bookingLoading}
+        disabled={bookingLoading || recurringIncomplete}
         style={{
           width: "100%",
-          background: bookingLoading ? "#9CA3AF" : "#0A1628",
+          background: bookingLoading || recurringIncomplete ? "#9CA3AF" : "#0A1628",
           color: "#fff",
           border: "none",
           borderRadius: "10px",
           padding: "16px",
           fontSize: "16px",
           fontWeight: "700",
-          cursor: bookingLoading ? "not-allowed" : "pointer",
+          cursor: bookingLoading || recurringIncomplete ? "not-allowed" : "pointer",
           marginBottom: "12px",
         }}
       >
