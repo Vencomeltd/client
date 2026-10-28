@@ -41,6 +41,11 @@ import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
 
+// Multiple Dates and Recurring create one booking per date, but checkout can
+// only take payment for one of them -- hidden until group checkout exists
+// (VenCome-Fixes-Recurring-Bookings-and-Search.docx, Fix 2).
+const MULTI_DATE_BOOKING_ENABLED = false;
+
 const BRAND = {
   navy: "#0A1628",
   gold: "#305CDE",
@@ -1054,7 +1059,7 @@ export default function PropertyDetails() {
       if (saved.checkIn) setCheckIn(saved.checkIn);
       if (saved.checkOut) setCheckOut(saved.checkOut);
       if (saved.guests) setGuests(saved.guests);
-      if (saved.bookingMode) setBookingMode(saved.bookingMode);
+      if (saved.bookingMode && (MULTI_DATE_BOOKING_ENABLED || saved.bookingMode === "single")) setBookingMode(saved.bookingMode);
       if (saved.selectedDurationType) setSelectedDurationType(saved.selectedDurationType);
       localStorage.removeItem("vencome_booking_intent");
     } catch (e) {
@@ -3744,48 +3749,50 @@ function BookingSidebar({
         </div>
       )}
 
-      <div style={{ marginBottom: "20px" }}>
-        <p
-          style={{
-            fontSize: "13px",
-            fontWeight: "600",
-            color: "#6B7280",
-            marginBottom: "8px",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
-          Booking Type
-        </p>
-        <div style={{ display: "flex", gap: "8px" }}>
-          {[
-            { key: "single", label: "Single" },
-            { key: "multiple", label: "Multiple Dates" },
-            { key: "recurring", label: "Recurring" },
-          ].map((mode) => (
-            <button
-              key={mode.key}
-              onClick={() => onBookingModeChange(mode.key)}
-              style={{
-                flex: 1,
-                padding: "8px 4px",
-                borderRadius: "8px",
-                border: `2px solid ${
-                  bookingMode === mode.key ? "#0A1628" : "#E5E7EB"
-                }`,
-                background: bookingMode === mode.key ? "#0A1628" : "#fff",
-                color: bookingMode === mode.key ? "#fff" : "#0A1628",
-                fontSize: "12px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {mode.label}
-            </button>
-          ))}
+      {MULTI_DATE_BOOKING_ENABLED && (
+        <div style={{ marginBottom: "20px" }}>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "#6B7280",
+              marginBottom: "8px",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            Booking Type
+          </p>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {[
+              { key: "single", label: "Single" },
+              { key: "multiple", label: "Multiple Dates" },
+              { key: "recurring", label: "Recurring" },
+            ].map((mode) => (
+              <button
+                key={mode.key}
+                onClick={() => onBookingModeChange(mode.key)}
+                style={{
+                  flex: 1,
+                  padding: "8px 4px",
+                  borderRadius: "8px",
+                  border: `2px solid ${
+                    bookingMode === mode.key ? "#0A1628" : "#E5E7EB"
+                  }`,
+                  background: bookingMode === mode.key ? "#0A1628" : "#fff",
+                  color: bookingMode === mode.key ? "#fff" : "#0A1628",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {bookingMode === "single" && (
         <div style={{ marginBottom: "16px" }}>
