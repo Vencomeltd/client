@@ -40,6 +40,7 @@ import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
+import { quote as quotePrice } from "../utils/vatPricing";
 import {
   recurringDays,
   recurringBookings,
@@ -1374,13 +1375,32 @@ export default function PropertyDetails() {
       } else if (selectedTier.unit === "day") {
         price = calculateDailyPriceWithBreakdown(range.checkIn, 1, selectedTier.price, customDayPricing).totalPrice;
       }
-      return { ...range, price };
+      // Same pricing function the server uses: utilities + VAT on the core.
+      const q = quotePrice({
+        corePence: Math.round(price * 100),
+        quantity: selectedTier.unit === "hour" ? Math.round(((range.checkOut - range.checkIn) / (1000 * 60 * 60)) * 10) / 10 : 1,
+        tax: property?.pricing?.vat?.[VAT_KEY_BY_UNIT[selectedTier.unit]],
+      });
+      return { ...range, price: q.totalPence / 100, q };
     });
     const total = Math.round(items.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
+    const sum = (field) => items.reduce((acc, item) => acc + item.q[field], 0);
+    const totals = { corePence: sum("corePence"), utilitiesPence: sum("utilitiesPence"), vatPence: sum("vatPence"), vatRatePct: items[0]?.q.vatRatePct };
     // Hourly listings without opening hours are booked for standard hours.
     const standardHours = items.some((item) => item.hours === STANDARD_HOURS);
-    return { items, total, unit: selectedTier.unit, standardHours };
-  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing, property?.availability]);
+    return { items, total, totals, unit: selectedTier.unit, standardHours };
+  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing, property?.pricing?.vat, property?.availability]);
+
+  // The booking panel's total: utilities + VAT on the core (same function the
+  // server prices the booking with).
+  const bookingQuote = useMemo(() => {
+    if (!(bookingMetrics.subtotal > 0) || !selectedTier) return null;
+    return quotePrice({
+      corePence: Math.round(bookingMetrics.subtotal * 100),
+      quantity: bookingMetrics.units,
+      tax: property?.pricing?.vat?.[VAT_KEY_BY_UNIT[selectedTier.unit]],
+    });
+  }, [bookingMetrics, selectedTier, property?.pricing?.vat]);
 
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
@@ -1975,6 +1995,7 @@ export default function PropertyDetails() {
                 onBook={handleBookClick}
                 onEnquiry={handleEnquiry}
                 bookingMetrics={bookingMetrics}
+                bookingQuote={bookingQuote}
                 bookingTotal={bookingTotal}
                 platformFee={platformFee}
                 unavailableDates={unavailableDates}
@@ -3716,6 +3737,27 @@ const WEEKDAY_CHIPS = [
   { day: 6, label: "Sat" },
   { day: 0, label: "Sun" },
 ];
+// pricing.vat key for a price tier's unit (annual has no VAT settings).
+const VAT_KEY_BY_UNIT = { hour: "hourly", day: "daily", week: "weekly", month: "monthly" };
+
+// Core / utilities / VAT lines for the booking panel, when there is more
+// than the core price to show.
+function PriceBreakdownLines({ q }) {
+  if (!q || (!q.utilitiesPence && !q.vatPence)) return null;
+  const gbp = (pence) => `£${(pence / 100).toFixed(2)}`;
+  const rows = [
+    ["Core price", q.corePence],
+    ...(q.utilitiesPence ? [["Utilities", q.utilitiesPence]] : []),
+    ...(q.vatPence ? [[`VAT at ${q.vatRatePct}%`, q.vatPence]] : []),
+  ];
+  return rows.map(([label, amount]) => (
+    <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B7280", marginBottom: "4px" }}>
+      <span>{label}</span>
+      <span>{gbp(amount)}</span>
+    </div>
+  ));
+}
+
 // Weekly and fortnightly both count calendar weeks from the start date.
 const PERIOD_LABEL = { weekly: "How many weeks", biweekly: "How many weeks", monthly: "How many months" };
 const PERIOD_WORD = { weekly: "weeks", biweekly: "weeks", monthly: "months" };
@@ -3815,6 +3857,9 @@ function RecurringSummary({ preview }) {
       <p style={{ margin: "8px 0 0", color: "#6B7280" }}>
         Last booking: {last.checkIn.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", year: "numeric" })}
       </p>
+      <div style={{ marginTop: "8px" }}>
+        <PriceBreakdownLines q={preview.totals} />
+      </div>
       <p style={{ margin: "8px 0 0", paddingTop: "8px", borderTop: "1px solid #E0E7FF", fontWeight: "800", color: "#0A1628", fontSize: "14px" }}>
         {samePrice
           ? `${items.length} booking${items.length !== 1 ? "s" : ""} × ${gbp(items[0].price)} = ${gbp(total)}`
@@ -3847,6 +3892,7 @@ function BookingSidebar({
   onBook,
   onEnquiry,
   bookingMetrics,
+  bookingQuote,
   bookingTotal,
   platformFee,
   unavailableDates,
@@ -4410,9 +4456,12 @@ function BookingSidebar({
               {bookingMetrics.breakdown || bookingMetrics.label}
             </span>
           </div>
+          <PriceBreakdownLines q={bookingQuote} />
           <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628" }}>Total</span>
-            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>£{bookingMetrics.subtotal.toLocaleString()}</span>
+            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>
+              £{(bookingQuote ? bookingQuote.totalPence / 100 : bookingMetrics.subtotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
       )}

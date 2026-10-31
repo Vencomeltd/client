@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
+import { unitPrice } from "../utils/vatPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
 
 const BADGE_STYLES = {
@@ -20,13 +21,19 @@ const getListingPrice = (listing) => {
   if (!p) return { price: "POA", unit: "", fromPrefix: false };
 
   const hasDayVariance = (p.customDayPricing?.length || 0) > 0;
+  // Price fields hold the core price ex VAT; a VAT-registered listing shows
+  // the total the customer pays, labelled "inc. VAT".
+  const shown = (key, core, unit, fromPrefix) => {
+    const tax = p.vat?.[key];
+    if (tax?.status !== "excludes" && tax?.status !== "includes") return { price: `£${core}`, unit, fromPrefix };
+    const { grossPence } = unitPrice({ enteredPence: Math.round(core * 100), status: "excludes", ratePct: tax.ratePct });
+    return { price: `£${formatPrice(grossPence / 100)}`, unit: `${unit} inc. VAT`, fromPrefix };
+  };
 
-  if (p.hourly && p.hourly > 0)
-    return { price: `£${getLowestWeeklyRate(p.hourly, p.customDayPricing)}`, unit: "/hr", fromPrefix: hasDayVariance };
-  if (p.daily && p.daily > 0)
-    return { price: `£${getLowestWeeklyRate(p.daily, p.customDayPricing)}`, unit: "/day", fromPrefix: hasDayVariance };
-  if (p.weekly && p.weekly > 0) return { price: `£${p.weekly}`, unit: "/week", fromPrefix: false };
-  if (p.monthly && p.monthly > 0) return { price: `£${p.monthly}`, unit: "/month", fromPrefix: false };
+  if (p.hourly && p.hourly > 0) return shown("hourly", getLowestWeeklyRate(p.hourly, p.customDayPricing), "/hr", hasDayVariance);
+  if (p.daily && p.daily > 0) return shown("daily", getLowestWeeklyRate(p.daily, p.customDayPricing), "/day", hasDayVariance);
+  if (p.weekly && p.weekly > 0) return shown("weekly", p.weekly, "/week", false);
+  if (p.monthly && p.monthly > 0) return shown("monthly", p.monthly, "/month", false);
 
   if (p.hourlyPrice && p.hourlyPrice > 0)
     return { price: `£${getLowestWeeklyRate(p.hourlyPrice, p.customDayPricing)}`, unit: "/hr", fromPrefix: hasDayVariance };

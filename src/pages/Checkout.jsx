@@ -141,6 +141,15 @@ export default function Checkout() {
   const durationUnits = booking?.totalUnits ?? booking?.totalNights;
   const durationWord = UNIT_WORD[booking?.pricingUnit] || "night";
   const rentTotal = series ? v2.amountPence / 100 : booking?.totalPrice || 0;
+  // Core / utilities / VAT split (summed over a series), shown only when the
+  // booking has utilities or VAT -- otherwise the total is all core.
+  const breakdown = (() => {
+    const parts = series ? series.map((item) => item.breakdown).filter(Boolean) : [booking?.pricingBreakdown].filter(Boolean);
+    if (!parts.length) return null;
+    const sum = (field) => parts.reduce((acc, part) => acc + (part[field] || 0), 0);
+    const result = { corePence: sum("corePence"), utilitiesPence: sum("utilitiesPence"), vatPence: sum("vatPence"), vatRatePct: parts[0].vatRatePct };
+    return result.utilitiesPence || result.vatPence ? result : null;
+  })();
   const depositAmount = booking?.deposit?.amount || 0;
 
   const v2Deposit = v2?.deposit && v2.deposit.mode !== "none" ? v2.deposit : null;
@@ -242,8 +251,20 @@ export default function Checkout() {
                           ? `${series.length} bookings`
                           : durationUnits ? `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}` : "Rent"}
                       </span>
-                      <span>£{rentTotal.toFixed(2)}</span>
+                      <span>£{(breakdown ? breakdown.corePence / 100 : rentTotal).toFixed(2)}</span>
                     </div>
+                    {breakdown?.utilitiesPence > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
+                        <span>Utilities</span>
+                        <span>£{(breakdown.utilitiesPence / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {breakdown?.vatPence > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
+                        <span>VAT at {breakdown.vatRatePct}%</span>
+                        <span>£{(breakdown.vatPence / 100).toFixed(2)}</span>
+                      </div>
+                    )}
                     {depositAmount > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
                         <span>Security deposit</span>

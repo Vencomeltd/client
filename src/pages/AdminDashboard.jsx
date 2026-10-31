@@ -5645,6 +5645,19 @@ function BookingsSection({ bookings, loading, onToast }) {
                     <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkOut)}</td>
                     <td className="px-4 py-3.5 text-[13px] font-bold text-[#0A1628]">
                       {formatCurrency(booking.totalPrice || 0)}
+                      {/* Core / utilities / VAT and VenCome's cut (bookings before
+                          VAT pricing: all core, commission + payout as stored). */}
+                      <div className="mt-1 whitespace-nowrap text-[11px] font-normal text-[#6B7280]">
+                        {booking.pricingBreakdown?.totalPence
+                          ? [
+                              `Core ${formatCurrency(booking.pricingBreakdown.corePence / 100)}`,
+                              booking.pricingBreakdown.utilitiesPence ? `Utilities ${formatCurrency(booking.pricingBreakdown.utilitiesPence / 100)}` : null,
+                              booking.pricingBreakdown.vatPence ? `VAT ${formatCurrency(booking.pricingBreakdown.vatPence / 100)}` : null,
+                              `Commission ${formatCurrency(booking.pricingBreakdown.commissionPence / 100)}`,
+                              `Host ${formatCurrency(booking.pricingBreakdown.hostPayoutPence / 100)}`,
+                            ].filter(Boolean).join(" · ")
+                          : `Commission ${formatCurrency(booking.platformFee || 0)} · Host ${formatCurrency(booking.hostAmount || 0)}`}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusPill status={booking.status} type="booking" />

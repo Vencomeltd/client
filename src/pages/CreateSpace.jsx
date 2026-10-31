@@ -26,6 +26,8 @@ import apiFetch from "../utils/apiClient";
 import { setNavGuard, clearNavGuard, requestNavConfirm } from "../utils/navGuard";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
+import PriceTaxFields from "../components/PriceTaxFields";
+import { vatPayload } from "../utils/vatForm";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -1085,6 +1087,10 @@ export default function CreateSpace() {
       Object.entries(form.pricing || {}).forEach(([key, val]) => {
         if (val.enabled && val.price) {
           flatPricing[key] = parseFloat(val.price);
+          // VAT/utilities: the server recomputes the figures and stores the
+          // core (ex VAT) price in flatPricing[key].
+          const vat = vatPayload(val);
+          if (vat) flatPricing.vat = { ...flatPricing.vat, [key]: vat };
         }
       });
 
@@ -2986,6 +2992,16 @@ export default function CreateSpace() {
                                 / {unit}
                               </span>
                             </div>
+                            <PriceTaxFields
+                              unit={unit}
+                              value={form.pricing[key]}
+                              onChange={(patch) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  pricing: { ...prev.pricing, [key]: { ...prev.pricing[key], ...patch } },
+                                }))
+                              }
+                            />
                           </div>
                         )}
                       </div>

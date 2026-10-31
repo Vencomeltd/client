@@ -5,6 +5,11 @@ import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
 import { COUNTRIES } from "../components/CountrySelect";
 import DepositSection, { depositPolicyPayload, depositPolicyFromListing } from "../components/DepositSection";
+import PriceTaxFields from "../components/PriceTaxFields";
+import { vatPayload, vatFormState } from "../utils/vatForm";
+
+// Price options that have VAT / utilities settings (annual has none).
+const VAT_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
 
 export default function EditSpace({ embedded = false, idOverride, onClose } = {}) {
   const { id: routeId } = useParams();
@@ -114,6 +119,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             } else if (typeof val === "number" && val > 0) {
               pricing[key] = { enabled: true, price: val.toString() };
             }
+            // A VAT-set price: show what the host entered, not the core.
+            if (pricing[key].enabled) Object.assign(pricing[key], vatFormState(p.pricing.vat?.[key]));
           });
         }
 
@@ -280,6 +287,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       Object.entries(formData.pricing).forEach(([key, val]) => {
         if (val.enabled && val.price) {
           flatPricing[key] = parseFloat(val.price);
+          const vat = VAT_UNIT[key] && vatPayload(val);
+          if (vat) flatPricing.vat = { ...flatPricing.vat, [key]: vat };
         }
       });
       // Always send this explicitly (even empty) -- the server replaces
@@ -1030,6 +1039,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               style={{
                 display: "flex",
                 alignItems: "center",
+                flexWrap: "wrap",
                 gap: "12px",
                 marginBottom: "12px",
               }}
@@ -1082,6 +1092,20 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                       fontSize: "14px",
                       outline: "none",
                     }}
+                  />
+                </div>
+              )}
+              {formData.pricing[key]?.enabled && VAT_UNIT[key] && (
+                <div style={{ flexBasis: "100%" }}>
+                  <PriceTaxFields
+                    unit={VAT_UNIT[key]}
+                    value={formData.pricing[key]}
+                    onChange={(patch) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        pricing: { ...prev.pricing, [key]: { ...prev.pricing[key], ...patch } },
+                      }))
+                    }
                   />
                 </div>
               )}
