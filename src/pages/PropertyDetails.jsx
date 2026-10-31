@@ -40,7 +40,14 @@ import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
-import { buildRecurringDates, formatOccurrence } from "../utils/recurringDates";
+import {
+  recurringDays,
+  recurringBookings,
+  formatOccurrence,
+  isOpenDay,
+  openWeekdays,
+  STANDARD_HOURS,
+} from "../utils/recurringDates";
 
 const BRAND = {
   navy: "#0A1628",
@@ -861,8 +868,6 @@ export default function PropertyDetails() {
     frequency: "weekly",
     occurrences: 1,
     weekdays: [],
-    startTime: "",
-    endTime: "",
   });
   const [guests, setGuests] = useState(1);
   const [bookingLoading, setBookingLoading] = useState(false);
@@ -1349,11 +1354,19 @@ export default function PropertyDetails() {
   const recurringPreview = useMemo(() => {
     if (bookingMode !== "recurring" || !selectedTier) return null;
     const customDayPricing = property?.pricing?.customDayPricing;
-    const items = buildRecurringDates({
-      ...recurringConfig,
-      periods: recurringConfig.occurrences,
-      durationUnit: selectedTier.unit,
-    }).map((range) => {
+    const openDays = property?.availability?.openDays || [];
+    // The start date is always booked, so it has to be a day the space is open.
+    if (recurringConfig.startDate && !isOpenDay(recurringConfig.startDate, openDays)) {
+      return { items: [], total: 0, unit: selectedTier.unit, startClosed: true };
+    }
+    const days = recurringDays({
+      startDate: recurringConfig.startDate,
+      frequency: recurringConfig.frequency,
+      count: recurringConfig.occurrences,
+      weekdays: recurringConfig.weekdays.filter((day) => openWeekdays(openDays).includes(day)),
+      openDays,
+    });
+    const items = recurringBookings(days, selectedTier.unit, property?.availability || {}).map((range) => {
       let price = selectedTier.price;
       if (selectedTier.unit === "hour") {
         const hours = Math.round(((range.checkOut - range.checkIn) / (1000 * 60 * 60)) * 10) / 10;
@@ -1364,8 +1377,10 @@ export default function PropertyDetails() {
       return { ...range, price };
     });
     const total = Math.round(items.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
-    return { items, total, unit: selectedTier.unit };
-  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing]);
+    // Hourly listings without opening hours are booked for standard hours.
+    const standardHours = items.some((item) => item.hours === STANDARD_HOURS);
+    return { items, total, unit: selectedTier.unit, standardHours };
+  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing, property?.availability]);
 
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
@@ -1568,7 +1583,7 @@ export default function PropertyDetails() {
           return;
         }
         if (!recurringPreview?.items.length) {
-          setBookingError(selectedTier?.unit === "hour" ? "Please choose a start and end time" : "Please choose when to repeat");
+          setBookingError(recurringPreview?.startClosed ? "The space is closed on your start date. Please choose another day." : "Please choose when to repeat");
           setBookingLoading(false);
           return;
         }
@@ -1620,6 +1635,15 @@ export default function PropertyDetails() {
             guests,
             pricingUnit: selectedTier?.unit,
             agreedToTerms: Boolean(property?.listingTerms?.trim()),
+            // Lets the server re-check the dates against the same pattern.
+            ...(bookingMode === "recurring" && {
+              recurrence: {
+                startDate: recurringConfig.startDate,
+                frequency: recurringConfig.frequency,
+                count: recurringConfig.occurrences,
+                weekdays: recurringConfig.weekdays,
+              },
+            }),
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -3692,13 +3716,75 @@ const WEEKDAY_CHIPS = [
   { day: 6, label: "Sat" },
   { day: 0, label: "Sun" },
 ];
-const PERIOD_LABEL = { weekly: "How many weeks", biweekly: "How many fortnights", monthly: "How many months" };
-const PERIOD_WORD = { weekly: "weeks", biweekly: "fortnights", monthly: "months" };
-const HALF_HOURS = Array.from(
-  { length: 48 },
-  (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`
-);
+// Weekly and fortnightly both count calendar weeks from the start date.
+const PERIOD_LABEL = { weekly: "How many weeks", biweekly: "How many weeks", monthly: "How many months" };
+const PERIOD_WORD = { weekly: "weeks", biweekly: "weeks", monthly: "months" };
 const RECURRING_LIST_LIMIT = 8;
+const RECURRING_HELP = {
+  startDate: "Your first day in the space.",
+  repeatOn: "The days you need the space each week.",
+  repeatEvery: "How often the pattern repeats, for example every week or every 2 weeks.",
+  howMany: "How long the booking runs in total.",
+};
+
+// A small "?" beside a form label: the explanation shows on hover, and on
+// tap for touch screens.
+function HelpTip({ text }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      style={{ position: "relative", display: "inline-flex", marginLeft: 6, verticalAlign: "middle" }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label={text}
+        onClick={(event) => {
+          event.preventDefault();
+          setOpen((current) => !current);
+        }}
+        onBlur={() => setOpen(false)}
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: "50%",
+          border: "1px solid #9CA3AF",
+          background: "#fff",
+          color: "#6B7280",
+          fontSize: 10,
+          fontWeight: 700,
+          lineHeight: "14px",
+          padding: 0,
+          cursor: "help",
+        }}
+      >
+        ?
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 6px)",
+            left: -8,
+            width: 220,
+            background: "#0A1628",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 500,
+            lineHeight: 1.4,
+            padding: "6px 10px",
+            borderRadius: 6,
+            zIndex: 30,
+          }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 // Every date a recurring booking will make, the last date and the total, so
 // the guest knows exactly what they're booking before they click.
@@ -3723,8 +3809,11 @@ function RecurringSummary({ preview }) {
       {items.length > RECURRING_LIST_LIMIT && (
         <p style={{ margin: "4px 0 0", color: "#6B7280" }}>+ {items.length - RECURRING_LIST_LIMIT} more</p>
       )}
+      {preview.standardHours && (
+        <p style={{ margin: "6px 0 0", color: "#6B7280" }}>Booked 09:00–17:00 each day (the host hasn't set opening hours).</p>
+      )}
       <p style={{ margin: "8px 0 0", color: "#6B7280" }}>
-        Last booking: {last.checkIn.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+        Last booking: {last.checkIn.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", year: "numeric" })}
       </p>
       <p style={{ margin: "8px 0 0", paddingTop: "8px", borderTop: "1px solid #E0E7FF", fontWeight: "800", color: "#0A1628", fontSize: "14px" }}>
         {samePrice
@@ -3775,10 +3864,8 @@ function BookingSidebar({
   );
   // Recurring needs a start date (and times, for hourly) before it can book.
   const recurringIncomplete = bookingMode === "recurring" && !recurringPreview?.items.length;
-  // Half-hour slots for recurring hourly bookings, inside opening hours if set.
-  const openTime = property?.availability?.openTime || "00:00";
-  const closeTime = property?.availability?.closeTime || "23:30";
-  const timeOptions = HALF_HOURS.filter((time) => time >= openTime && time <= closeTime);
+  // Repeat days on offer: only days the space is open.
+  const repeatDayChips = WEEKDAY_CHIPS.filter(({ day }) => openWeekdays(property?.availability?.openDays || []).includes(day));
 
   return (
     <div
@@ -4041,7 +4128,8 @@ function BookingSidebar({
                 marginBottom: "6px",
               }}
             >
-              Start Date
+              Start date
+              <HelpTip text={RECURRING_HELP.startDate} />
             </label>
             <input
               type="date"
@@ -4074,7 +4162,8 @@ function BookingSidebar({
                 marginBottom: "6px",
               }}
             >
-              Repeat Every
+              Repeat every
+              <HelpTip text={RECURRING_HELP.repeatEvery} />
             </label>
             <select
               value={recurringConfig.frequency}
@@ -4104,9 +4193,10 @@ function BookingSidebar({
             <div style={{ marginBottom: "12px" }}>
               <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
                 Repeat on
+                <HelpTip text={RECURRING_HELP.repeatOn} />
               </label>
               <div style={{ display: "flex", gap: "4px" }}>
-                {WEEKDAY_CHIPS.map(({ day, label }) => {
+                {repeatDayChips.map(({ day, label }) => {
                   const selected = recurringConfig.weekdays.includes(day);
                   return (
                     <button
@@ -4139,45 +4229,8 @@ function BookingSidebar({
                 })}
               </div>
               <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
-                Pick every day you need each week. None picked = the start date&apos;s day.
+                Your start date is always booked. Repeat days apply from the start date on.
               </p>
-            </div>
-          )}
-          {recurringPreview?.unit === "hour" && (
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-              {[
-                { key: "startTime", label: "Start time", options: timeOptions.slice(0, -1) },
-                {
-                  key: "endTime",
-                  label: "End time",
-                  options: timeOptions.filter((time) => !recurringConfig.startTime || time > recurringConfig.startTime),
-                },
-              ].map(({ key, label, options }) => (
-                <div key={key} style={{ flex: 1 }}>
-                  <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>
-                    {label}
-                  </label>
-                  <select
-                    value={recurringConfig[key]}
-                    onChange={(event) => onRecurringConfigChange({ ...recurringConfig, [key]: event.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      borderRadius: "8px",
-                      border: "1.5px solid #E5E7EB",
-                      fontSize: "14px",
-                      outline: "none",
-                      background: "#fff",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    <option value="">--:--</option>
-                    {options.map((time) => (
-                      <option key={time} value={time}>{time}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
             </div>
           )}
           <div>
@@ -4191,6 +4244,7 @@ function BookingSidebar({
               }}
             >
               {PERIOD_LABEL[recurringConfig.frequency]}
+              <HelpTip text={RECURRING_HELP.howMany} />
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <button
@@ -4251,6 +4305,11 @@ function BookingSidebar({
                 +
               </button>
             </div>
+            {recurringPreview?.startClosed && (
+              <p style={{ fontSize: "12px", color: "#DC2626", marginTop: "8px" }}>
+                The space is closed on your start date. Please choose a day it&apos;s open.
+              </p>
+            )}
             {recurringPreview?.items.length > 0 && (
               <RecurringSummary preview={recurringPreview} />
             )}

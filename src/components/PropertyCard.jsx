@@ -58,6 +58,14 @@ const getLegacyPriceUnit = (property) => {
   return "night";
 };
 
+// A category's display name, or null. Listings sometimes arrive with
+// categories as bare ids (not populated) -- never show one of those.
+const categoryName = (category) => {
+  if (!category) return null;
+  if (typeof category === "object") return category.name || null;
+  return /^[a-f0-9]{24}$/i.test(String(category)) ? null : String(category);
+};
+
 const resolveListingData = ({
   property,
   id,
@@ -96,14 +104,14 @@ const resolveListingData = ({
       source.location?.address ??
       source.location ??
       "Location unavailable",
-    category: category ?? source.category ?? "Commercial Space",
+    category: categoryName(category ?? source.category),
     // Capped to keep the card's tag row from wrapping into a wall of pills
     // on a listing tagged with many categories -- first 2 main categories
     // plus the listing's first subcategory (if any) is enough to convey
     // what the space is without dominating the card.
     categories: (() => {
       const mainCategories = source.categories?.length > 0
-        ? source.categories.map((c) => c?.name || c).filter(Boolean).slice(0, 2)
+        ? source.categories.map(categoryName).filter(Boolean).slice(0, 2)
         : [];
       const firstSubcategory = source.subcategories?.[0];
       return firstSubcategory ? [...mainCategories, firstSubcategory] : mainCategories;
@@ -340,11 +348,11 @@ export default function PropertyCard({
                       {catName}
                     </span>
                   ))
-                ) : (
+                ) : listing.category ? (
                   <span className="inline-block rounded-md bg-[rgba(10,22,40,0.06)] px-2 py-[3px] text-[11px] font-semibold tracking-[0.3px] text-[#0A1628]">
                     {listing.category}
                   </span>
-                )}
+                ) : null}
               </div>
 
               <p className="mt-2.5 text-left">

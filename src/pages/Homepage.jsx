@@ -615,7 +615,7 @@ function BrowseByCity() {
                       to={cityPaths[city.name] || buildSearchHref({ location: city.name })}
                       className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-[13px] font-medium text-[#111827] transition hover:border-[#305CDE] hover:text-[#305CDE]"
                     >
-                      {city.name} <span className="text-[#6B7280]">{city.count}</span>
+                      {city.name}
                     </Link>
                   ))}
                 </div>
@@ -1027,11 +1027,13 @@ export default function Homepage() {
         .no-scrollbar::-webkit-scrollbar {
           display: none;
         }
+        /* clip, not hidden: hidden makes <body> its own scroll box, which the
+           router's scroll-to-top can't reset (pages opened mid-way down). */
         html {
-          overflow-x: hidden;
+          overflow-x: clip;
         }
         body {
-          overflow-x: hidden;
+          overflow-x: clip;
         }
       `}</style>
 

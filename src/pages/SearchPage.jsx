@@ -352,7 +352,6 @@ export default function SearchPage() {
   const [savedIds, setSavedIds] = useState([]);
   const [listings, setListings] = useState(loaderData?.listings || []);
   const [loading, setLoading] = useState(!loaderData);
-  const [total, setTotal] = useState(loaderData?.listings?.length || 0);
 
   useEffect(() => {
     const term = searchParams.get("query") || searchParams.get("city") || searchParams.get("location") || "";
@@ -403,7 +402,6 @@ export default function SearchPage() {
           const { data, timestamp } = JSON.parse(cached);
           if (Date.now() - timestamp < 5 * 60 * 1000) {
             setListings(data);
-            setTotal(data.length);
             setLoading(false);
             return;
           }
@@ -454,7 +452,6 @@ export default function SearchPage() {
         // Quota exceeded -- skip caching this result set.
       }
       setListings(results);
-      setTotal(results.length);
     } catch (err) {
       console.error("Failed to fetch listings:", err);
       setListings([]);
@@ -781,10 +778,6 @@ export default function SearchPage() {
           <div className="min-w-0 flex-1">
             <div className="mb-6 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-[#0A1628]">
-                  {total} spaces found
-                </p>
-
                 <div className="mt-3 flex flex-wrap gap-2">
                   <AnimatePresence>
                     {activeTags.map((tag) => (
@@ -870,7 +863,7 @@ export default function SearchPage() {
                 className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-[#E5E7EB] bg-white px-6 text-center"
               >
                 <div style={{ textAlign: "center", padding: "80px 0", color: "#6B7280" }}>
-                  <p style={{ fontSize: "18px", marginBottom: "8px" }}>No spaces found</p>
+                  <p style={{ fontSize: "18px", marginBottom: "8px" }}>No spaces match your search</p>
                   <p style={{ fontSize: "14px" }}>
                     Try adjusting your filters or search a different location
                   </p>
