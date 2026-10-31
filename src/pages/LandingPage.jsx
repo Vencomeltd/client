@@ -61,8 +61,7 @@ function placeFor(page) {
 function summaryFor(page) {
   const label = page.serviceName || "Commercial spaces";
   const place = placeFor(page);
-  const n = page.listingCount;
-  return `${label}${place ? ` in ${place}` : ""}: ${n} ${n === 1 ? "listing" : "listings"} available to rent on VenCome.`;
+  return `${label}${place ? ` in ${place}` : ""} available to rent on VenCome.`;
 }
 
 function childHeadingFor(page) {
@@ -75,13 +74,7 @@ function childHeadingFor(page) {
 function faqsFor(page, children) {
   const label = page.serviceName || "commercial space";
   const place = placeFor(page);
-  const n = page.listingCount;
-  const faqs = [
-    {
-      q: `How many ${label} listings are there${place ? ` in ${place}` : " on VenCome"}?`,
-      a: `There ${n === 1 ? "is" : "are"} currently ${n} ${n === 1 ? "listing" : "listings"} on VenCome${place ? ` in ${place}` : ""}. New spaces are added as hosts join.`,
-    },
-  ];
+  const faqs = [];
   if (children.length > 0) {
     const names = children.slice(0, 8).map((c) => c.name).join(", ");
     const q =
@@ -189,7 +182,7 @@ export default function LandingPage() {
                     to={c.path}
                     className="inline-block rounded-full border border-[#E5E7EB] px-3 py-1.5 text-sm text-gray-700 hover:border-[#305CDE] hover:text-[#305CDE]"
                   >
-                    {c.name} <span className="text-gray-400">({c.listingCount})</span>
+                    {c.name}
                   </Link>
                 </li>
               ))}
