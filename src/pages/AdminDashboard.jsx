@@ -2355,6 +2355,8 @@ function UsersSection({
   );
 }
 
+const hasPhotos = (listing) => Boolean(listing.images?.length || listing.coverImage);
+
 function ListingsSection({
   listings,
   loading,
@@ -2393,6 +2395,9 @@ function ListingsSection({
     return () => clearTimeout(timer);
   }, [highlightListingId, moderationQueue]);
   const [locationFilter, setLocationFilter] = useState("");
+  // Listings saved without photos (drafts the team built before the host
+  // sent any) -- they can't go live until a photo is added.
+  const [noPhotosOnly, setNoPhotosOnly] = useState(false);
   const [showReorder, setShowReorder] = useState(false);
 
   const filteredQueue = moderationQueue.filter((listing) => {
@@ -2410,6 +2415,7 @@ function ListingsSection({
     const q = (searchQuery || "").trim().toLowerCase();
     return listings.filter((listing) => {
       if (locationFilter && listing.location?.city !== locationFilter) return false;
+      if (noPhotosOnly && hasPhotos(listing)) return false;
       if (!q) return true;
       const haystack = [
         listing.title,
@@ -2423,7 +2429,7 @@ function ListingsSection({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [listings, searchQuery, locationFilter]);
+  }, [listings, searchQuery, locationFilter, noPhotosOnly]);
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -2648,6 +2654,10 @@ function ListingsSection({
                 <option key={city} value={city}>{city}</option>
               ))}
             </select>
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+              <input type="checkbox" checked={noPhotosOnly} onChange={(e) => setNoPhotosOnly(e.target.checked)} />
+              No photos
+            </label>
           </div>
         </div>
 
@@ -2699,7 +2709,12 @@ function ListingsSection({
                     <div className="flex items-center gap-3">
                       <img src={listing.coverImage} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
                       <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
+                        <p className="truncate text-[13px] font-semibold text-[#0A1628]">
+                          {listing.title}
+                          {!hasPhotos(listing) && (
+                            <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
+                          )}
+                        </p>
                         <p className="truncate text-[12px] text-[#6B7280]">
                           {listing.location?.city || ""}
                           {listing.subcategory ? ` · ${listing.subcategory}` : ""}

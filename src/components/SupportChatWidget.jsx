@@ -61,13 +61,10 @@ const HIDDEN_PREFIXES = [
   "/impersonate",
   "/support-access",
   "/customer/",
-  "/dashboard",
   "/settings",
   "/profile",
   "/chat",
   "/notifications",
-  "/host/create",
-  "/host/listings",
   "/host/analytics",
   "/host/bookings",
   "/host/calendar",
@@ -75,12 +72,16 @@ const HIDDEN_PREFIXES = [
   "/availability/",
   "/bookings/",
   "/my-bookings",
-  "/my-listings",
-  "/create-space",
-  "/edit-space",
   "/property-availability",
   "/support/tickets",
 ];
+
+// The listing wizard has a sticky Continue bar at the bottom: sit above it.
+const RAISED_PREFIXES = ["/create-space", "/edit-space", "/host/create"];
+const RAISED_BOTTOM = 96;
+// Anywhere on the site can open the chat with
+// window.dispatchEvent(new Event("vencome:open-chat")).
+const OPEN_CHAT_EVENT = "vencome:open-chat";
 
 function isHiddenPath(pathname) {
   return HIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
@@ -171,6 +172,14 @@ export default function SupportChatWidget() {
   };
 
   const hidden = isHiddenPath(location.pathname);
+  const raised = RAISED_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
+  const shownPos = raised ? { ...pos, bottom: Math.max(pos.bottom, RAISED_BOTTOM) } : pos;
+
+  useEffect(() => {
+    const openChat = () => setOpen(true);
+    window.addEventListener(OPEN_CHAT_EVENT, openChat);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, openChat);
+  }, []);
 
   // A small "Need help?" nudge next to the closed bubble, shown once per
   // browser session (sessionStorage) after a short delay so it doesn't
@@ -298,7 +307,7 @@ export default function SupportChatWidget() {
           }}
           style={{
             position: "fixed",
-            bottom: pos.bottom + 12,
+            bottom: shownPos.bottom + 12,
             [pos.side]: 88,
             zIndex: 999,
             display: "flex",
@@ -345,7 +354,7 @@ export default function SupportChatWidget() {
         title="Drag to move"
         style={{
           position: "fixed",
-          ...(dragXY ? { left: dragXY.x, top: dragXY.y } : { [pos.side]: SIDE_GAP, bottom: pos.bottom }),
+          ...(dragXY ? { left: dragXY.x, top: dragXY.y } : { [pos.side]: SIDE_GAP, bottom: shownPos.bottom }),
           touchAction: "none",
           width: BUBBLE,
           height: BUBBLE,
@@ -382,7 +391,7 @@ export default function SupportChatWidget() {
           style={{
             position: "fixed",
             [pos.side]: SIDE_GAP,
-            ...panelPlacement(pos),
+            ...panelPlacement(shownPos),
             width: 360,
             maxWidth: "calc(100vw - 32px)",
             height: 480,

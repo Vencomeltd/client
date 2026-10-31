@@ -20,6 +20,7 @@ import {
   MapPin,
   PoundSterling,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import apiFetch from "../utils/apiClient";
@@ -278,13 +279,15 @@ const getCustomMinutes = (value, unit) => {
   return unit === "hours" ? numeric * 60 : numeric;
 };
 
-function StepIndicator({ step }) {
+function StepIndicator({ step, incomplete = new Set() }) {
   return (
     <div className="sticky top-0 z-50 -mx-4 -mt-6 mb-8 border-b border-[#E5E7EB] bg-white px-4 py-4 sm:-mx-10 sm:-mt-10 sm:px-8">
       <div className="hidden items-start gap-3 md:flex">
         {STEP_LABELS.map((label, index) => {
           const stepNumber = index + 1;
-          const isComplete = step > stepNumber;
+          const isPassed = step > stepNumber;
+          const needsWork = isPassed && incomplete.has(stepNumber);
+          const isComplete = isPassed && !needsWork;
           const isCurrent = step === stepNumber;
 
           return (
@@ -294,12 +297,16 @@ function StepIndicator({ step }) {
                   className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold ${
                     isComplete
                       ? "border-[#0A1628] bg-[#0A1628] text-white"
+                      : needsWork
+                      ? "border-[#D97706] bg-[#FFFBEB] text-[#D97706]"
                       : isCurrent
                       ? "border-[#305CDE] bg-[#305CDE] text-white"
                       : "border-[#E5E7EB] bg-white text-[#9CA3AF]"
                   }`}
                 >
-                  {isComplete ? (
+                  {needsWork ? (
+                    <AlertTriangle size={15} aria-label="Incomplete" />
+                  ) : isComplete ? (
                     <motion.span
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
@@ -436,6 +443,8 @@ function StepFrame({ children }) {
 export default function CreateSpace() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  // The step that fixes the last Publish error ("Go to Photos").
+  const [publishIssueStep, setPublishIssueStep] = useState(null);
   const [direction, setDirection] = useState(1);
   const [form, setForm] = useState(defaultState);
   const [publishSuccess, setPublishSuccess] = useState(false);
@@ -999,51 +1008,11 @@ export default function CreateSpace() {
         setValidationError("Please enter a listing title before continuing.");
         return;
       }
-      if (!form.description?.trim()) {
-        setValidationError("Please enter a description before continuing.");
-        return;
-      }
     }
-
-    // Step 4 — At least one photo required
-    if (step === 4) {
-      if (!form.images || form.images.length === 0) {
-        setValidationError("Please upload at least one photo before continuing.");
-        return;
-      }
-    }
-
-    // Step 6 — Pricing required
-    if (step === 6) {
-      const hasEnabledPricing = Object.values(form.pricing || {}).some(
-        (pricing) => pricing.enabled && pricing.price
-      );
-      if (!hasEnabledPricing) {
-        setValidationError("Please enable at least one pricing option with a price.");
-        return;
-      }
-    }
-
-    // Step 7 — Availability days required
-    if (step === 7) {
-      if (!form.availabilityDays || form.availabilityDays.length === 0) {
-        setValidationError("Please select at least one available day before continuing.");
-        return;
-      }
-      if (form.hoursMode === "custom") {
-        const missingDay = form.availabilityDays.find((day) => {
-          const hours = form.dayHours[day];
-          return !hours?.is24Hours && (!hours?.openTime || !hours?.closeTime);
-        });
-        if (missingDay) {
-          setValidationError(`Please set hours for ${missingDay} before continuing.`);
-          return;
-        }
-      } else if (!form.is24Hours && (!form.startTime || !form.endTime)) {
-        setValidationError("Please set your open and close times before continuing.");
-        return;
-      }
-    }
+    // Everything else (photos, description, pricing, availability) can be
+    // skipped and filled in later -- it's checked at Publish instead
+    // (publishIssues), so the admin team can build a listing before the
+    // host has sent photos.
 
     setDirection(1);
     setStep((current) => Math.min(current + 1, 14));
@@ -1066,15 +1035,39 @@ export default function CreateSpace() {
     return data.url;
   };
 
+  // Required fields, checked at Publish -- each with the step that fixes it.
+  // (Category, location and title block Continue on their own steps.)
+  const publishIssues = () => {
+    const issues = [];
+    if (!form.description?.trim()) issues.push({ step: 3, message: "Add a description to publish this listing." });
+    if (!form.images || form.images.length === 0) issues.push({ step: 4, message: "Add at least one photo to publish this listing." });
+    const enabledPrices = Object.values(form.pricing || {}).filter((option) => option.enabled && option.price);
+    if (enabledPrices.length === 0) issues.push({ step: 6, message: "Add at least one price to publish this listing." });
+    else if (enabledPrices.some((option) => !option.vatStatus)) issues.push({ step: 6, message: "Choose a VAT status for each price to publish this listing." });
+    if (!form.availabilityDays || form.availabilityDays.length === 0) {
+      issues.push({ step: 7, message: "Choose the days the space is available to publish this listing." });
+    } else if (form.hoursMode === "custom") {
+      const missingDay = form.availabilityDays.find((day) => {
+        const hours = form.dayHours[day];
+        return !hours?.is24Hours && (!hours?.openTime || !hours?.closeTime);
+      });
+      if (missingDay) issues.push({ step: 7, message: `Set the hours for ${missingDay} to publish this listing.` });
+    } else if (!form.is24Hours && (!form.startTime || !form.endTime)) {
+      issues.push({ step: 7, message: "Set the open and close times to publish this listing." });
+    }
+    return issues;
+  };
+
   const handlePublish = async () => {
-    // Belt-and-suspenders with the same check the server now enforces --
-    // catches it instantly, without a round trip, for a host who reaches
-    // Publish without ever passing through the wizard's own step-4 gate
-    // (e.g. a resumed draft, or back/forward navigation).
-    if (!form.images || form.images.length === 0) {
-      setError("Please add at least one photo before publishing your listing.");
+    // A listing that's missing something stays a draft: say what, and offer
+    // a jump to the step that fixes it. The server enforces photos too.
+    const issue = publishIssues()[0];
+    if (issue) {
+      setError(issue.message);
+      setPublishIssueStep(issue.step);
       return;
     }
+    setPublishIssueStep(null);
 
     setIsLoading(true);
     setIsPublishing(true);
@@ -1532,7 +1525,7 @@ export default function CreateSpace() {
   return (
     <DashboardLayout title="Create Space">
       <div className="bg-[#F8F6F0]">
-        <StepIndicator step={step} />
+        <StepIndicator step={step} incomplete={new Set(publishIssues().map((issue) => issue.step))} />
 
         <AnimatePresence mode="wait">
           <StepFrame key={`${step}-${direction}`}>
@@ -2771,6 +2764,16 @@ export default function CreateSpace() {
 
             {step === 6 ? (
               <div>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
+                  Special terms or requirements?{" "}
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event("vencome:open-chat"))}
+                    style={{ background: "none", border: "none", padding: 0, color: "#305CDE", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Message us.
+                  </button>
+                </p>
                 <div>
                   <h2
                     style={{
@@ -3195,6 +3198,16 @@ export default function CreateSpace() {
                   title="Availability"
                   subtitle="Define when your listing can be booked and how much notice guests need before checkout."
                 />
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
+                  Special terms or requirements?{" "}
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event("vencome:open-chat"))}
+                    style={{ background: "none", border: "none", padding: 0, color: "#305CDE", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Message us.
+                  </button>
+                </p>
 
                 <div className="space-y-6">
                   <div>
@@ -4531,6 +4544,16 @@ export default function CreateSpace() {
             </div>
 
             {step < 14 ? (
+              <div className="flex w-full items-center gap-3 sm:w-auto">
+              {step >= 4 && (
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  className="min-h-[44px] whitespace-nowrap px-2 text-[14px] font-medium text-[#6B7280] underline-offset-2 hover:text-[#0A1628] hover:underline"
+                >
+                  Skip for now
+                </button>
+              )}
               <button
                 type="button"
                 onClick={nextStep}
@@ -4539,6 +4562,7 @@ export default function CreateSpace() {
                 Continue
                 <ChevronRight size={16} />
               </button>
+              </div>
             ) : (
               <div className="w-full sm:w-auto">
                 {error && (
@@ -4553,6 +4577,20 @@ export default function CreateSpace() {
                     }}
                   >
                     {error}
+                    {publishIssueStep && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError("");
+                          setDirection(-1);
+                          setStep(publishIssueStep);
+                          setPublishIssueStep(null);
+                        }}
+                        style={{ display: "block", marginTop: 8, background: "none", border: "none", padding: 0, color: "#305CDE", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                      >
+                        Go to {STEP_LABELS[publishIssueStep - 1]} →
+                      </button>
+                    )}
                   </div>
                 )}
                 <button
