@@ -754,16 +754,13 @@ function LeaseSignModal({
         formData.append("leaseFile", file);
         formData.append("bookingId", bookingId);
 
-        const response = await fetch("/api/bookings/upload-lease", {
+        // Was a relative fetch("/api/...") -- that hit the website, not the
+        // API server, and sent no login, so every upload failed (405).
+        const data = await apiFetch({
+          endpoint: "/bookings/upload-lease",
           method: "POST",
           body: formData,
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to upload lease");
-        }
-
-        const data = await response.json();
         if (onLeaseUpload) {
           onLeaseUpload(data.leaseUrl);
         }
@@ -1193,7 +1190,7 @@ export default function BookingDetails() {
     setActionLoading(true);
     try {
       const data = await apiFetch({
-        endpoint: `/bookings/${id}/sign-lease`,
+        endpoint: `/bookings/sign-lease/${id}`,
         method: "PUT",
         body: {
           signatureType: signature?.type,
