@@ -1027,11 +1027,13 @@ export default function Homepage() {
         .no-scrollbar::-webkit-scrollbar {
           display: none;
         }
+        /* clip, not hidden: hidden makes <body> its own scroll box, which the
+           router's scroll-to-top can't reset (pages opened mid-way down). */
         html {
-          overflow-x: hidden;
+          overflow-x: clip;
         }
         body {
-          overflow-x: hidden;
+          overflow-x: clip;
         }
       `}</style>
 
