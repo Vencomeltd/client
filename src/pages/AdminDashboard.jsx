@@ -1088,8 +1088,9 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
     },
     {
       icon: Building2,
-      label: "Total Listings",
+      label: "Active Listings",
       value: formatNumber(totalListingsCount),
+      subtitle: `${formatNumber(stats.draftListings || 0)} drafts · ${formatNumber(stats.inactiveListings || 0)} inactive`,
       growth: "",
       iconClasses: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
       positive: true,
@@ -2400,6 +2401,159 @@ function UsersSection({
 
 const hasPhotos = (listing) => Boolean(listing.images?.length || listing.coverImage);
 
+// A price is set but the host hasn't said whether it includes VAT (section 1:
+// pricing.vat.<unit>). Older listings have no VAT settings at all.
+const VAT_PRICE_KEYS = { hourly: ["hourly", "hourlyPrice"], daily: ["daily", "weekdayPrice"], weekly: ["weekly"], monthly: ["monthly"] };
+const vatNotSet = (listing) =>
+  Object.entries(VAT_PRICE_KEYS).some(
+    ([unit, keys]) => keys.some((key) => Number(listing.pricing?.[key]) > 0) && !listing.pricing?.vat?.[unit]
+  );
+
+const personLine = (user) => (user ? `${getUserDisplayName(user)}${user.email ? ` · ${user.email}` : ""}` : "—");
+
+const LISTING_STATUS_TABS = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "draft", label: "Draft" },
+  { key: "inactive", label: "Inactive" },
+  { key: "pending", label: "Pending review" },
+];
+
+// Listing drafts (saved in the wizard, never published), oldest first. Admin
+// can open one in full -- photos included -- and delete it.
+function AdminDraftsPanel({ showTest, onToast, onChanged }) {
+  const [drafts, setDrafts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openDraft, setOpenDraft] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts?limit=100${showTest ? "" : "&excludeTest=true"}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setDrafts((await res.json()).drafts || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [showTest]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const open = async (draft) => {
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts/${draft._id}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setOpenDraft((await res.json()).draft);
+    else onToast("Couldn't open this draft");
+  };
+
+  const remove = async (draft) => {
+    if (!window.confirm(`Delete the draft "${draft.title}" by ${personLine(draft.host)}? The host stops getting "finish your listing" emails for it. This can't be undone.`)) return;
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts/${draft._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return onToast("Couldn't delete the draft");
+    onToast("Draft deleted");
+    setOpenDraft(null);
+    load();
+    onChanged?.();
+  };
+
+  const form = openDraft?.formData || {};
+  const images = (form.images || []).filter((image) => typeof image === "string" && image);
+  const prices = Object.entries(form.pricing || {}).filter(([, option]) => option?.enabled && option.price);
+
+  return (
+    <div className="p-4">
+      {loading ? (
+        <p className="py-8 text-center text-[14px] text-[#6B7280]">Loading drafts...</p>
+      ) : drafts.length === 0 ? (
+        <p className="py-8 text-center text-[14px] text-[#6B7280]">No drafts</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F8F6F0]">
+                {["Draft", "Host account", "Created by", "Step", "Last saved", "Actions"].map((heading) => (
+                  <th key={heading} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((draft) => (
+                <tr key={draft._id} className="border-b border-[#F3F4F6]">
+                  <td className="px-4 py-3 font-semibold text-[#0A1628]">{draft.title}</td>
+                  <td className="px-4 py-3 text-[#374151]">{personLine(draft.host)}</td>
+                  <td className="px-4 py-3 text-[#374151]">{personLine(draft.createdBy || draft.host)}</td>
+                  <td className="px-4 py-3 text-[#374151]">{draft.step} of 14</td>
+                  <td className="px-4 py-3 text-[#6B7280]">{formatDate(draft.updatedAt)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => open(draft)} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]">
+                        Open
+                      </button>
+                      <button type="button" onClick={() => remove(draft)} className="rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-[12px] font-medium text-[#DC2626]">
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal isOpen={!!openDraft} onClose={() => setOpenDraft(null)}>
+        {openDraft && (
+          <div style={{ maxHeight: "75vh", overflowY: "auto" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1628", margin: "0 0 4px" }}>{openDraft.title}</h3>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
+              Draft · step {openDraft.step} of 14 · host {personLine(openDraft.host)} · created by {personLine(openDraft.createdBy || openDraft.host)}
+            </p>
+            {images.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 16 }}>
+                {images.map((src) => (
+                  <a key={src} href={src} target="_blank" rel="noreferrer">
+                    <img src={src} alt="" style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }} />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "#B45309", marginBottom: 16 }}>No photos uploaded yet.</p>
+            )}
+            {[
+              ["Location", [form.locationName, form.address, form.city, form.postcode, form.country].filter(Boolean).join(", ")],
+              ["Description", form.description],
+              ["Prices", prices.map(([key, option]) => `${key}: £${option.price}${option.vatStatus ? ` (${option.vatStatus} VAT)` : ""}`).join(" · ")],
+              ["Capacity", form.capacity],
+              ["Open days", (form.availabilityDays || []).join(", ")],
+            ]
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 14, color: "#0A1628", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{String(value)}</p>
+                </div>
+              ))}
+            <button
+              type="button"
+              onClick={() => remove(openDraft)}
+              style={{ marginTop: 12, border: "1px solid #FCA5A5", color: "#DC2626", background: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Delete draft
+            </button>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
 function ListingsSection({
   listings,
   loading,
@@ -2418,6 +2572,11 @@ function ListingsSection({
   onRefresh,
   searchQuery,
   highlightListingId,
+  listingStatus,
+  onListingStatusChange,
+  listingCounts,
+  showTestListings,
+  setShowTestListings,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
@@ -2441,6 +2600,7 @@ function ListingsSection({
   // Listings saved without photos (drafts the team built before the host
   // sent any) -- they can't go live until a photo is added.
   const [noPhotosOnly, setNoPhotosOnly] = useState(false);
+  const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
   const [showReorder, setShowReorder] = useState(false);
 
   const filteredQueue = moderationQueue.filter((listing) => {
@@ -2459,6 +2619,7 @@ function ListingsSection({
     return listings.filter((listing) => {
       if (locationFilter && listing.location?.city !== locationFilter) return false;
       if (noPhotosOnly && hasPhotos(listing)) return false;
+      if (vatNotSetOnly && !vatNotSet(listing)) return false;
       if (!q) return true;
       const haystack = [
         listing.title,
@@ -2472,7 +2633,7 @@ function ListingsSection({
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [listings, searchQuery, locationFilter, noPhotosOnly]);
+  }, [listings, searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -2677,7 +2838,21 @@ function ListingsSection({
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-[15px] font-bold text-[#0A1628]">All Listings ({filteredListings.length})</h3>
+          <div className="flex flex-wrap gap-2">
+            {LISTING_STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onListingStatusChange(tab.key)}
+                className={`rounded-full px-4 py-2 text-[13px] font-medium ${
+                  listingStatus === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
+                }`}
+              >
+                {tab.label}
+                {listingCounts ? ` (${formatNumber(listingCounts[tab.key] ?? 0)})` : ""}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -2701,10 +2876,23 @@ function ListingsSection({
               <input type="checkbox" checked={noPhotosOnly} onChange={(e) => setNoPhotosOnly(e.target.checked)} />
               No photos
             </label>
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+              <input type="checkbox" checked={vatNotSetOnly} onChange={(e) => setVatNotSetOnly(e.target.checked)} />
+              VAT status not set
+            </label>
+            <label className="flex h-10 items-center gap-2 text-[13px] text-[#374151]">
+              <input type="checkbox" checked={showTestListings} onChange={(e) => setShowTestListings(e.target.checked)} />
+              Show test and internal accounts
+            </label>
           </div>
         </div>
 
         {showReorder ? <HomepageOrderPanel onToast={onToast} /> : null}
+
+        {listingStatus === "draft" ? (
+          <AdminDraftsPanel showTest={showTestListings} onToast={onToast} onChanged={onRefresh} />
+        ) : (
+        <>
 
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full border-collapse">
@@ -2757,6 +2945,9 @@ function ListingsSection({
                           {!hasPhotos(listing) && (
                             <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
                           )}
+                          {vatNotSet(listing) && (
+                            <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
+                          )}
                         </p>
                         <p className="truncate text-[12px] text-[#6B7280]">
                           {listing.location?.city || ""}
@@ -2766,7 +2957,11 @@ function ListingsSection({
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-[13px] text-[#374151]">{listing.location?.city || ""}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getListingHostName(listing)}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">
+                    <p className="font-medium">{getListingHostName(listing)}</p>
+                    {listing.host?.email && <p className="text-[12px] text-[#6B7280]">{listing.host.email}</p>}
+                    <p className="text-[11px] text-[#6B7280]">Created by {personLine(listing.createdBy || listing.host)}</p>
+                  </td>
                   <td className="px-4 py-3.5">
                     <StatusPill status={getListingStatus(listing)} type="listing" />
                   </td>
@@ -2821,12 +3016,21 @@ function ListingsSection({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
+                    <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">
+                      {listing.title}
+                      {vatNotSet(listing) && (
+                        <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
+                      )}
+                    </p>
                     <p className="mt-1 text-[12px] text-[#6B7280]">{listing.location?.city || ""}</p>
                   </div>
                   <StatusPill status={getListingStatus(listing)} type="listing" />
                 </div>
-                <p className="mt-3 text-[12px] text-[#374151]">{getListingHostName(listing)}</p>
+                <p className="mt-3 text-[12px] text-[#374151]">
+                  {getListingHostName(listing)}
+                  {listing.host?.email ? ` · ${listing.host.email}` : ""}
+                </p>
+                <p className="mt-1 text-[11px] text-[#6B7280]">Created by {personLine(listing.createdBy || listing.host)}</p>
                 <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
                 <div className="mt-4 flex gap-2">
                   <button
@@ -2872,6 +3076,8 @@ function ListingsSection({
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
       {selectedListing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
@@ -7694,6 +7900,9 @@ export default function AdminDashboard() {
   const [showTestAccounts, setShowTestAccounts] = useState(false);
   const [listings, setListings] = useState([]);
   const [listingsPage, setListingsPage] = useState(1);
+  const [listingStatus, setListingStatus] = useState("all");
+  const [showTestListings, setShowTestListings] = useState(false);
+  const [listingCounts, setListingCounts] = useState(null);
   const [listingsTotalPages, setListingsTotalPages] = useState(1);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({
@@ -8062,30 +8271,37 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  const fetchListings = useCallback(async (page) => {
+  const fetchListings = useCallback(async (page, { status = "all", showTest = false } = {}) => {
     try {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
       const API = import.meta.env.VITE_API_URL;
-      const [res, totalRes] = await Promise.all([
-        fetch(`${API}/admin/properties?page=${page}&limit=50`, { headers }),
-        // Same excludeTest count as GET /stats -- data.total below is the
-        // unfiltered browse-list count, which isn't what "Total Listings"
-        // on the Overview page should show.
-        fetch(`${API}/admin/properties?limit=1&excludeTest=true`, { headers }),
+      const params = new URLSearchParams({ page, limit: 50 });
+      if (!["all", "draft"].includes(status)) params.set("status", status);
+      if (!showTest) params.set("excludeTest", "true");
+      const [res, realCountsRes, tabCountsRes] = await Promise.all([
+        fetch(`${API}/admin/properties?${params}`, { headers }),
+        // The Overview always counts real accounts only (same as GET /stats).
+        fetch(`${API}/admin/properties/counts?excludeTest=true`, { headers }),
+        showTest ? fetch(`${API}/admin/properties/counts`, { headers }) : null,
       ]);
       if (res.ok) {
         const data = await res.json();
-        const allListings = data.properties || [];
-        setListings(allListings);
+        setListings(data.properties || []);
         setListingsPage(data.page || page);
         setListingsTotalPages(data.pages || 1);
-        const totalData = totalRes.ok ? await totalRes.json() : null;
+      }
+      const realCounts = realCountsRes.ok ? await realCountsRes.json() : null;
+      const tabCounts = tabCountsRes ? (tabCountsRes.ok ? await tabCountsRes.json() : null) : realCounts;
+      if (tabCounts) setListingCounts(tabCounts);
+      if (realCounts) {
+        // Overview: live listings only, with drafts and inactive underneath
+        // (drafts and inactive used to be counted in the total).
         setStats((prev) => ({
           ...prev,
-          totalListings: totalData?.total ?? prev.totalListings,
-          // pendingListings comes from GET /admin/stats (platform-wide),
-          // not computed here -- this page only ever has 50 listings on it.
+          totalListings: realCounts.active,
+          draftListings: realCounts.draft,
+          inactiveListings: realCounts.inactive,
         }));
       }
     } catch (err) {
@@ -8243,8 +8459,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!token) return;
-    fetchListings(listingsPage);
-  }, [token, listingsPage, fetchListings]);
+    fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings });
+  }, [token, listingsPage, listingStatus, showTestListings, fetchListings]);
 
   useEffect(() => {
     if (!token) return;
@@ -8386,9 +8602,20 @@ export default function AdminDashboard() {
         listingsPage={listingsPage}
         listingsTotalPages={listingsTotalPages}
         onListingsPageChange={setListingsPage}
-        onRefresh={() => fetchListings(listingsPage)}
+        onRefresh={() => fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings })}
         searchQuery={searchQuery}
         highlightListingId={highlightListingId}
+        listingStatus={listingStatus}
+        onListingStatusChange={(status) => {
+          setListingStatus(status);
+          setListingsPage(1);
+        }}
+        listingCounts={listingCounts}
+        showTestListings={showTestListings}
+        setShowTestListings={(value) => {
+          setShowTestListings(value);
+          setListingsPage(1);
+        }}
       />
     );
   } else if (activeSection === "bookings") {
