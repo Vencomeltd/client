@@ -2430,7 +2430,12 @@ const vatNotSet = (listing) =>
     ([unit, keys]) => keys.some((key) => Number(listing.pricing?.[key]) > 0) && !listing.pricing?.vat?.[unit]
   );
 
-const personLine = (user) => (user ? `${getUserDisplayName(user)}${user.email ? ` · ${user.email}` : ""}` : "—");
+// "Name · email", or just the email when the account has no name yet.
+const personLine = (user) => {
+  if (!user) return "—";
+  const name = getUserDisplayName(user);
+  return user.email && name !== user.email ? `${name} · ${user.email}` : name;
+};
 
 const LISTING_STATUS_TABS = [
   { key: "all", label: "All" },
