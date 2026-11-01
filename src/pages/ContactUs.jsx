@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import StaticPageLayout from "../components/StaticPageLayout";
+import useSiteText from "../hooks/useSiteText";
+import RichText from "../components/RichText";
 
 const COLORS = {
   navy: "#0A1628",
@@ -32,20 +34,15 @@ function Card({ title, children }) {
 const linkStyle = { color: COLORS.navy, fontWeight: 700, textDecoration: "underline", textDecorationColor: COLORS.gold };
 
 export default function ContactUs() {
+  const t = useSiteText();
   return (
     <StaticPageLayout
-      title="Contact Us"
-      subtitle="We'd love to hear from you."
+      title={t("contact.title")}
+      subtitle={t("contact.subtitle")}
     >
       <div style={{ display: "grid", gap: "24px" }}>
         <Card title="Get in touch">
-          <p style={{ margin: 0 }}>
-            The quickest way to reach us is by email at{" "}
-            <a href="mailto:support@vencome.com" style={linkStyle}>support@vencome.com</a>. We aim to reply within 24 hours.
-          </p>
-          <p style={{ margin: 0 }}>
-            To help us route your message quickly, let us know upfront whether you're a guest, a host, or reaching out about something else — press, partnerships, careers, and so on.
-          </p>
+          <RichText value={t("contact.intro")} paragraphStyle={{ margin: 0 }} linkStyle={linkStyle} />
         </Card>
 
         <Card title="Already have a booking or listing?">

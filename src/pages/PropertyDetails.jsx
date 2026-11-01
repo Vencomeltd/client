@@ -50,6 +50,7 @@ import {
   STANDARD_HOURS,
 } from "../utils/recurringDates";
 import { hostPublicName } from "../utils/hostName";
+import useSiteText from "../hooks/useSiteText";
 
 const BRAND = {
   navy: "#0A1628",
@@ -4006,6 +4007,7 @@ function BookingSidebar({
   leaseConfig,
   onLeaseConfigChange,
 }) {
+  const t = useSiteText();
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
   const maxCapacity =
@@ -4641,7 +4643,7 @@ function BookingSidebar({
       </button>
 
       <p style={{ fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>
-        You won't be charged yet
+        {t("listing.booking.note")}
       </p>
     </div>
   );

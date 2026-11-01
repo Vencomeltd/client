@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
+import SiteContentSection from "../components/admin/SiteContentSection";
 import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
@@ -168,6 +169,12 @@ const NAV_ITEMS = [
     icon: MapPin,
   },
   {
+    label: "Site content",
+    section: "site-content",
+    group: "PLATFORM",
+    icon: FileText,
+  },
+  {
     label: "Team",
     section: "team",
     group: "PLATFORM",
@@ -201,7 +208,7 @@ const ADMIN_ROLES = [
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
   support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "leases", "communications"],
-  content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages"],
+  content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages", "site-content"],
 };
 
 function canAccessSection(adminRole, section) {
@@ -9013,6 +9020,8 @@ export default function AdminDashboard() {
     sectionContent = <CategoriesSection onToast={showToast} />;
   } else if (activeSection === "seo-pages") {
     sectionContent = <SeoPagesSection onToast={showToast} />;
+  } else if (activeSection === "site-content") {
+    sectionContent = <SiteContentSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
       <BroadcastSection users={users} stats={stats} />

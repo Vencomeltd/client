@@ -1,11 +1,13 @@
 import { Link, useRouteLoaderData } from "react-router-dom";
 import { Facebook, Instagram, Linkedin } from "lucide-react";
+import useSiteText from "../hooks/useSiteText";
 
 export default function Footer() {
   const rootData = useRouteLoaderData("root");
   const categories = rootData?.footerCategories || [];
   const cities = rootData?.footerCities || [];
   const servicePaths = rootData?.footerServicePaths || {};
+  const t = useSiteText();
 
   return (
     <footer className="bg-gray-50 py-8">
@@ -14,8 +16,7 @@ export default function Footer() {
         <div className="mb-6">
           <img src="/logo-blue.png" className="w-[10rem]" />
           <p className="text-gray-500 text-sm max-w-xs my-3">
-            Discover the worlds most exceptional commercial spaces, from offices
-            and studios to venues and landmark locations.
+            {t("footer.tagline")}
           </p>
 
           {/* Social Links (keep <a> for external links) */}

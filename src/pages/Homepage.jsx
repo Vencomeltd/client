@@ -31,6 +31,8 @@ import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import PlatformReviewsSection from "../components/PlatformReviewsSection";
 import GetInTouchBlock from "../components/GetInTouchBlock";
+import useSiteText from "../hooks/useSiteText";
+import RichText from "../components/RichText";
 
 const BRAND = {
   navy: "#0A1628",
@@ -135,6 +137,7 @@ const CATEGORY_ICON_MAP = {
 };
 
 function HeroSection() {
+  const t = useSiteText();
   const navigate = useNavigate();
   const [heroSearchLocation, setHeroSearchLocation] = useState("");
 
@@ -146,7 +149,7 @@ function HeroSection() {
 
   const { scrollY } = useScroll();
   const bgY = useTransform(scrollY, [0, 500], [0, 150]);
-  const headlineWords = ["The", "Easiest", "Way", "To", "Grow", "Your", "Business"];
+  const headlineWords = t("home.hero.headline").split(/\s+/).filter(Boolean);
 
   return (
     <motion.section
@@ -212,7 +215,7 @@ function HeroSection() {
             textAlign: "center",
           }}
         >
-          Commercial Spaces, Booked Simply
+          {t("home.hero.subtitle")}
         </p>
 
         <motion.form
@@ -399,6 +402,7 @@ export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate 
 }
 
 function CategoryStrip() {
+  const t = useSiteText();
   const loaderData = useLoaderData();
   const [categories, setCategories] = useState(loaderData?.categories || []);
   const scrollRef = useRef(null);
@@ -445,7 +449,7 @@ function CategoryStrip() {
     <section className="bg-white py-7 md:py-10 lg:py-12">
       <div className="mx-auto max-w-[1440px] px-4 md:px-6">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#305CDE]">
-          Browse by Category
+          {t("home.categories.eyebrow")}
         </p>
 
         <div className="relative mt-6">
@@ -504,6 +508,7 @@ function CategoryStrip() {
 }
 
 function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) {
+  const t = useSiteText();
   const listingsToRender = popularListings.length > 0 ? popularListings : featuredListings;
 
   if (!loadingListings && listingsToRender.length === 0) {
@@ -518,7 +523,7 @@ function FeaturedSpaces({ featuredListings, popularListings, loadingListings }) 
       <div className="mx-auto max-w-[1440px] px-4 md:px-6">
         <div className="mb-6 flex items-center justify-between gap-4 md:mb-8 md:gap-6">
           <h2 className="text-[clamp(20px,4vw,32px)] font-bold text-[#0A1628]">
-            Popular Spaces Near You
+            {t("home.popular.heading")}
           </h2>
           <Link
             to="/search"
@@ -630,6 +635,7 @@ function BrowseByCity() {
 }
 
 function HowItWorks() {
+  const t = useSiteText();
   return (
     <motion.section
       {...SECTION_REVEAL}
@@ -637,10 +643,10 @@ function HowItWorks() {
     >
       <div className="mx-auto max-w-[1440px] px-4 text-center md:px-6">
         <h2 className="text-[clamp(20px,4vw,32px)] font-extrabold text-[#0A1628]">
-          How VenCome Works
+          {t("home.how.heading")}
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-base text-[#6B7280]">
-          Find and book commercial spaces in three simple steps.
+          {t("home.how.subtitle")}
         </p>
 
         <div className="mx-auto mt-12 grid max-w-[900px] grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
@@ -678,6 +684,7 @@ function HowItWorks() {
 }
 
 function BecomeAHost() {
+  const t = useSiteText();
   return (
     <motion.section
       {...SECTION_REVEAL}
@@ -686,17 +693,16 @@ function BecomeAHost() {
       <div className="mx-auto grid max-w-[1440px] grid-cols-1 items-center gap-8 px-4 md:px-6 lg:grid-cols-5 lg:gap-10">
         <div className="lg:col-span-3">
           <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.28em] text-[#305CDE]">
-            For Property Owners
+            {t("host.eyebrow")}
           </p>
           <h2 className="max-w-2xl text-[clamp(28px,6vw,48px)] font-extrabold leading-tight text-white">
-            List Your Space.
-            <br />
-            Start Earning.
+            {/* One line per sentence, as in the original design */}
+            {t("host.heading").split(/(?<=\.)\s+/).map((line, i) => (
+              <span key={i} className="block">{line}</span>
+            ))}
           </h2>
           <p className="mt-4 max-w-[440px] text-base leading-7 text-white/70">
-            Join hundreds of commercial property owners earning consistent
-            revenue through VenCome. List your space in under 10 minutes - we
-            handle payments, contracts, and disputes.
+            <RichText value={t("host.body")} inline linkStyle={{ color: "#fff", textDecoration: "underline" }} />
           </p>
 
           <div className="mt-9">
@@ -704,7 +710,7 @@ function BecomeAHost() {
               to="/create-space"
               className="inline-flex min-h-[44px] rounded-[10px] bg-[#305CDE] px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#254FC7]"
             >
-              Publish Your Space
+              {t("host.button")}
             </Link>
             <div className="mt-4">
               <Link
@@ -816,6 +822,7 @@ function RecentBlogs({ blogs, loading }) {
 }
 
 function FAQSection() {
+  const t = useSiteText();
   const [openIndex, setOpenIndex] = useState(null);
 
   const faqs = [
@@ -854,10 +861,10 @@ function FAQSection() {
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <h2 style={{ fontSize: 32, fontWeight: 800, color: "#0A1628", marginBottom: 12 }}>
-            Frequently Asked Questions
+            {t("home.faq.heading")}
           </h2>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6 }}>
-            Everything you need to know about VenCome.
+            {t("home.faq.subtitle")}
           </p>
         </div>
 
