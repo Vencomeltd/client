@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Flag,
   Globe,
   GripVertical,
   Key,
@@ -933,7 +934,7 @@ function MetricCard({ icon: Icon, label, value, subtitle, growth, iconClasses, p
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit, onViewDetail }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit, onViewDetail, onFlag }) {
   // Support-access status now lives in its own request/response lifecycle
   // (see routes/admin.js support-access/status), not a flag on the user —
   // fetched lazily here, only when the admin actually opens this menu.
@@ -1013,6 +1014,15 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
           onClick={() => { onVerify(user._id, user.venComeVerified ? "revoke" : "grant"); onClose(); }}
         />
       ) : null}
+      {/* Test/internal accounts are left out of every admin total and chart. */}
+      {user.isTestAccount ? (
+        <UserMenuItem icon={Flag} label="Unflag (count as real)" onClick={() => { onFlag(user, null); onClose(); }} />
+      ) : (
+        <>
+          <UserMenuItem icon={Flag} label="Flag as Test" onClick={() => { onFlag(user, "test"); onClose(); }} />
+          <UserMenuItem icon={Flag} label="Flag as Internal" onClick={() => { onFlag(user, "internal"); onClose(); }} />
+        </>
+      )}
       <UserMenuItem
         icon={Trash2}
         label="Delete User"
@@ -1425,6 +1435,28 @@ function UserDetailPanel({ user, onClose }) {
           <p style={{ fontSize: 13, color: "#DC2626" }}>{error}</p>
         ) : (
           <>
+            {!detail?.user?.isVerified && (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
+                  Verify-account reminders ({detail?.user?.verifyReminders?.sentAt?.length || 0})
+                </p>
+                {detail?.user?.verifyReminders?.optedOut && (
+                  <p style={{ fontSize: 13, color: "#B45309", marginBottom: 6 }}>
+                    Unsubscribed {new Date(detail.user.verifyReminders.optedOutAt).toLocaleDateString("en-GB")} — no more reminders.
+                  </p>
+                )}
+                {detail?.user?.verifyReminders?.sentAt?.length ? (
+                  detail.user.verifyReminders.sentAt.map((at) => (
+                    <p key={at} style={{ fontSize: 13, color: "#374151", margin: "2px 0" }}>
+                      Sent {new Date(at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                  ))
+                ) : (
+                  <p style={{ fontSize: 13, color: "#9CA3AF" }}>None sent yet. Reminders go out Mondays and Thursdays for 2 weeks after sign-up.</p>
+                )}
+              </div>
+            )}
+
             {detail?.user?.isHost && (
               <div style={{ marginBottom: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
@@ -2019,7 +2051,9 @@ function AccountFlags({ user }) {
         <span className="rounded-full bg-[rgba(124,58,237,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Admin</span>
       ) : null}
       {user.isTestAccount ? (
-        <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">Test account</span>
+        <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">
+          {user.accountFlag === "internal" ? "Internal" : "Test account"}
+        </span>
       ) : null}
     </>
   );
@@ -2051,6 +2085,7 @@ function UsersSection({
   onOpenCreateHost,
   onEditUser,
   onViewUserDetail,
+  onFlagUser,
   usersPage,
   usersTotalPages,
   onUsersPageChange,
@@ -2146,7 +2181,7 @@ function UsersSection({
             checked={showTestAccounts}
             onChange={(event) => setShowTestAccounts(event.target.checked)}
           />
-          Show test accounts
+          Show test and internal accounts
         </label>
       </div>
 
@@ -2252,6 +2287,7 @@ function UsersSection({
                           onRequestAccess={onRequestAccessUser}
                           onEdit={onEditUser}
                           onViewDetail={onViewUserDetail}
+                          onFlag={onFlagUser}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -7838,6 +7874,24 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleFlagUser = async (user, flag) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/flag`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ flag }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error);
+      // Re-fetch so the counts and this list follow the change.
+      fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
+      showToast(flag ? `Flagged as ${flag === "internal" ? "Internal" : "Test"} — left out of totals` : "Unflagged — counted as a real account");
+    } catch (err) {
+      showToast(err.message || "Couldn't update the flag", "error");
+    }
+  };
+
   const handleDeleteUser = async (user) => {
     if (!(await confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`))) return;
     try {
@@ -8109,7 +8163,7 @@ export default function AdminDashboard() {
         const headers = { Authorization: `Bearer ${token}` };
 
         const [bookingsRes, analyticsRes, reportsRes, statsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50&excludeTest=true`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=all&limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/stats`, { headers }),
@@ -8259,6 +8313,7 @@ export default function AdminDashboard() {
         onOpenCreateHost={() => setShowCreateHostModal(true)}
         onEditUser={setEditingUser}
         onViewUserDetail={setViewingUserDetail}
+        onFlagUser={handleFlagUser}
         usersPage={usersPage}
         usersTotalPages={usersTotalPages}
         onUsersPageChange={setUsersPage}
