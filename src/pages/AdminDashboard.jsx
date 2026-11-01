@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
 import SiteContentSection from "../components/admin/SiteContentSection";
+import DocumentsSection from "../components/admin/DocumentsSection";
+import DataBackupsSection from "../components/admin/DataBackupsSection";
 import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
@@ -173,6 +175,18 @@ const NAV_ITEMS = [
     section: "site-content",
     group: "PLATFORM",
     icon: FileText,
+  },
+  {
+    label: "Documents",
+    section: "documents",
+    group: "PLATFORM",
+    icon: Paperclip,
+  },
+  {
+    label: "Data & backups",
+    section: "data-backups",
+    group: "PLATFORM",
+    icon: Download,
   },
   {
     label: "Team",
@@ -9022,6 +9036,10 @@ export default function AdminDashboard() {
     sectionContent = <SeoPagesSection onToast={showToast} />;
   } else if (activeSection === "site-content") {
     sectionContent = <SiteContentSection onToast={showToast} />;
+  } else if (activeSection === "documents") {
+    sectionContent = <DocumentsSection onToast={showToast} />;
+  } else if (activeSection === "data-backups") {
+    sectionContent = <DataBackupsSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
       <BroadcastSection users={users} stats={stats} />
