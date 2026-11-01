@@ -30,6 +30,7 @@ import Navbar from "../components/Navbar";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import PlatformReviewsSection from "../components/PlatformReviewsSection";
+import GetInTouchBlock from "../components/GetInTouchBlock";
 
 const BRAND = {
   navy: "#0A1628",
@@ -1053,6 +1054,7 @@ export default function Homepage() {
         <RecentBlogs blogs={recentBlogs} loading={loadingBlogs} />
         <FAQSection />
         <PlatformReviewsSection />
+        <GetInTouchBlock />
       </main>
       <Footer />
     </>
