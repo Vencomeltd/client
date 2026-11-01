@@ -141,10 +141,13 @@ export default function Checkout() {
   const durationUnits = booking?.totalUnits ?? booking?.totalNights;
   const durationWord = UNIT_WORD[booking?.pricingUnit] || "night";
   const rentTotal = series ? v2.amountPence / 100 : booking?.totalPrice || 0;
+  // A lease (a series paid month by month): only month 1 is paid now.
+  const lease = series && v2?.lease;
+  const charged = lease ? series.slice(0, 1) : series;
   // Core / utilities / VAT split (summed over a series), shown only when the
   // booking has utilities or VAT -- otherwise the total is all core.
   const breakdown = (() => {
-    const parts = series ? series.map((item) => item.breakdown).filter(Boolean) : [booking?.pricingBreakdown].filter(Boolean);
+    const parts = series ? charged.map((item) => item.breakdown).filter(Boolean) : [booking?.pricingBreakdown].filter(Boolean);
     if (!parts.length) return null;
     const sum = (field) => parts.reduce((acc, part) => acc + (part[field] || 0), 0);
     const result = { corePence: sum("corePence"), utilitiesPence: sum("utilitiesPence"), vatPence: sum("vatPence"), vatRatePct: parts[0].vatRatePct };
@@ -161,9 +164,16 @@ export default function Checkout() {
     : v2Deposit.mode === "charged"
     ? `A refundable £${v2DepositGbp} deposit is charged to your card at booking and refunded after your stay unless the host reports damage.`
     : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before check-in. You're only charged if there's damage.`;
-  const v2Consent = v2Deposit
-    ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.`
+  const leaseMonthPence = lease && series[1] ? series[1].amountPence : 0;
+  const leaseCopy = lease
+    ? `This is a ${lease.months}-month lease. You pay month 1 now; then ${lease.months - 1} monthly payment${lease.months - 1 === 1 ? "" : "s"} of £${(leaseMonthPence / 100).toFixed(2)} are taken from this card ${lease.chargeLeadDays} days before each month starts.`
     : "";
+  const v2Consent = [
+    lease ? `${leaseCopy} By paying, you agree that VenCome may save your card and take these monthly payments.` : "",
+    v2Deposit ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
@@ -220,7 +230,19 @@ export default function Checkout() {
                   )}
 
                   <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                    {series ? (
+                    {lease ? (
+                      <div style={{ fontSize: 13, color: "#374151" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 6 }}>
+                          <CalendarDays size={14} /> {lease.months}-month lease
+                        </div>
+                        <div style={{ padding: "0 0 0 22px", lineHeight: 1.6 }}>
+                          {new Date(series[0].checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} –{" "}
+                          {new Date(series[series.length - 1].checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          <br />
+                          Then {lease.months - 1} × £{(leaseMonthPence / 100).toFixed(2)}, each taken {lease.chargeLeadDays} days before the month starts
+                        </div>
+                      </div>
+                    ) : series ? (
                       <div style={{ fontSize: 13, color: "#374151" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 6 }}>
                           <CalendarDays size={14} /> {series.length} dates
@@ -247,7 +269,9 @@ export default function Checkout() {
                   <div style={{ borderTop: "1px solid #F3F4F6", marginTop: 16, paddingTop: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
                       <span>
-                        {series
+                        {lease
+                          ? "Month 1"
+                          : series
                           ? `${series.length} bookings`
                           : durationUnits ? `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}` : "Rent"}
                       </span>
@@ -272,7 +296,7 @@ export default function Checkout() {
                       </div>
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#0A1628", marginTop: 8, paddingTop: 8, borderTop: "1px solid #F3F4F6" }}>
-                      <span>Total</span>
+                      <span>{lease ? "Due today" : "Total"}</span>
                       <span>£{(rentTotal + depositAmount).toFixed(2)}</span>
                     </div>
                   </div>
@@ -287,6 +311,8 @@ export default function Checkout() {
                     <ShieldCheck size={16} color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
                     {booking.status === "pending"
                       ? "You won't be charged until the host approves your request."
+                      : lease
+                      ? "Each month's rent is held securely and released to the host 48 hours after that month starts."
                       : "Payment is held securely and released to the host after your stay."}
                   </div>
                 </div>

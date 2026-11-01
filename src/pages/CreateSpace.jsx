@@ -28,7 +28,7 @@ import { setNavGuard, clearNavGuard, requestNavConfirm } from "../utils/navGuard
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
 import PriceTaxFields from "../components/PriceTaxFields";
-import { vatPayload } from "../utils/vatForm";
+import { vatPayload, minimumTermPayload } from "../utils/vatForm";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -1084,6 +1084,7 @@ export default function CreateSpace() {
           // core (ex VAT) price in flatPricing[key].
           const vat = vatPayload(val);
           if (vat) flatPricing.vat = { ...flatPricing.vat, [key]: vat };
+          if (key === "monthly") flatPricing.minimumTermMonths = minimumTermPayload(val);
         }
       });
 

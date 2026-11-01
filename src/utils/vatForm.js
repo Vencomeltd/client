@@ -19,6 +19,13 @@ export function vatPayload(option) {
 }
 
 // Form state for an option from a saved listing's pricing.vat[unit].
+// The monthly option's minimum term, as Property.pricing.minimumTermMonths
+// (2-36 months), or undefined for none.
+export function minimumTermPayload(option) {
+  const months = parseInt(option?.minimumTermMonths, 10);
+  return months >= 2 && months <= 36 ? months : undefined;
+}
+
 export function vatFormState(saved) {
   if (!saved?.status) return {};
   return {

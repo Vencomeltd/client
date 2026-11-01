@@ -861,6 +861,8 @@ export default function PropertyDetails() {
   );
   const [selectedDurationType, setSelectedDurationType] = useState(null);
   const [bookingMode, setBookingMode] = useState("single");
+  // Lease (a monthly price with a minimum term): start date + how many months.
+  const [leaseConfig, setLeaseConfig] = useState({ startDate: "", months: 0 });
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [selectedDates, setSelectedDates] = useState([]);
@@ -1402,6 +1404,19 @@ export default function PropertyDetails() {
     });
   }, [bookingMetrics, selectedTier, property?.pricing?.vat]);
 
+  // A listing with a minimum term books monthly as a lease, paid month by
+  // month (server: POST /bookings/lease). Each month is priced on its own.
+  const leaseMinimum = selectedTier?.unit === "month" ? property?.pricing?.minimumTermMonths || 0 : 0;
+  const leaseMonths = Math.max(leaseMinimum, leaseConfig.months || 0);
+  const leaseQuote = useMemo(() => {
+    if (!(leaseMinimum >= 2) || !(Number(property?.pricing?.monthly) > 0)) return null;
+    return quotePrice({
+      corePence: Math.round(Number(property.pricing.monthly) * 100),
+      quantity: 1,
+      tax: property?.pricing?.vat?.monthly,
+    });
+  }, [leaseMinimum, property?.pricing?.monthly, property?.pricing?.vat?.monthly]);
+
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
   const bookingTotal = bookingMetrics.subtotal;
@@ -1569,6 +1584,32 @@ export default function PropertyDetails() {
           selectedDurationType,
         }));
         window.location.href = "/login";
+        return;
+      }
+
+      if (leaseQuote) {
+        if (!leaseConfig.startDate) {
+          setBookingError("Please choose when your lease starts");
+          setBookingLoading(false);
+          return;
+        }
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings/lease`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId: property._id,
+            startDate: new Date(`${leaseConfig.startDate.slice(0, 10)}T09:00:00`).toISOString(),
+            months: leaseMonths,
+            guests,
+            agreedToTerms: Boolean(property?.listingTerms?.trim()),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setBookingError(data.error || "This lease couldn't be booked");
+          return;
+        }
+        navigate(`/checkout/series/${data.groupId}`);
         return;
       }
 
@@ -2000,6 +2041,11 @@ export default function PropertyDetails() {
                 platformFee={platformFee}
                 unavailableDates={unavailableDates}
                 unitAvailability={unitAvailability}
+                leaseQuote={leaseQuote}
+                leaseMinimum={leaseMinimum}
+                leaseMonths={leaseMonths}
+                leaseConfig={leaseConfig}
+                onLeaseConfigChange={setLeaseConfig}
               />
             </motion.aside>
           </div>
@@ -3869,6 +3915,69 @@ function RecurringSummary({ preview }) {
   );
 }
 
+// Lease: when it starts, how many months (at least the listing's minimum),
+// and what's paid when -- month 1 at checkout, then each month on its own.
+function LeaseFields({ quote, minimum, months, config, onChange, unavailableDates }) {
+  const gbp = (pence) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const stepButton = {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    border: "1.5px solid #E5E7EB",
+    background: "#fff",
+    fontSize: "18px",
+    cursor: "pointer",
+  };
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#374151", background: "#F5F7FF", borderRadius: "10px", padding: "10px 12px" }}>
+        <strong>{minimum}-month minimum.</strong> Paid monthly — you pay the first month now, then each month is taken from
+        your card 3 days before it starts.
+      </p>
+      <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Lease starts</label>
+      <CalendarPicker
+        value={config.startDate}
+        onChange={(value) => onChange({ ...config, startDate: value })}
+        placeholder="Select a start date"
+        unavailableDates={unavailableDates}
+      />
+      <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", margin: "12px 0 6px" }}>Months</label>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <button
+          type="button"
+          aria-label="Fewer months"
+          onClick={() => onChange({ ...config, months: Math.max(minimum, months - 1) })}
+          disabled={months <= minimum}
+          style={{ ...stepButton, opacity: months <= minimum ? 0.4 : 1 }}
+        >
+          −
+        </button>
+        <span style={{ fontSize: "18px", fontWeight: "700", color: "#0A1628", minWidth: "32px", textAlign: "center" }}>{months}</span>
+        <button
+          type="button"
+          aria-label="More months"
+          onClick={() => onChange({ ...config, months: Math.min(36, months + 1) })}
+          disabled={months >= 36}
+          style={{ ...stepButton, opacity: months >= 36 ? 0.4 : 1 }}
+        >
+          +
+        </button>
+      </div>
+      <div style={{ marginTop: "14px", borderRadius: "12px", padding: "14px 16px", border: "1.5px solid #E5E7EB" }}>
+        <PriceBreakdownLines q={quote} />
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", color: "#0A1628", fontSize: "15px" }}>
+          <span>Due today (month 1)</span>
+          <span>{gbp(quote.totalPence)}</span>
+        </div>
+        <p style={{ margin: "8px 0 0", fontSize: "13px", color: "#6B7280" }}>
+          Then {months - 1} monthly payment{months - 1 === 1 ? "" : "s"} of {gbp(quote.totalPence)}. Lease total{" "}
+          {gbp(quote.totalPence * months)} over {months} months.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function BookingSidebar({
   property,
   enabledPricingOptions,
@@ -3897,6 +4006,11 @@ function BookingSidebar({
   platformFee,
   unavailableDates,
   unitAvailability,
+  leaseQuote,
+  leaseMinimum,
+  leaseMonths,
+  leaseConfig,
+  onLeaseConfigChange,
 }) {
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
@@ -3987,6 +4101,17 @@ function BookingSidebar({
         </div>
       )}
 
+      {leaseQuote ? (
+        <LeaseFields
+          quote={leaseQuote}
+          minimum={leaseMinimum}
+          months={leaseMonths}
+          config={leaseConfig}
+          onChange={onLeaseConfigChange}
+          unavailableDates={unavailableDates}
+        />
+      ) : (
+      <>
       <div style={{ marginBottom: "20px" }}>
         <p
           style={{
@@ -4362,6 +4487,8 @@ function BookingSidebar({
           </div>
         </div>
       )}
+      </>
+      )}
 
       <div style={{ marginBottom: "20px" }}>
         <label
@@ -4449,7 +4576,7 @@ function BookingSidebar({
         </div>
       ) : null}
 
-      {bookingMode !== "recurring" && bookingMetrics?.subtotal > 0 && (
+      {!leaseQuote && bookingMode !== "recurring" && bookingMetrics?.subtotal > 0 && (
         <div style={{ background: "#FFFFFF", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "13px", color: "#6B7280" }}>

@@ -439,6 +439,7 @@ import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import SignaturePad from "../components/SignaturePad";
 import DepositV2Panel from "../components/DepositV2Panel";
+import LeasePanel from "../components/LeasePanel";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -1622,6 +1623,13 @@ export default function BookingDetails() {
                 )
               )}
             </div>
+
+            <LeasePanel
+              booking={booking}
+              isHost={isHost}
+              onUpdate={(patch) => setBooking((prev) => ({ ...prev, ...patch }))}
+              showToast={showToast}
+            />
 
             <DepositV2Panel
               booking={booking}

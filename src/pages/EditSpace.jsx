@@ -6,7 +6,7 @@ import BlockDatesEditor from "../components/BlockDatesEditor";
 import { COUNTRIES } from "../components/CountrySelect";
 import DepositSection, { depositPolicyPayload, depositPolicyFromListing } from "../components/DepositSection";
 import PriceTaxFields from "../components/PriceTaxFields";
-import { vatPayload, vatFormState } from "../utils/vatForm";
+import { vatPayload, vatFormState, minimumTermPayload } from "../utils/vatForm";
 
 // Price options that have VAT / utilities settings (annual has none).
 const VAT_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
@@ -122,6 +122,9 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             // A VAT-set price: show what the host entered, not the core.
             if (pricing[key].enabled) Object.assign(pricing[key], vatFormState(p.pricing.vat?.[key]));
           });
+          if (pricing.monthly?.enabled && p.pricing.minimumTermMonths) {
+            pricing.monthly.minimumTermMonths = String(p.pricing.minimumTermMonths);
+          }
         }
 
         setFormData({
@@ -289,6 +292,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           flatPricing[key] = parseFloat(val.price);
           const vat = VAT_UNIT[key] && vatPayload(val);
           if (vat) flatPricing.vat = { ...flatPricing.vat, [key]: vat };
+          if (key === "monthly") flatPricing.minimumTermMonths = minimumTermPayload(val);
         }
       });
       // Always send this explicitly (even empty) -- the server replaces

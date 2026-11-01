@@ -6,7 +6,8 @@ import { vatPayload } from "../utils/vatForm";
 // week / month) in the listing form, with a live calculator of what the
 // customer pays and the host's payout. Used by CreateSpace and EditSpace.
 // `value` is the option's form state: { price, vatStatus, vatRate,
-// utilitiesAmount, utilitiesPer, utilitiesVatable }.
+// utilitiesAmount, utilitiesPer, utilitiesVatable }, plus minimumTermMonths
+// on the monthly option (an office-style lease, paid month by month).
 
 const RATE_KEY = { hour: "hourly", day: "daily", week: "weekly", month: "monthly" };
 let ratesRequest;
@@ -44,7 +45,8 @@ export default function PriceTaxFields({ value = {}, onChange, unit }) {
   const vatApplies = value.vatStatus === "excludes" || value.vatStatus === "includes";
   const payload = vatPayload(value);
   const tax = payload ? buildUnitTax(payload) : null;
-  const commissionPct = rates?.[RATE_KEY[unit]];
+  // A lease of 12+ months pays the annual rate, even though it's paid monthly.
+  const commissionPct = unit === "month" && Number(value.minimumTermMonths) >= 12 ? rates?.annual : rates?.[RATE_KEY[unit]];
   const q = tax
     ? quote({
         corePence: tax.netPence,
@@ -57,6 +59,28 @@ export default function PriceTaxFields({ value = {}, onChange, unit }) {
 
   return (
     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+      {unit === "month" && (
+        <div>
+          <label style={labelStyle}>Minimum term (optional)</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="number"
+              min="2"
+              max="36"
+              placeholder="e.g. 12"
+              value={value.minimumTermMonths || ""}
+              onChange={(e) => onChange({ minimumTermMonths: e.target.value })}
+              onWheel={(e) => e.target.blur()}
+              style={{ ...fieldStyle, maxWidth: 120 }}
+            />
+            <span style={{ fontSize: 13, color: "#6B7280" }}>months</span>
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6B7280" }}>
+            For office-style lets: tenants book at least this many months and pay month by month. Leave blank for rolling monthly
+            bookings paid upfront.
+          </p>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <div style={{ flex: "2 1 180px" }}>
           <label style={labelStyle}>VAT status</label>

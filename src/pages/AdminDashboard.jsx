@@ -39,6 +39,7 @@ import {
   Shield,
   ShieldOff,
   ShieldQuestion,
+  CalendarClock,
   Tag,
   Trash2,
   TrendingUp,
@@ -104,6 +105,12 @@ const NAV_ITEMS = [
     section: "claims",
     group: "MANAGEMENT",
     icon: ShieldQuestion,
+  },
+  {
+    label: "Leases",
+    section: "leases",
+    group: "MANAGEMENT",
+    icon: CalendarClock,
   },
   {
     label: "Communications",
@@ -192,7 +199,7 @@ const ADMIN_ROLES = [
 // unknown/loading role) sees everything; team + settings stay full_admin-only.
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
-  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "communications"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "leases", "communications"],
   content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages"],
 };
 
@@ -6833,6 +6840,176 @@ function holdExpiryLabel(captureBefore) {
 // Damage claims opened by hosts against a booking's deposit. Approving takes
 // only the approved amount (the rest of a card hold is released); rejecting
 // releases/refunds everything. Every action is audit-logged server-side.
+// Monthly-instalment leases (server routes/adminLeases.js): each month's
+// payment state, and -- for a month that kept failing -- retry it or end the
+// lease. Both are written to the lease's audit trail.
+const LEASE_MONTH_STATUS = {
+  paid: { label: "Paid", className: "bg-[#ECFDF5] text-[#047857]" },
+  scheduled: { label: "Scheduled", className: "bg-[#EFF6FF] text-[#1D4ED8]" },
+  failed: { label: "Failed — retrying", className: "bg-[#FFFBEB] text-[#B45309]" },
+  awaiting_decision: { label: "Overdue — decide", className: "bg-[#FEF2F2] text-[#B91C1C]" },
+  stopped: { label: "Not charged (ended)", className: "bg-[#F3F4F6] text-[#6B7280]" },
+};
+
+function LeasesSection({ onToast }) {
+  const [leases, setLeases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [attention, setAttention] = useState("1");
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/leases?attention=${attention}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setLeases((await res.json()).leases || []);
+    } catch (err) {
+      console.error("Failed to fetch leases:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [attention]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const act = async (lease, action) => {
+    let body = {};
+    if (action === "end") {
+      const note = window.prompt("Why is this lease being ended? (saved to the audit log)");
+      if (!note || note.trim().length < 3) return;
+      if (!window.confirm("End this lease? Every unpaid month is cancelled and won't be charged. Paid months are not changed.")) return;
+      body = { confirm: "true", note: note.trim() };
+    }
+    setBusyId(lease.groupId);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/leases/${lease.groupId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Something went wrong");
+      onToast(action === "end" ? `Lease ended — ${data.cancelledMonths} month(s) cancelled` : data.paid ? "Payment taken" : `Still declined: ${data.error || "card declined"}`);
+      await load();
+    } catch (err) {
+      onToast(err.message || "Something went wrong");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Leases</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Monthly-instalment leases and their payments</p>
+      </div>
+
+      <div className="mb-5">
+        <select
+          value={attention}
+          onChange={(event) => setAttention(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="1">Needs attention</option>
+          <option value="0">All leases</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {loading ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading leases...</div>
+        ) : leases.length === 0 ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">No leases in this view</div>
+        ) : (
+          leases.map((lease) => {
+            const overdue = lease.schedule.some((m) => m.status === "confirmed" && ["failed", "awaiting_decision"].includes(m.lease?.chargeStatus));
+            const unpaidLeft = lease.schedule.some((m) => !m.isPaid && ["pending", "confirmed"].includes(m.status));
+            return (
+              <div key={lease.groupId} className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+                <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-[15px] font-bold text-[#0A1628]">{lease.property?.title || "Lease"}</p>
+                    <p className="mt-0.5 text-[12px] text-[#6B7280]">
+                      Host {getUserDisplayName(lease.host)} · Guest {getUserDisplayName(lease.guest)} · {lease.months} months (minimum{" "}
+                      {lease.minimumMonths})
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {overdue && (
+                      <button
+                        type="button"
+                        disabled={busyId === lease.groupId}
+                        onClick={() => act(lease, "retry")}
+                        className="h-9 rounded-lg bg-[#0A1628] px-4 text-[13px] font-semibold text-white disabled:opacity-50"
+                      >
+                        Retry payment
+                      </button>
+                    )}
+                    {unpaidLeft && (
+                      <button
+                        type="button"
+                        disabled={busyId === lease.groupId}
+                        onClick={() => act(lease, "end")}
+                        className="h-9 rounded-lg border border-[#FCA5A5] px-4 text-[13px] font-semibold text-[#DC2626] disabled:opacity-50"
+                      >
+                        End lease
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-[12px]">
+                    <tbody>
+                      {lease.schedule.map((month) => {
+                        const state = month.isPaid
+                          ? LEASE_MONTH_STATUS.paid
+                          : month.status === "cancelled"
+                          ? LEASE_MONTH_STATUS.stopped
+                          : LEASE_MONTH_STATUS[month.lease?.chargeStatus] || { label: month.status, className: "bg-[#F3F4F6] text-[#6B7280]" };
+                        return (
+                          <tr key={month._id} className="border-t border-[#F3F4F6]">
+                            <td className="py-1.5 pr-3 font-semibold text-[#0A1628]">Month {month.lease?.index}</td>
+                            <td className="py-1.5 pr-3 text-[#374151]">{new Date(month.checkIn).toLocaleDateString("en-GB")}</td>
+                            <td className="py-1.5 pr-3 text-[#374151]">£{month.totalPrice}</td>
+                            <td className="py-1.5 pr-3">
+                              <span className={`rounded-full px-2 py-0.5 font-semibold ${state.className}`}>{state.label}</span>
+                            </td>
+                            <td className="py-1.5 text-[#6B7280]">
+                              {month.lease?.lastError && !month.isPaid ? `${month.lease.lastError} (${month.lease.attempts} tries)` : ""}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {lease.audit?.length > 0 && (
+                  <div className="mt-3 text-[12px] text-[#6B7280]">
+                    {lease.audit.map((entry) => (
+                      <p key={entry._id}>
+                        {new Date(entry.at).toLocaleString("en-GB")} · {getUserDisplayName(entry.by)} · {entry.action}
+                        {entry.note ? ` — ${entry.note}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
 function ClaimsSection({ onToast }) {
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -8229,6 +8406,8 @@ export default function AdminDashboard() {
     sectionContent = <SupportTicketsSection onToast={showToast} myAdmin={myAdmin} />;
   } else if (activeSection === "claims") {
     sectionContent = <ClaimsSection onToast={showToast} />;
+  } else if (activeSection === "leases") {
+    sectionContent = <LeasesSection onToast={showToast} />;
   } else if (activeSection === "communications") {
     sectionContent = <CommunicationsSection />;
   } else if (activeSection === "invoices") {
