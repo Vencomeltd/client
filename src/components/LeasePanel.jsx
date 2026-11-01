@@ -75,9 +75,10 @@ export default function LeasePanel({ booking, isHost, onUpdate, showToast }) {
         <CalendarClock size={16} color="#305CDE" style={{ flexShrink: 0, marginTop: 2 }} />
         {describe(booking, isHost)}
       </p>
-      {!isHost && lease.index <= lease.minimumMonths && (
+      {lease.index <= lease.minimumMonths && (
         <p style={{ fontSize: 12, color: "#64748B", margin: "10px 0 0" }}>
-          This month is inside the {lease.minimumMonths}-month minimum term. To end the lease early, please contact VenCome.
+          This month is inside the {lease.minimumMonths}-month minimum term, so it can't be cancelled online. To end the lease
+          early, please contact VenCome.
         </p>
       )}
       {needsCard && (

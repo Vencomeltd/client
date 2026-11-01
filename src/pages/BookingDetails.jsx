@@ -1310,7 +1310,11 @@ export default function BookingDetails() {
     priceBreakdown.length > 1 && priceBreakdown.some((b) => b.rate !== priceBreakdown[0].rate);
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const canAccept = status === "pending" && isHost;
-  const canCancel = status !== "cancelled" && isHost;
+  // A lease month inside its minimum term is ended by VenCome, not cancelled
+  // online (server: inLeaseMinimumTerm).
+  const leaseLocked =
+    Boolean(booking?.lease?.securedAt) && booking?.status === "confirmed" && booking.lease.index <= booking.lease.minimumMonths;
+  const canCancel = status !== "cancelled" && isHost && !leaseLocked;
   const initials = `${guest?.firstName?.[0] || ""}${
     guest?.lastName?.[0] || ""
   }`;
