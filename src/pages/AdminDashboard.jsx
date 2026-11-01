@@ -4820,6 +4820,7 @@ function BroadcastSection({ users, stats }) {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
   const [templateName, setTemplateName] = useState("");
+  const [testNote, setTestNote] = useState("");
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -4911,6 +4912,22 @@ function BroadcastSection({ users, stats }) {
       setError("Something went wrong");
     } finally {
       setSending(false);
+    }
+  };
+
+  // The broadcast exactly as recipients get it, to the signed-in admin only.
+  const handleSendTest = async () => {
+    setTestNote("");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject, message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setTestNote(res.ok ? `Test sent to ${data.sentTo}.` : data.error || "Couldn't send the test");
+    } catch {
+      setTestNote("Couldn't send the test");
     }
   };
 
@@ -5066,6 +5083,14 @@ function BroadcastSection({ users, stats }) {
             </button>
             <button
               type="button"
+              onClick={handleSendTest}
+              disabled={!subject || !message || sending}
+              style={{ padding: "14px 20px", background: "white", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (!subject || !message) ? "not-allowed" : "pointer", opacity: (!subject || !message) ? 0.5 : 1 }}
+            >
+              Send test to myself
+            </button>
+            <button
+              type="button"
               onClick={() => setShowSaveTemplate(true)}
               disabled={!subject || !message}
               style={{ padding: "14px 20px", background: "white", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (!subject || !message) ? "not-allowed" : "pointer", opacity: (!subject || !message) ? 0.5 : 1 }}
@@ -5073,6 +5098,8 @@ function BroadcastSection({ users, stats }) {
               Save as Template
             </button>
           </div>
+
+          {testNote && <p style={{ fontSize: 13, color: "#374151", marginTop: 10 }}>{testNote}</p>}
 
           {showSaveTemplate && (
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -5158,7 +5185,197 @@ function BroadcastSection({ users, stats }) {
           </div>
         </div>
       </div>
+      <SystemEmailTemplates />
     </>
+  );
+}
+
+// System emails (server utils/emailTemplates.js): pick one, edit its subject,
+// heading and body with a live preview, send yourself a test, save, or reset
+// to the default wording. Saves and resets are audit-logged server-side.
+function SystemEmailTemplates() {
+  const [templates, setTemplates] = useState([]);
+  const [selectedKey, setSelectedKey] = useState(null);
+  const [draft, setDraft] = useState({ subject: "", heading: "", body: "" });
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const bodyRef = useRef(null);
+  const token = localStorage.getItem("vencome_token");
+  const api = (path, options = {}) =>
+    fetch(`${import.meta.env.VITE_API_URL}/admin/email-templates${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+
+  const load = useCallback(async (keepKey) => {
+    const res = await api("");
+    if (!res.ok) return;
+    const list = (await res.json()).templates || [];
+    setTemplates(list);
+    const chosen = list.find((t) => t.key === keepKey) || list[0];
+    if (chosen) {
+      setSelectedKey(chosen.key);
+      setDraft({ ...(chosen.current || chosen.default) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const selected = templates.find((t) => t.key === selectedKey);
+
+  // Live preview of the unsaved wording, rendered by the server exactly as sent.
+  useEffect(() => {
+    if (!selectedKey) return;
+    const timer = setTimeout(async () => {
+      const res = await api(`/${selectedKey}/preview`, { method: "POST", body: JSON.stringify(draft) });
+      if (res.ok) setPreviewHtml((await res.json()).html);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, draft]);
+
+  const choose = (template) => {
+    setSelectedKey(template.key);
+    setDraft({ ...(template.current || template.default) });
+    setNote("");
+  };
+
+  const insertVariable = (name) => {
+    const el = bodyRef.current;
+    const variable = `{{${name}}}`;
+    if (!el) return setDraft((d) => ({ ...d, body: `${d.body}${variable}` }));
+    const { selectionStart: start, selectionEnd: end } = el;
+    setDraft((d) => ({ ...d, body: d.body.slice(0, start) + variable + d.body.slice(end) }));
+  };
+
+  const run = async (fn) => {
+    setBusy(true);
+    setNote("");
+    try {
+      await fn();
+    } catch (err) {
+      setNote(err.message || "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () =>
+    run(async () => {
+      const res = await api(`/${selectedKey}`, { method: "PUT", body: JSON.stringify(draft) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't save");
+      await load(selectedKey);
+      setNote("Saved — this wording is used from now on.");
+    });
+
+  const reset = () => {
+    if (!window.confirm(`Reset "${selected?.name}" to the default wording? Your edits to it will be lost.`)) return;
+    run(async () => {
+      const res = await api(`/${selectedKey}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Couldn't reset");
+      await load(selectedKey);
+      setNote("Reset to the default wording.");
+    });
+  };
+
+  const sendTest = () =>
+    run(async () => {
+      const res = await api(`/${selectedKey}/test`, { method: "POST", body: JSON.stringify(draft) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't send the test");
+      setNote(`Test sent to ${data.sentTo}.`);
+    });
+
+  const field = { width: "100%", padding: "10px 12px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, boxSizing: "border-box" };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 24, marginTop: 24 }}>
+      <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1628", margin: 0 }}>Email templates</h3>
+      <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 16px" }}>
+        Every system email. Edit the wording, preview it, and send yourself a test before saving.
+      </p>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 220px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {templates.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => choose(t)}
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: `1.5px solid ${t.key === selectedKey ? "#0A1628" : "#E5E7EB"}`,
+                background: t.key === selectedKey ? "#0A1628" : "#fff",
+                color: t.key === selectedKey ? "#fff" : "#0A1628",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.name}
+              {t.current && <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>· edited</span>}
+            </button>
+          ))}
+        </div>
+
+        {selected && (
+          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 12px" }}>{selected.description}</p>
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Subject</label>
+            <input value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} style={{ ...field, margin: "4px 0 12px" }} />
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Heading</label>
+            <input value={draft.heading} onChange={(e) => setDraft((d) => ({ ...d, heading: e.target.value }))} style={{ ...field, margin: "4px 0 12px" }} />
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Body</label>
+            <textarea
+              ref={bodyRef}
+              value={draft.body}
+              onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+              rows={10}
+              style={{ ...field, margin: "4px 0 6px", fontFamily: "inherit", resize: "vertical" }}
+            />
+            <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px" }}>
+              Blank line = new paragraph. **text** = bold. Click a variable to insert it:
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {selected.variables.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => insertVariable(name)}
+                  style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #C7D2FE", background: "#EEF2FF", color: "#305CDE", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {`{{${name}}}`}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" onClick={save} disabled={busy} style={{ padding: "10px 18px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Save
+              </button>
+              <button type="button" onClick={sendTest} disabled={busy} style={{ padding: "10px 18px", background: "#fff", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                Send test to myself
+              </button>
+              <button type="button" onClick={reset} disabled={busy || !selected.current} style={{ padding: "10px 18px", background: "#fff", color: "#DC2626", border: "1.5px solid #FECACA", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: selected.current ? "pointer" : "not-allowed", opacity: selected.current ? 1 : 0.5 }}>
+                Reset to default
+              </button>
+            </div>
+            {note && <p style={{ fontSize: 13, color: "#374151", marginTop: 10 }}>{note}</p>}
+          </div>
+        )}
+
+        {selected && (
+          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#374151", margin: "0 0 6px" }}>Preview (sample details)</p>
+            <iframe title="Email preview" srcDoc={previewHtml} sandbox="" style={{ width: "100%", height: 520, border: "1px solid #E5E7EB", borderRadius: 12, background: "#f4f4f7" }} />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -6912,6 +7129,7 @@ function SupportTicketsSection({ onToast, myAdmin }) {
 // (utils/sendEmail.js logs every send) — hosts, guests, everyone. No
 // historical backfill: emails sent before this feature existed aren't here.
 function CommunicationsSection() {
+  const [view, setView] = useState("log");
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -6919,17 +7137,34 @@ function CommunicationsSection() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [audience, setAudience] = useState("");
+  const [type, setType] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [selectedEmail, setSelectedEmail] = useState(null);
+  const [month, setMonth] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" }).slice(0, 7));
+  const [calendarDays, setCalendarDays] = useState({});
+  const [scheduled, setScheduled] = useState([]);
+  const token = localStorage.getItem("vencome_token");
+
+  const filterParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    if (audience) params.set("audience", audience);
+    if (type) params.set("type", type);
+    return params;
+  }, [search, statusFilter, audience, type]);
 
   const fetchEmails = useCallback(
     async (pageNum) => {
       setLoading(true);
       try {
-        const token = localStorage.getItem("vencome_token");
-        const params = new URLSearchParams({ page: String(pageNum), limit: "25" });
-        if (search) params.set("search", search);
-        if (statusFilter) params.set("status", statusFilter);
-
+        const params = filterParams();
+        params.set("page", String(pageNum));
+        params.set("limit", "25");
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
         const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/emails?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -6946,43 +7181,189 @@ function CommunicationsSection() {
         setLoading(false);
       }
     },
-    [search, statusFilter]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterParams, from, to]
   );
 
   useEffect(() => {
+    if (view !== "log") return;
     const timeout = setTimeout(() => fetchEmails(1), search ? 300 : 0);
     return () => clearTimeout(timeout);
-  }, [fetchEmails, search]);
+  }, [fetchEmails, search, view]);
+
+  // Calendar: emails per day of the month, with the same filters.
+  useEffect(() => {
+    if (view !== "calendar") return;
+    const params = filterParams();
+    params.set("month", month);
+    fetch(`${import.meta.env.VITE_API_URL}/admin/emails/calendar?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : { days: {} }))
+      .then((data) => setCalendarDays(data.days || {}))
+      .catch(() => setCalendarDays({}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, month, filterParams]);
+
+  const loadScheduled = useCallback(async () => {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/history`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setScheduled(((await res.json()).broadcasts || []).filter((b) => b.status === "scheduled"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (view === "scheduled") loadScheduled();
+  }, [view, loadScheduled]);
+
+  const cancelScheduled = async (broadcast) => {
+    if (!window.confirm(`Cancel the scheduled broadcast "${broadcast.subject}"? It won't be sent.`)) return;
+    await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    loadScheduled();
+  };
+
+  const openDay = (day) => {
+    setFrom(day);
+    setTo(day);
+    setView("log");
+  };
+
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstWeekday = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7; // Monday first
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const shiftMonth = (delta) => {
+    const d = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
+    setMonth(d.toISOString().slice(0, 7));
+  };
+  const selectClass = "h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]";
 
   return (
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} emails sent</p>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} emails in this view</p>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, email, or subject"
-            className="h-10 w-72 rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
-          />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          { key: "log", label: "Sent emails" },
+          { key: "calendar", label: "Calendar" },
+          { key: "scheduled", label: "Scheduled" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setView(tab.key)}
+            className={`rounded-full px-4 py-2 text-[13px] font-medium ${view === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view !== "scheduled" && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by recipient email or name"
+              className="h-10 w-72 rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
+            />
+          </div>
+          <select value={audience} onChange={(event) => setAudience(event.target.value)} className={selectClass}>
+            <option value="">Hosts and customers</option>
+            <option value="hosts">Hosts</option>
+            <option value="customers">Customers</option>
+          </select>
+          <select value={type} onChange={(event) => setType(event.target.value)} className={selectClass}>
+            <option value="">All types</option>
+            <option value="transactional">Transactional</option>
+            <option value="reminder">Reminder</option>
+            <option value="broadcast">Broadcast</option>
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClass}>
+            <option value="">All statuses</option>
+            <option value="sent">Sent</option>
+            <option value="failed">Failed</option>
+          </select>
+          {view === "log" && (
+            <>
+              <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+                From
+                <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={selectClass} />
+              </label>
+              <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+                To
+                <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className={selectClass} />
+              </label>
+              {(from || to) && (
+                <button type="button" onClick={() => { setFrom(""); setTo(""); }} className="text-[13px] font-semibold text-[#305CDE]">
+                  Clear dates
+                </button>
+              )}
+            </>
+          )}
         </div>
+      )}
 
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
-        >
-          <option value="">All statuses</option>
-          <option value="sent">Sent</option>
-          <option value="failed">Failed</option>
-        </select>
-      </div>
+      {view === "calendar" && (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <button type="button" onClick={() => shiftMonth(-1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">← Previous</button>
+            <p className="text-[15px] font-bold text-[#0A1628]">
+              {new Date(Date.UTC(year, monthNumber - 1, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}
+            </p>
+            <button type="button" onClick={() => shiftMonth(1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">Next →</button>
+          </div>
+          <div className="grid grid-cols-7 gap-2 text-center">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+              <p key={d} className="text-[11px] font-bold uppercase text-[#6B7280]">{d}</p>
+            ))}
+            {Array.from({ length: firstWeekday }, (_, i) => <div key={`blank-${i}`} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = `${month}-${String(i + 1).padStart(2, "0")}`;
+              const count = calendarDays[day] || 0;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => openDay(day)}
+                  disabled={!count}
+                  className={`flex h-16 flex-col items-center justify-center rounded-lg border text-[13px] ${count ? "border-[#C7D2FE] bg-[#EEF2FF] text-[#0A1628] hover:bg-[#E0E7FF]" : "border-[#F3F4F6] text-[#9CA3AF]"}`}
+                >
+                  <span className="font-semibold">{i + 1}</span>
+                  {count ? <span className="text-[11px] font-bold text-[#305CDE]">{count} email{count === 1 ? "" : "s"}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[12px] text-[#6B7280]">Click a day to see every email sent that day.</p>
+        </div>
+      )}
 
+      {view === "scheduled" && (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+          {scheduled.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No scheduled broadcasts</div>
+          ) : (
+            scheduled.map((b) => (
+              <div key={b._id} className="flex flex-col gap-2 border-b border-[#F3F4F6] px-4 py-4 last:border-b-0 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0A1628]">{b.subject}</p>
+                  <p className="text-[12px] text-[#6B7280]">
+                    To {b.target === "specific" ? `${b.recipientUsers?.length || 0} chosen users` : b.target} · {new Date(b.scheduledFor).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                <button type="button" onClick={() => cancelScheduled(b)} className="text-[13px] font-semibold text-[#DC2626]">Cancel</button>
+              </div>
+            ))
+          )}
+          <p className="border-t border-[#F3F4F6] px-4 py-3 text-[12px] text-[#6B7280]">
+            Automatic: "Verify your account" reminders go out Mondays and Thursdays at 10:00; "Finish your listing" reminders weekly per draft; lease payments 3 days before each month.
+          </p>
+        </div>
+      )}
+
+      {view === "log" && (
       <div className="rounded-2xl border border-[#E5E7EB] bg-white">
         {loading ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading emails...</div>
@@ -7005,6 +7386,9 @@ function CommunicationsSection() {
                     {email.toUser?.isHost ? (
                       <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[11px] font-bold text-[#305CDE]">Host</span>
                     ) : null}
+                    <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[11px] font-semibold capitalize text-[#6B7280]">
+                      {email.category || "transactional"}
+                    </span>
                   </div>
                   <p className="mt-0.5 truncate text-[13px] text-[#374151]">{email.subject || "(no subject)"}</p>
                   <p className="mt-0.5 text-[12px] text-[#6B7280]">{email.to}</p>
@@ -7048,6 +7432,7 @@ function CommunicationsSection() {
           </div>
         </div>
       </div>
+      )}
 
       <Modal isOpen={!!selectedEmail} onClose={() => setSelectedEmail(null)}>
         {selectedEmail ? (
@@ -7079,9 +7464,6 @@ function holdExpiryLabel(captureBefore) {
   return hours < 0 ? "Hold expired" : `Hold expires in ${hours}h`;
 }
 
-// Damage claims opened by hosts against a booking's deposit. Approving takes
-// only the approved amount (the rest of a card hold is released); rejecting
-// releases/refunds everything. Every action is audit-logged server-side.
 // Monthly-instalment leases (server routes/adminLeases.js): each month's
 // payment state, and -- for a month that kept failing -- retry it or end the
 // lease. Both are written to the lease's audit trail.
@@ -7252,6 +7634,9 @@ function LeasesSection({ onToast }) {
   );
 }
 
+// Damage claims opened by hosts against a booking's deposit. Approving takes
+// only the approved amount (the rest of a card hold is released); rejecting
+// releases/refunds everything. Every action is audit-logged server-side.
 function ClaimsSection({ onToast }) {
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
