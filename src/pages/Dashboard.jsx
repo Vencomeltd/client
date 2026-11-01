@@ -16,8 +16,10 @@ import {
   Plus,
   PoundSterling,
   Star,
+  UserRound,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { hostPublicName, hostProfileIncomplete } from "../utils/hostName";
 
 const ACTIONS = [
   { icon: Plus, title: "List Your Space", description: "Start earning from your property", href: "/create-space" },
@@ -99,6 +101,42 @@ const getCustomerName = (booking) =>
   booking.guest?.name ||
   [booking.guest?.firstName, booking.guest?.lastName].filter(Boolean).join(" ") ||
   "Guest";
+
+// Guests see a host with no profile name as plain "Host" (and no photo) --
+// prompt them to complete it.
+function IncompleteProfileBanner({ token }) {
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setMe)
+      .catch(() => {});
+  }, [token]);
+
+  if (!me?.isHost || !hostProfileIncomplete(me)) return null;
+  const missing = [hostPublicName(me) === "Host" && "a name or business name", !me.profileImage && "a profile photo"].filter(Boolean);
+
+  return (
+    <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C7D2FE] bg-[#EEF2FF] px-5 py-4 sm:px-6">
+      <div className="flex items-center gap-3">
+        <UserRound size={20} className="shrink-0 text-[#305CDE]" />
+        <div>
+          <p className="text-[14px] font-bold text-[#0A1628]">Complete your host profile</p>
+          <p className="text-[13px] text-[#374151]">
+            Guests currently see you as "{hostPublicName(me)}". Add {missing.join(" and ")} so they know who they're booking with.
+          </p>
+        </div>
+      </div>
+      <Link
+        to="/profile"
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-90"
+      >
+        Complete profile <ArrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
 
 function IncompleteDraftBanner({ token }) {
   const [drafts, setDrafts] = useState([]);
@@ -328,6 +366,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Overview">
+      <IncompleteProfileBanner token={token} />
       <IncompleteDraftBanner token={token} />
 
       <motion.section

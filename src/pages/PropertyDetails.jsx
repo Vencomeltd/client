@@ -49,6 +49,7 @@ import {
   openWeekdays,
   STANDARD_HOURS,
 } from "../utils/recurringDates";
+import { hostPublicName } from "../utils/hostName";
 
 const BRAND = {
   navy: "#0A1628",
@@ -327,11 +328,7 @@ const buildPricingTiers = (pricing = {}) =>
 const normalizePropertyData = (property) => {
   if (!property) return null;
 
-  const hostName =
-    property.host?.displayName ||
-    [property.host?.firstName, property.host?.lastName].filter(Boolean).join(" ") ||
-    property.host?.name ||
-    "VenCome Host";
+  const hostName = hostPublicName(property.host);
   const location = [
     property.location?.city,
     property.location?.country,
@@ -423,7 +420,7 @@ const normalizePropertyData = (property) => {
     pricing,
     host: {
       name: hostName,
-      company: property.host?.company || "VenCome Host",
+      company: property.host?.businessVerification?.companyName || "",
       avatar: property.host?.profileImage || property.host?.avatar || property.coverImage || "",
       verified: Boolean(property.host?.venComeVerified),
       venComeVerified: Boolean(property.host?.venComeVerified),
@@ -2979,10 +2976,7 @@ function ReportListingModal({ propertyId, onClose }) {
 
 function HostSection({ property }) {
   return (() => {
-    const hostName = property?.host?.displayName ||
-      (property?.host?.firstName && property?.host?.lastName
-        ? `${property.host.firstName} ${property.host.lastName}`
-        : property?.host?.firstName || property?.host?.email?.split("@")[0] || "VenCome Host");
+    const hostName = hostPublicName(property?.host);
 
     const hostInitials = hostName
       .split(" ")
@@ -3061,7 +3055,7 @@ function HostSection({ property }) {
                 Verified Host
               </span>
             ) : (
-              "VenCome Host"
+              "Host"
             )}{" "}
             · Hosting since{" "}
             {new Date(property?.host?.createdAt || property?.createdAt).toLocaleDateString(

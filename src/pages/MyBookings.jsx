@@ -17,6 +17,7 @@ import {
 import DashboardLayout from "../layouts/DashboardLayout";
 import { useDashboardBadge } from "../layouts/DashboardLayout";
 import ReviewModal from "../components/ReviewModal";
+import { hostPublicName } from "../utils/hostName";
 
 const TABS = ["upcoming", "current", "past", "cancelled"];
 const STATUS_FILTERS = ["All", "Confirmed", "Pending", "Completed", "Cancelled"];
@@ -247,7 +248,7 @@ export default function MyBookings() {
             price: b.totalPrice || 0,
             status: statusMap[b.status] || "Confirmed",
             bookingRef: b._id.toString().slice(-8).toUpperCase(),
-            host: b.host?.displayName || b.host?.firstName || "Host",
+            host: hostPublicName(b.host),
             hostAvatar: b.host?.profileImage || "",
             isHost: b.host?._id === currentUser.id || b.host === currentUser.id,
             canCancel: tab === "upcoming" && (b.status === "confirmed" || b.status === "pending"),

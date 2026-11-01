@@ -5,6 +5,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe
 import { CalendarDays, MapPin, ShieldCheck, Users } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { PaymentElementForm } from "../components/PaymentForms";
+import { hostPublicName } from "../utils/hostName";
 
 if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
   console.error("VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout will not work.");
@@ -218,7 +219,7 @@ export default function Checkout() {
                 )}
                 <div style={{ padding: 24 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>
-                    Hosted by {property.host?.displayName || property.host?.firstName || "your host"}
+                    Hosted by {hostPublicName(property.host)}
                   </p>
                   <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0A1628", margin: "0 0 12px" }}>
                     {property.title}

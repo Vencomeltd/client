@@ -452,6 +452,7 @@ import {
   Printer,
   X,
 } from "lucide-react";
+import { hostPublicName } from "../utils/hostName";
 
 const STATUS_CONFIG = {
   confirmed: {
@@ -1531,11 +1532,7 @@ export default function BookingDetails() {
                   <p className="font-semibold text-slate-900 text-sm">
                     {isHost
                       ? `${guest?.firstName} ${guest?.lastName}`
-                      : property?.host?.displayName ||
-                        [property?.host?.firstName, property?.host?.lastName]
-                          .filter(Boolean)
-                          .join(" ") ||
-                        "Property Host"}
+                      : hostPublicName(property?.host)}
                   </p>
                   <p className="text-slate-400 text-xs mt-0.5">
                     {isHost ? guest?.email : hostContact?.email || ""}
