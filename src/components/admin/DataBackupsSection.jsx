@@ -129,7 +129,7 @@ export default function DataBackupsSection({ onToast }) {
             type="button"
             disabled={!!busy}
             onClick={() => download("/export", `vencome-export-${today()}.zip`)}
-            className={`${button} mb-3 border-[#0A1628] bg-[#0A1628] text-white`}
+            className="mb-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0A1628] px-3 text-[13px] font-semibold text-white disabled:opacity-50"
           >
             <Download size={14} /> {busy.endsWith(".zip") ? "Preparing…" : "Download full export (zip)"}
           </button>
