@@ -328,7 +328,7 @@ function getUserDisplayName(user = {}) {
 }
 
 function getUserRole(user = {}) {
-  return user.isHost ? "host" : "customer";
+  return user.isAdmin ? "admin" : user.isHost ? "host" : "customer";
 }
 
 function getUserStatus(user = {}) {
@@ -2164,7 +2164,6 @@ function UsersSection({
             <option>All Roles</option>
             <option>Customer</option>
             <option>Host</option>
-            <option>Agent</option>
             <option>Admin</option>
           </select>
 
@@ -8651,6 +8650,8 @@ export default function AdminDashboard() {
       const API = import.meta.env.VITE_API_URL;
       const params = new URLSearchParams({ page, limit: 20, tab });
       if (query) params.set("q", query);
+      if (roleFilter !== "All Roles") params.set("role", roleFilter.toLowerCase());
+      if (statusFilter !== "All Status") params.set("status", statusFilter.toLowerCase());
       if (!showTest) params.set("excludeTest", "true");
       const [res, countsRes] = await Promise.all([
         fetch(`${API}/admin/users?${params}`, { headers }),
@@ -8680,7 +8681,7 @@ export default function AdminDashboard() {
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [roleFilter, statusFilter]);
 
   const fetchListings = useCallback(async (page, { status = "all", showTest = false } = {}) => {
     try {
@@ -8858,10 +8859,10 @@ export default function AdminDashboard() {
     return () => clearTimeout(timer);
   }, [userQuery]);
 
-  // A new tab, search or test-account toggle starts again from page 1.
+  // A new filter starts again from page 1.
   useEffect(() => {
     setUsersPage(1);
-  }, [activeUserTab, debouncedUserQuery, showTestAccounts]);
+  }, [activeUserTab, debouncedUserQuery, showTestAccounts, roleFilter, statusFilter]);
 
   useEffect(() => {
     if (!token) return;
@@ -8882,20 +8883,6 @@ export default function AdminDashboard() {
     setToastMessage(message);
   };
 
-  const filteredUsers = useMemo(() => {
-    // Tab and search are applied on the server (fetchUsers); the role and
-    // status dropdowns still narrow the current page.
-    return users.filter((user) => {
-      const matchesRole =
-        roleFilter === "All Roles" || getUserRole(user) === roleFilter.toLowerCase();
-
-      const matchesStatus =
-        statusFilter === "All Status" || getUserStatus(user) === statusFilter.toLowerCase();
-
-      return matchesRole && matchesStatus;
-    });
-  }, [roleFilter, statusFilter, users]);
-
   let sectionContent = null;
 
   if (activeSection === "overview") {
@@ -8915,7 +8902,7 @@ export default function AdminDashboard() {
     sectionContent = (
       <>
       <UsersSection
-        users={filteredUsers}
+        users={users}
         userCounts={userCounts}
         usersTotal={usersTotal}
         showTestAccounts={showTestAccounts}
