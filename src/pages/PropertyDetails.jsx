@@ -1939,6 +1939,7 @@ export default function PropertyDetails() {
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
+                  minimumTermMonths={property?.pricing?.minimumTermMonths || 0}
                   selectedPricingTier={pricingOptions?.findIndex((t) => t.unit === targetUnit) ?? 0}
                   onSelectTier={(idx) => {
                     setSelectedPricingTier(idx);
@@ -3271,7 +3272,7 @@ function UnitsAvailableSection({ unitsCount, unitAvailability, hasDatesSelected 
   );
 }
 
-function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
+function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTermMonths = 0 }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Pricing Options</h2>
@@ -3304,7 +3305,7 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
             hourly: "1 hour minimum",
             daily: "Full day booking",
             weekly: "Weekly arrangement",
-            monthly: "Monthly rolling",
+            monthly: minimumTermMonths > 0 ? `${minimumTermMonths}-month minimum` : "Monthly rolling",
             annual: "Annual lease",
           };
 

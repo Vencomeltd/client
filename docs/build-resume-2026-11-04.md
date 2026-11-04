@@ -65,3 +65,12 @@ Continue the remaining acceptance checks using only Empty Content Creator Room, 
 - Found a deletion error-handling bug in both Documents and automatic backup retention: R2 errors were swallowed before metadata was removed. Now a failed storage deletion returns an error and retains metadata for retry.
 - Reproduced failures before fixing. All 102 server tests pass afterward. Changes are committed/pushed as server `8bd00f1`, draft PR https://github.com/Vencomeltd/server/pull/17. Not merged or deployed.
 - Invoice preview was sent to Jayden as a one-page sample PDF. Await client design approval and full registered address. No production invoice changes.
+
+
+## Latest release and lease acceptance continuation
+- Invoice PR18 deployed on Render at 144eba4. Registered address and design approval resolved. Full PDF suite passed.
+- Documents retry PR17 deployed and verified Live at e852936. Combined 106 server tests passed.
+- Photo skipping isolated client PR29 is live at b168d9b. Publishing still requires a photo.
+- Lease pricing card incorrectly said Monthly rolling even for minimum-term listings. Reproduced using real PricingSection rendered against wholly synthetic data. Fixed by passing pricing.minimumTermMonths. Rendering checks pass for rolling, 1-month and 12-month minimums. Preview-only, part of remaining feature acceptance.
+- Next pricing check: PricingSection currently displays stored tier.price without VAT treatment label. Verify inc/ex/no VAT consistently against the shared quote and repair display only if required. No client listing flows used.
+- New building/site parent listing with child room cards recorded in shared vault backlog. Visual preview before implementation. Tracker data and room booking/availability decisions pending.
