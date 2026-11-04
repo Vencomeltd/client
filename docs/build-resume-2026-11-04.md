@@ -43,7 +43,7 @@ The older vault master backlog is not a reliable completion list for this build.
 
 ## Next action
 
-Complete Cloudflare sign-in in the open Chrome tab, then create the private `vencome-documents` bucket and configure Render before the Documents walkthrough.
+Continue the remaining acceptance checks using only Empty Content Creator Room, an agent-created test listing, or wholly synthetic local data. Invoice PDF implementation remains held for client approval and the registered address.
 
 ## Continuation after sign-in, 4 November
 
@@ -57,3 +57,11 @@ Complete Cloudflare sign-in in the open Chrome tab, then create the private `ven
 - Client fix commit: `02857e0`. Production build passes. Lint has the same pre-existing 18 errors and 2 warnings in PropertyDetails.jsx, with no new findings.
 - GitHub pushes recovered. Commits through `02857e0` are on the feature branch. Exact-commit Vercel preview: `https://client-1byxkwn4l-ven-come.vercel.app` (deployment `dpl_r628gvaEYnPzMHT5xJJopCr64NfD`). Do not promote without finishing the release checklist.
 - Invoice design approval and registered London address requested. Company number 17182804 comes from the supplied new terms. Account identities and mirror connection configuration remain outstanding.
+
+## Documents retry handling and test-listing rule
+
+- Jayden's rule: never use client-owned live listings for any test flow. Use only Empty Content Creator Room or an agent-created test listing. No fallback to client listings. Saved in root AGENTS.md/CLAUDE.md and the vault. The local lease harness now explicitly selects the designated room only.
+- Document rename and move HTTP checks pass against synthetic in-memory records. Browser search returns only the disposable QA sample. Native browser rename prompts could not be controlled reliably, so their mutations were verified through isolated HTTP tests instead of touching live documents.
+- Found a deletion error-handling bug in both Documents and automatic backup retention: R2 errors were swallowed before metadata was removed. Now a failed storage deletion returns an error and retains metadata for retry.
+- Reproduced failures before fixing. All 102 server tests pass afterward. Changes are committed/pushed as server `8bd00f1`, draft PR https://github.com/Vencomeltd/server/pull/17. Not merged or deployed.
+- Invoice preview was sent to Jayden as a one-page sample PDF. Await client design approval and full registered address. No production invoice changes.
