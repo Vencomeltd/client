@@ -1939,6 +1939,7 @@ export default function PropertyDetails() {
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
+                  vat={property?.pricing?.vat}
                   minimumTermMonths={property?.pricing?.minimumTermMonths || 0}
                   selectedPricingTier={pricingOptions?.findIndex((t) => t.unit === targetUnit) ?? 0}
                   onSelectTier={(idx) => {
@@ -3272,7 +3273,7 @@ function UnitsAvailableSection({ unitsCount, unitAvailability, hasDatesSelected 
   );
 }
 
-function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTermMonths = 0 }) {
+function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTermMonths = 0, vat }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Pricing Options</h2>
@@ -3287,6 +3288,11 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTer
             "Per Year": "annual",
           };
           const key = keyMap[tier.label];
+          const displayQuote = quotePrice({
+            corePence: Math.round(tier.price * 100),
+            quantity: 1,
+            tax: vat?.[key],
+          });
           const labels = {
             hourly: "PER HOUR",
             daily: "PER DAY",
@@ -3341,7 +3347,7 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTer
                   marginBottom: "4px",
                 }}
               >
-                £{tier.price.toLocaleString()}
+                £{(displayQuote.totalPence / 100).toLocaleString("en-GB")}
                 <span
                   style={{
                     fontSize: "14px",
@@ -3350,9 +3356,12 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTer
                   }}
                 >
                   {" "}
-                  {units[key]}
+                  {units[key]}{displayQuote.vatRatePct > 0 ? " inc. VAT" : ""}
                 </span>
               </p>
+              {displayQuote.utilitiesPence > 0 && (
+                <p className="text-[12px] text-[#6B7280]">Includes utilities</p>
+              )}
               <p style={{ fontSize: "12px", color: "#9CA3AF" }}>{descriptions[key]}</p>
             </div>
           );

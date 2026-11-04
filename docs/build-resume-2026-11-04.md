@@ -74,3 +74,8 @@ Continue the remaining acceptance checks using only Empty Content Creator Room, 
 - Lease pricing card incorrectly said Monthly rolling even for minimum-term listings. Reproduced using real PricingSection rendered against wholly synthetic data. Fixed by passing pricing.minimumTermMonths. Rendering checks pass for rolling, 1-month and 12-month minimums. Preview-only, part of remaining feature acceptance.
 - Next pricing check: PricingSection currently displays stored tier.price without VAT treatment label. Verify inc/ex/no VAT consistently against the shared quote and repair display only if required. No client listing flows used.
 - New building/site parent listing with child room cards recorded in shared vault backlog. Visual preview before implementation. Tracker data and room booking/availability decisions pending.
+
+
+## VAT pricing-card check
+Reproduced pricing options showing £100 net without a VAT label for a £120 gross quote. Browse cards also omitted configured utilities. Both display paths now use the existing shared quote function for one unit, show inc. VAT when applicable and identify included utilities. Booking tier core values remain unchanged.
+Synthetic actual-component/helper checks pass: excludes £100 -> £120, includes £120 stored as £100 net -> £120, no VAT £100 -> £100, VAT plus £10 utilities -> £132, no VAT plus utilities -> £110, legacy no-VAT £650 -> £650. Tests assert labels and unchanged tax data. Harness: ../test-results/check-pricing-display.cjs (NODE_PATH points to client node_modules). No client listings used. Preview-only pending release checklist.

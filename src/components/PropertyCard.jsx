@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, MapPin, Star } from "lucide-react";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
-import { unitPrice } from "../utils/vatPricing";
+import { quote } from "../utils/vatPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
 
 const BADGE_STYLES = {
@@ -25,9 +25,9 @@ const getListingPrice = (listing) => {
   // the total the customer pays, labelled "inc. VAT".
   const shown = (key, core, unit, fromPrefix) => {
     const tax = p.vat?.[key];
-    if (tax?.status !== "excludes" && tax?.status !== "includes") return { price: `£${core}`, unit, fromPrefix };
-    const { grossPence } = unitPrice({ enteredPence: Math.round(core * 100), status: "excludes", ratePct: tax.ratePct });
-    return { price: `£${formatPrice(grossPence / 100)}`, unit: `${unit} inc. VAT`, fromPrefix };
+    const q = quote({ corePence: Math.round(core * 100), quantity: 1, tax });
+    const suffix = `${q.vatRatePct > 0 ? " inc. VAT" : ""}${q.utilitiesPence > 0 ? " incl. utilities" : ""}`;
+    return { price: `£${formatPrice(q.totalPence / 100)}`, unit: `${unit}${suffix}`, fromPrefix };
   };
 
   if (p.hourly && p.hourly > 0) return shown("hourly", getLowestWeeklyRate(p.hourly, p.customDayPricing), "/hr", hasDayVariance);
