@@ -87,3 +87,9 @@ Nine synthetic React renders of the actual Checkout component passed: single, re
 
 ## Admin users acceptance
 Synthetic flags/counts HTTP checks pass: internal/test accounts excluded from real totals, each tab list agrees with its count, unflag restores totals without deletion. Found role/status dropdowns filtered current page only and role could override tab constraints. Reproduced two failing HTTP tests before fix. Server now intersects tab, role and status before pagination. Client sends dropdown selections and resets page on changes, no current-page filtering. Admin role label corrected, unsupported Agent option removed (no account model for that role). Nine admin HTTP tests, actual client request checks, full112 server tests and client build pass. No live accounts touched. Requires server fix branch and client preview to release together.
+
+
+## Listing admin acceptance continuation
+Server PR19 filter fix is merged as e2640fa and verified Live in Render (1m15s deploy). Corresponding client filter UI remains on feature preview.
+Synthetic listing HTTP tests pass for all/active/inactive/pending counts, test-host exclusion, list/count agreement, draft list excluding heavy formData and full detail preserving formData/creator, missing draft404. Six synthetic photo/VAT predicate cases pass (legacy rate fields, explicit no-VAT and includes/excludes). No client listings accessed.
+Remaining known issue: listing location/search/No photos/VAT status filters are still applied to the current page's50 records on the client, so they may miss later-page matches. Track as next fix, not fully accepted yet. Draft panel also loads only first100 drafts. Do not promote broad branch before resolving release gates.
