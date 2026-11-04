@@ -1003,13 +1003,7 @@ export default function CreateSpace() {
       }
     }
 
-    // Step 4 — At least one photo required
-    if (step === 4) {
-      if (!form.images || form.images.length === 0) {
-        setValidationError("Please upload at least one photo before continuing.");
-        return;
-      }
-    }
+    // Photos can be added later. Publishing still requires at least one.
 
     // Step 6 — Pricing required
     if (step === 6) {
@@ -1065,10 +1059,7 @@ export default function CreateSpace() {
   };
 
   const handlePublish = async () => {
-    // Belt-and-suspenders with the same check the server now enforces --
-    // catches it instantly, without a round trip, for a host who reaches
-    // Publish without ever passing through the wizard's own step-4 gate
-    // (e.g. a resumed draft, or back/forward navigation).
+    // Drafts can skip photos, but publishing requires at least one.
     if (!form.images || form.images.length === 0) {
       setError("Please add at least one photo before publishing your listing.");
       return;
@@ -4515,6 +4506,16 @@ export default function CreateSpace() {
             </div>
 
             {step < 14 ? (
+              <div className="flex w-full items-center gap-3 sm:w-auto">
+                {step === 4 && (
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="min-h-[44px] whitespace-nowrap px-2 text-[14px] font-medium text-[#6B7280] underline-offset-2 hover:text-[#0A1628] hover:underline"
+                  >
+                    Skip for now
+                  </button>
+                )}
               <button
                 type="button"
                 onClick={nextStep}
@@ -4523,6 +4524,7 @@ export default function CreateSpace() {
                 Continue
                 <ChevronRight size={16} />
               </button>
+              </div>
             ) : (
               <div className="w-full sm:w-auto">
                 {error && (
