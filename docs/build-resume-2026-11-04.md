@@ -44,3 +44,16 @@ The older vault master backlog is not a reliable completion list for this build.
 ## Next action
 
 Complete Cloudflare sign-in in the open Chrome tab, then create the private `vencome-documents` bucket and configure Render before the Documents walkthrough.
+
+## Continuation after sign-in, 4 November
+
+- Created `vencome-documents` in the existing Cloudflare account. Public Access is Disabled. Existing S3 credentials can access it without permission changes.
+- Set `R2_DOCUMENTS_BUCKET=vencome-documents` on Render and used Save and deploy. Render deployment `dep-dblftcbbc2fs73e5tt80` is Live, using existing server commit `a3fe733`.
+- Tested the storage adapter upload/signed download with disposable content, then removed its temporary object.
+- Tested admin upload and signed download of `QA-storage-check-2026-11-04.txt`. Download matches byte for byte. Confirmed the admin-uploaded object is in the private bucket. Download all as ZIP also contains the intact sample. The admin sample remains for inspection. No customer documents were changed.
+- Database mirror status says connection details are missing (`BACKUP_MIRROR_URIS`). No mirror configuration or production restore was attempted.
+- Tested the lease form using a local fixture with all mutation requests blocked. No active public listing has a minimum term, so no live listing was modified. For the spec example, core is GBP724.50, VAT GBP144.90, first month GBP869.40, and 12-month total GBP10,432.80. Increasing to 13 months yields GBP11,302.20. The minimum decrease control is disabled at 12 months.
+- Found and fixed a customer-facing headline that showed the stored ex-VAT amount above the correct gross breakdown. The sidebar now uses the shared quote function and labels VAT. Browser regression failed before and passed after the fix. A legacy no-VAT listing still shows GBP650/month without a VAT label. No money stored or charged was changed.
+- Client fix commit: `02857e0`. Production build passes. Lint has the same pre-existing 18 errors and 2 warnings in PropertyDetails.jsx, with no new findings.
+- GitHub pushes recovered. Commits through `02857e0` are on the feature branch. Exact-commit Vercel preview: `https://client-1byxkwn4l-ven-come.vercel.app` (deployment `dpl_r628gvaEYnPzMHT5xJJopCr64NfD`). Do not promote without finishing the release checklist.
+- Invoice design approval and registered London address requested. Company number 17182804 comes from the supplied new terms. Account identities and mirror connection configuration remain outstanding.
