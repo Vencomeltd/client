@@ -4018,6 +4018,10 @@ function BookingSidebar({
   const selectedOption = enabledPricingOptions.find(
     (option) => option.key === selectedDurationType
   );
+  const selectedPriceQuote = selectedOption ? quotePrice({
+    corePence: Math.round(selectedOption.price * 100),
+    tax: property?.pricing?.vat?.[selectedOption.key],
+  }) : null;
   // Recurring needs a start date (and times, for hourly) before it can book.
   const recurringIncomplete = bookingMode === "recurring" && !recurringPreview?.items.length;
   // Repeat days on offer: only days the space is open.
@@ -4081,7 +4085,7 @@ function BookingSidebar({
                 color: "#0A1628",
               }}
             >
-              £{selectedOption.price}
+              £{(selectedPriceQuote.totalPence / 100).toLocaleString("en-GB")}
               <span
                 style={{
                   fontSize: "14px",
@@ -4090,7 +4094,7 @@ function BookingSidebar({
                 }}
               >
                 {" "}
-                {selectedOption.unit}
+                {selectedOption.unit}{selectedPriceQuote.vatStatus !== "none" ? " inc. VAT" : ""}
               </span>
             </p>
           ) : null}
