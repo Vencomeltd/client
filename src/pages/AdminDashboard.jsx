@@ -7395,6 +7395,7 @@ function CommunicationsSection() {
             </p>
             <button type="button" onClick={() => shiftMonth(1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">Next →</button>
           </div>
+          {!calendarError && (<>
           <div className="grid grid-cols-7 gap-2 text-center">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <p key={d} className="text-[11px] font-bold uppercase text-[#6B7280]">{d}</p>
@@ -7418,6 +7419,7 @@ function CommunicationsSection() {
             })}
           </div>
           <p className="mt-3 text-[12px] text-[#6B7280]">Click a day to see every email sent that day.</p>
+          </>)}
         </div>
       )}
 
@@ -7434,7 +7436,7 @@ function CommunicationsSection() {
                 <div>
                   <p className="text-[13px] font-semibold text-[#0A1628]">{b.subject}</p>
                   <p className="text-[12px] text-[#6B7280]">
-                    To {b.target === "specific" ? `${b.recipientUsers?.length || 0} chosen users` : b.target} · {new Date(b.scheduledFor).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                    To {b.target === "specific" ? `${b.recipientUsers?.length || 0} chosen user${b.recipientUsers?.length === 1 ? "" : "s"}` : b.target} · {new Date(b.scheduledFor).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                   </p>
                 </div>
                 <button type="button" onClick={() => cancelScheduled(b)} className="text-[13px] font-semibold text-[#DC2626]">Cancel</button>
