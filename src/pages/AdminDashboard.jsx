@@ -2449,19 +2449,36 @@ const LISTING_STATUS_TABS = [
 function AdminDraftsPanel({ showTest, onToast, onChanged }) {
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [openDraft, setOpenDraft] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("vencome_token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts?limit=100${showTest ? "" : "&excludeTest=true"}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts?page=${page}&limit=50${showTest ? "" : "&excludeTest=true"}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setDrafts((await res.json()).drafts || []);
+      if (res.ok) {
+        const data = await res.json();
+        const lastPage = Math.max(1, data.pages || 1);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        setDrafts(data.drafts || []);
+        setPages(lastPage);
+        setTotal(data.total || 0);
+      }
     } finally {
       setLoading(false);
     }
+  }, [showTest, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [showTest]);
 
   useEffect(() => {
@@ -2532,6 +2549,14 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
           </table>
         </div>
       )}
+
+      <div className="mt-4 flex items-center justify-between gap-3 text-[13px] text-[#6B7280]">
+        <p>Page {page} of {pages} · {formatNumber(total)} drafts</p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setPage((current) => current - 1)} disabled={loading || page <= 1} className="rounded-lg border border-[#E5E7EB] px-3 py-2 disabled:opacity-40">Prev</button>
+          <button type="button" onClick={() => setPage((current) => current + 1)} disabled={loading || page >= pages} className="rounded-lg border border-[#E5E7EB] px-3 py-2 disabled:opacity-40">Next</button>
+        </div>
+      </div>
 
       <Modal isOpen={!!openDraft} onClose={() => setOpenDraft(null)}>
         {openDraft && (
