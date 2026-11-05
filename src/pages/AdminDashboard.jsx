@@ -2581,6 +2581,10 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
 
 function ListingsSection({
   listings,
+  locationOptions,
+  locationFilter, setLocationFilter,
+  noPhotosOnly, setNoPhotosOnly,
+  vatNotSetOnly, setVatNotSetOnly,
   loading,
   moderationQueue,
   setModerationQueue,
@@ -2595,7 +2599,6 @@ function ListingsSection({
   listingsTotalPages,
   onListingsPageChange,
   onRefresh,
-  searchQuery,
   highlightListingId,
   listingStatus,
   onListingStatusChange,
@@ -2621,11 +2624,6 @@ function ListingsSection({
     }, 2500);
     return () => clearTimeout(timer);
   }, [highlightListingId, moderationQueue]);
-  const [locationFilter, setLocationFilter] = useState("");
-  // Listings saved without photos (drafts the team built before the host
-  // sent any) -- they can't go live until a photo is added.
-  const [noPhotosOnly, setNoPhotosOnly] = useState(false);
-  const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
   const [showReorder, setShowReorder] = useState(false);
 
   const filteredQueue = moderationQueue.filter((listing) => {
@@ -2634,31 +2632,7 @@ function ListingsSection({
     return true;
   });
 
-  const locationOptions = useMemo(() => {
-    const cities = listings.map((listing) => listing.location?.city).filter(Boolean);
-    return Array.from(new Set(cities)).sort();
-  }, [listings]);
-
-  const filteredListings = useMemo(() => {
-    const q = (searchQuery || "").trim().toLowerCase();
-    return listings.filter((listing) => {
-      if (locationFilter && listing.location?.city !== locationFilter) return false;
-      if (noPhotosOnly && hasPhotos(listing)) return false;
-      if (vatNotSetOnly && !vatNotSet(listing)) return false;
-      if (!q) return true;
-      const haystack = [
-        listing.title,
-        listing.location?.city,
-        listing.location?.neighborhood,
-        listing.location?.address,
-        getListingHostName(listing),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [listings, searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+  const filteredListings = listings;
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -8313,6 +8287,10 @@ export default function AdminDashboard() {
   const [listingStatus, setListingStatus] = useState("all");
   const [showTestListings, setShowTestListings] = useState(false);
   const [listingCounts, setListingCounts] = useState(null);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [locationFilter, setLocationFilter] = useState("");
+  const [noPhotosOnly, setNoPhotosOnly] = useState(false);
+  const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
   const [listingsTotalPages, setListingsTotalPages] = useState(1);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({
@@ -8690,6 +8668,10 @@ export default function AdminDashboard() {
       const API = import.meta.env.VITE_API_URL;
       const params = new URLSearchParams({ page, limit: 50 });
       if (!["all", "draft"].includes(status)) params.set("status", status);
+      if (searchQuery.trim()) params.set("q", searchQuery.trim());
+      if (locationFilter) params.set("city", locationFilter);
+      if (noPhotosOnly) params.set("noPhotos", "true");
+      if (vatNotSetOnly) params.set("vatNotSet", "true");
       if (!showTest) params.set("excludeTest", "true");
       const [res, realCountsRes, tabCountsRes] = await Promise.all([
         fetch(`${API}/admin/properties?${params}`, { headers }),
@@ -8700,6 +8682,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         setListings(data.properties || []);
+        setLocationOptions(data.locations || []);
         setListingsPage(data.page || page);
         setListingsTotalPages(data.pages || 1);
       }
@@ -8719,7 +8702,7 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Failed to fetch listings:", err);
     }
-  }, []);
+  }, [searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
 
   // Deliberately independent of fetchListings/listingsPage -- the queue
   // needs to see every pending_review listing platform-wide, not just
@@ -8870,6 +8853,10 @@ export default function AdminDashboard() {
   }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
   useEffect(() => {
+    setListingsPage(1);
+  }, [searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+
+  useEffect(() => {
     if (!token) return;
     fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings });
   }, [token, listingsPage, listingStatus, showTestListings, fetchListings]);
@@ -8987,6 +8974,13 @@ export default function AdminDashboard() {
     sectionContent = (
       <ListingsSection
         listings={listings}
+        locationOptions={locationOptions}
+        locationFilter={locationFilter}
+        setLocationFilter={setLocationFilter}
+        noPhotosOnly={noPhotosOnly}
+        setNoPhotosOnly={setNoPhotosOnly}
+        vatNotSetOnly={vatNotSetOnly}
+        setVatNotSetOnly={setVatNotSetOnly}
         loading={loading}
         moderationQueue={moderationQueue}
         setModerationQueue={setModerationQueue}
@@ -9001,7 +8995,6 @@ export default function AdminDashboard() {
         listingsTotalPages={listingsTotalPages}
         onListingsPageChange={setListingsPage}
         onRefresh={() => fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings })}
-        searchQuery={searchQuery}
         highlightListingId={highlightListingId}
         listingStatus={listingStatus}
         onListingStatusChange={(status) => {
