@@ -105,3 +105,9 @@ Jayden's rule: every affected user flow needs browser-preview verification befor
 ## Draft pagination, browser verified
 AdminDraftsPanel now pages in batches of50 instead of silently stopping at100. Shows page/total, disables boundary controls, resets on test-account toggle and clamps page if the last page disappears. Existing API already supported pagination.
 Chrome LOCAL preview with105 synthetic drafts plus one synthetic internal draft verified pages1/2/3, draft105 open showing saved description and monthly price, Next disabled on last page, Prev back to first page, and test-account toggle from page3 resets to page1 with total106. No deletion performed. Read-only synthetic harness ../test-results/draft-browser-preview.cjs port4320. Four admin listing/draft HTTP tests and frontend build pass. Code not merged or promoted.
+
+
+## Coding batch, testing deferred by Jayden
+Jayden explicitly requested continuing code and testing everything together later. Keep all changes unmerged until the browser batch is complete.
+Communications search now escapes regex metacharacters in user/email/subject matching. Scheduled list queries status on the server before pagination, with25-item pages, totals, boundary controls and cancellation failure feedback. Calendar header totals now reflect the selected month. Template preview ignores stale asynchronous responses and clears failed previews with feedback.
+Pending batch: literal search [QA]/parentheses/dots and name/address combinations; scheduled records behind over100 sent broadcasts; scheduled next/prev/empty/cancel failure and last-page clamp; calendar count/filter consistency; delayed template preview responses arriving out of order; preview network failure/recovery; template reset browser confirmation still unverified. Do not send real tests or held broadcast. No tests/build/browser run for this new batch yet.

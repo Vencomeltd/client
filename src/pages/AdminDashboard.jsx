@@ -5254,11 +5254,23 @@ function SystemEmailTemplates() {
   // Live preview of the unsaved wording, rendered by the server exactly as sent.
   useEffect(() => {
     if (!selectedKey) return;
+    let active = true;
     const timer = setTimeout(async () => {
-      const res = await api(`/${selectedKey}/preview`, { method: "POST", body: JSON.stringify(draft) });
-      if (res.ok) setPreviewHtml((await res.json()).html);
+      try {
+        const res = await api(`/${selectedKey}/preview`, { method: "POST", body: JSON.stringify(draft) });
+        const data = res.ok ? await res.json() : null;
+        if (active) {
+          setPreviewHtml(data?.html || "");
+          if (!res.ok) setNote("Couldn't load the preview.");
+        }
+      } catch {
+        if (active) {
+          setPreviewHtml("");
+          setNote("Couldn't load the preview.");
+        }
+      }
     }, 400);
-    return () => clearTimeout(timer);
+    return () => { active = false; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey, draft]);
 
@@ -7169,6 +7181,11 @@ function CommunicationsSection() {
   const [month, setMonth] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" }).slice(0, 7));
   const [calendarDays, setCalendarDays] = useState({});
   const [scheduled, setScheduled] = useState([]);
+  const [scheduledPage, setScheduledPage] = useState(1);
+  const [scheduledPages, setScheduledPages] = useState(1);
+  const [scheduledTotal, setScheduledTotal] = useState(0);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [scheduledError, setScheduledError] = useState("");
   const token = localStorage.getItem("vencome_token");
 
   const filterParams = useCallback(() => {
@@ -7227,20 +7244,39 @@ function CommunicationsSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, month, filterParams]);
 
-  const loadScheduled = useCallback(async () => {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/history`, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.ok) setScheduled(((await res.json()).broadcasts || []).filter((b) => b.status === "scheduled"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadScheduled = useCallback(async function fetchScheduledPage(pageNum = 1) {
+    setScheduledLoading(true);
+    setScheduledError("");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/history?status=scheduled&page=${pageNum}&limit=25`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Couldn't load scheduled broadcasts.");
+      const data = await res.json();
+      const lastPage = Math.max(1, data.pages || 1);
+      if (pageNum > lastPage) return await fetchScheduledPage(lastPage);
+      setScheduled(data.broadcasts || []);
+      setScheduledPage(data.page || pageNum);
+      setScheduledPages(lastPage);
+      setScheduledTotal(data.total || 0);
+    } catch (err) {
+      setScheduledError(err.message || "Couldn't load scheduled broadcasts.");
+    } finally {
+      setScheduledLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    if (view === "scheduled") loadScheduled();
+    if (view === "scheduled") loadScheduled(1);
   }, [view, loadScheduled]);
 
   const cancelScheduled = async (broadcast) => {
     if (!window.confirm(`Cancel the scheduled broadcast "${broadcast.subject}"? It won't be sent.`)) return;
-    await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    loadScheduled();
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Couldn't cancel the scheduled broadcast.");
+      await loadScheduled(scheduledPage);
+    } catch (err) {
+      setScheduledError(err.message || "Couldn't cancel the scheduled broadcast.");
+    }
   };
 
   const openDay = (day) => {
@@ -7262,7 +7298,7 @@ function CommunicationsSection() {
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} emails in this view</p>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcasts` : `${formatNumber(view === "calendar" ? Object.values(calendarDays).reduce((sum, count) => sum + count, 0) : total)} emails in this view`}</p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -7366,7 +7402,10 @@ function CommunicationsSection() {
 
       {view === "scheduled" && (
         <div className="rounded-2xl border border-[#E5E7EB] bg-white">
-          {scheduled.length === 0 ? (
+          {scheduledError && <p role="alert" className="px-4 py-3 text-[13px] text-[#DC2626]">{scheduledError}</p>}
+          {scheduledLoading ? (
+            <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading scheduled broadcasts...</div>
+          ) : scheduled.length === 0 ? (
             <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No scheduled broadcasts</div>
           ) : (
             scheduled.map((b) => (
@@ -7381,6 +7420,13 @@ function CommunicationsSection() {
               </div>
             ))
           )}
+          <div className="flex items-center justify-between border-t border-[#F3F4F6] px-4 py-3 text-[13px] text-[#6B7280]">
+            <span>Page {scheduledPage} of {scheduledPages}</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={scheduledLoading || scheduledPage <= 1} onClick={() => loadScheduled(scheduledPage - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Prev</button>
+              <button type="button" disabled={scheduledLoading || scheduledPage >= scheduledPages} onClick={() => loadScheduled(scheduledPage + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button>
+            </div>
+          </div>
           <p className="border-t border-[#F3F4F6] px-4 py-3 text-[12px] text-[#6B7280]">
             Automatic: "Verify your account" reminders go out Mondays and Thursdays at 10:00; "Finish your listing" reminders weekly per draft; lease payments 3 days before each month.
           </p>
