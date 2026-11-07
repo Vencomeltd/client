@@ -50,6 +50,8 @@ export default [
   route("sitemap", "pages/Sitemap.jsx"),
   route("category-coming-soon/:categoryName", "pages/CategoryComingSoon.jsx"),
   route("refer", "pages/ReferHost.jsx"),
+  // Client review mock-up only: not linked anywhere, noindex, synthetic data.
+  route("preview/building-listing", "pages/BuildingListingPreview.jsx"),
 
   // Auth-flow pages -- no guard, no SEO value, unchanged components.
   route("login", "pages/LoginPage.jsx"),
