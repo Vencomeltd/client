@@ -7,6 +7,7 @@ import { COUNTRIES } from "../components/CountrySelect";
 import DepositSection, { depositPolicyPayload, depositPolicyFromListing } from "../components/DepositSection";
 import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, vatFormState, minimumTermPayload } from "../utils/vatForm";
+import { minBookingHoursPayload } from "../utils/minBookingHours";
 
 // Price options that have VAT / utilities settings (annual has none).
 const VAT_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
@@ -67,6 +68,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
     deposit: { enabled: false, amount: "" },
     depositPolicy: { mode: "none", amount: "", longStayFallback: "none" },
     singleDayOnly: false,
+    minBookingHours: "",
     discounts: { newListing: false, lastMinute: false, weekly: false, monthly: false, extendedHours: 0 },
     blockedDates: [],
     leaseAgreement: null,
@@ -157,6 +159,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           depositPolicy: depositPolicyFromListing(p.depositPolicy),
           customDayPricing: p.pricing?.customDayPricing || [],
           singleDayOnly: p.bookingSettings?.singleDayOnly || false,
+          minBookingHours: p.minBookingHours ?? "",
           discounts: {
             newListing: p.pricing?.discounts?.newListing || false,
             lastMinute: p.pricing?.discounts?.lastMinute || false,
@@ -352,6 +355,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         })
       );
       payload.append("unitsCount", formData.unitsCount || "1");
+      // "" = no minimum. Only meaningful with hourly pricing on.
+      payload.append("minBookingHours", formData.pricing.hourly?.enabled ? minBookingHoursPayload(formData.minBookingHours) : "");
       payload.append(
         "bookingSettings",
         JSON.stringify({
@@ -1112,6 +1117,22 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
                     }
                   />
                 </div>
+              )}
+              {key === "hourly" && formData.pricing.hourly?.enabled && (
+                <label style={{ flexBasis: "100%", display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#374151" }}>
+                  Minimum booking
+                  <input
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="1"
+                    placeholder="None"
+                    value={formData.minBookingHours}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, minBookingHours: e.target.value }))}
+                    style={{ width: "80px", padding: "8px 12px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none" }}
+                  />
+                  hours
+                </label>
               )}
             </div>
           ))}

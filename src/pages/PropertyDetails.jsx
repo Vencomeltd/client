@@ -38,6 +38,7 @@ import apiFetch from "../utils/apiClient";
 import { apiFetch as apiFetchJson } from "../utils/api";
 import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
+import { minBookingHoursOf, rangeShorterThanMinimum } from "../utils/minBookingHours";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
 import { quote as quotePrice } from "../utils/vatPricing";
@@ -1727,6 +1728,13 @@ export default function PropertyDetails() {
         return { checkIn: checkInISO, checkOut: checkOutISO };
       };
       const ranges = bookingsToCreate.map(toBackendRange);
+
+      // Hourly bookings can't be shorter than the host's minimum.
+      const minHours = minBookingHoursOf(property);
+      if (selectedTier?.unit === "hour" && rangeShorterThanMinimum(ranges, minHours)) {
+        setBookingError(`This space has a minimum booking of ${minHours} hours. Please choose a longer time.`);
+        return;
+      }
 
       // Recurring / Multiple Dates: the server books every date or none (the
       // error names any date that's taken), and they're paid for together
@@ -4155,6 +4163,11 @@ function BookingSidebar({
               </span>
             </p>
           ) : null}
+          {selectedDurationType === "hourly" && minBookingHoursOf(property) > 0 && (
+            <p style={{ marginTop: "4px", fontSize: "13px", fontWeight: "600", color: "#6B7280" }}>
+              Minimum {minBookingHoursOf(property)} hour{minBookingHoursOf(property) === 1 ? "" : "s"}
+            </p>
+          )}
         </div>
       )}
 

@@ -29,6 +29,7 @@ import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
 import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, minimumTermPayload } from "../utils/vatForm";
+import { minBookingHoursPayload } from "../utils/minBookingHours";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -227,6 +228,8 @@ const defaultState = {
   // DAILY pricing only -- restricts a booking to exactly one calendar day
   // instead of allowing a multi-night stay. See bookingSettings.singleDayOnly.
   singleDayOnly: false,
+  // HOURLY pricing only -- whole hours 0-24, "" = no minimum.
+  minBookingHours: "",
   minHours: "",
   minNotice: "24hours",
   availability: "",
@@ -1188,6 +1191,8 @@ export default function CreateSpace() {
       formData.append("sizeSQM", form.sizeSQM || "");
       formData.append("seatCapacity", form.seatCapacity || "");
       formData.append("unitsCount", form.unitsCount || "1");
+      // "" = no minimum. Only meaningful with hourly pricing on.
+      formData.append("minBookingHours", form.pricing.hourly?.enabled ? minBookingHoursPayload(form.minBookingHours) : "");
       formData.append("extras", JSON.stringify(form.extras || []));
       formData.append("discounts", JSON.stringify(form.discounts || {}));
       formData.append("blockedDates", JSON.stringify(form.blockedDates || []));
@@ -3006,6 +3011,23 @@ export default function CreateSpace() {
                                 }))
                               }
                             />
+                            {key === "hourly" && (
+                              <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "12px", fontSize: "14px", color: "#374151" }}>
+                                Minimum booking
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="24"
+                                  step="1"
+                                  placeholder="None"
+                                  value={form.minBookingHours}
+                                  onChange={(event) => updateField("minBookingHours", event.target.value)}
+                                  onWheel={(event) => event.target.blur()}
+                                  style={{ width: "80px", padding: "8px 10px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none" }}
+                                />
+                                hours
+                              </label>
+                            )}
                           </div>
                         )}
                       </div>
