@@ -311,8 +311,10 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
         service.getPlacePredictions(
           {
             input: location,
-            types: ["(cities)"],
-            componentRestrictions: null,
+            // UK only, and "(regions)" rather than "(cities)" so towns,
+            // districts, neighbourhoods and postcodes show up as well.
+            types: ["(regions)"],
+            componentRestrictions: { country: "gb" },
           },
           (predictions, status) => {
             if (
