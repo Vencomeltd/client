@@ -8715,7 +8715,6 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
-        setUsersPage(data.page || page);
         setUsersTotalPages(data.pages || 1);
         setUsersTotal(data.total || 0);
       }
@@ -8760,7 +8759,6 @@ export default function AdminDashboard() {
         const data = await res.json();
         setListings(data.properties || []);
         setLocationOptions(data.locations || []);
-        setListingsPage(data.page || page);
         setListingsTotalPages(data.pages || 1);
       }
       const realCounts = realCountsRes.ok ? await realCountsRes.json() : null;
@@ -8919,19 +8917,27 @@ export default function AdminDashboard() {
     return () => clearTimeout(timer);
   }, [userQuery]);
 
-  // A new filter starts again from page 1.
-  useEffect(() => {
+  // A new filter starts again from page 1. Reset during render, not in an
+  // effect, so the fetch below runs once, for page 1 -- an effect let it
+  // also ask for the old page, and that answer could land last.
+  const userFilterKey = [activeUserTab, debouncedUserQuery, showTestAccounts, roleFilter, statusFilter].join("|");
+  const [prevUserFilterKey, setPrevUserFilterKey] = useState(userFilterKey);
+  if (userFilterKey !== prevUserFilterKey) {
+    setPrevUserFilterKey(userFilterKey);
     setUsersPage(1);
-  }, [activeUserTab, debouncedUserQuery, showTestAccounts, roleFilter, statusFilter]);
+  }
 
   useEffect(() => {
     if (!token) return;
     fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
   }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
-  useEffect(() => {
+  const listingFilterKey = [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly].join("|");
+  const [prevListingFilterKey, setPrevListingFilterKey] = useState(listingFilterKey);
+  if (listingFilterKey !== prevListingFilterKey) {
+    setPrevListingFilterKey(listingFilterKey);
     setListingsPage(1);
-  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+  }
 
   useEffect(() => {
     if (!token) return;
