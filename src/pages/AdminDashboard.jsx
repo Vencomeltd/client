@@ -352,6 +352,8 @@ function getListingStatus(listing = {}) {
 function getListingPriceLabel(listing = {}) {
   if (listing.pricing?.hourly) return `${formatCurrency(listing.pricing.hourly)} / hr`;
   if (listing.pricing?.daily) return `${formatCurrency(listing.pricing.daily)} / day`;
+  if (listing.pricing?.weekly) return `${formatCurrency(listing.pricing.weekly)} / week`;
+  if (listing.pricing?.monthly) return `${formatCurrency(listing.pricing.monthly)} / month`;
   return "POA";
 }
 
