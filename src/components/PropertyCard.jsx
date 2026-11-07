@@ -13,8 +13,11 @@ const BADGE_STYLES = {
   New: "border border-[#E5E7EB] bg-white text-[#111827]",
 };
 
-const formatPrice = (value) =>
-  new Intl.NumberFormat("en-GB").format(Number(value) || 0);
+// Whole pounds stay whole (£650); anything with pence shows both digits (£869.40).
+const formatPrice = (value) => {
+  const amount = Number(value) || 0;
+  return new Intl.NumberFormat("en-GB", Number.isInteger(amount) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+};
 
 const getListingPrice = (listing) => {
   const p = listing?.pricing;

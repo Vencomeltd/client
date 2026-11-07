@@ -3347,7 +3347,7 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTer
                   marginBottom: "4px",
                 }}
               >
-                £{(displayQuote.totalPence / 100).toLocaleString("en-GB")}
+                £{(displayQuote.totalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: displayQuote.totalPence % 100 ? 2 : 0, maximumFractionDigits: 2 })}
                 <span
                   style={{
                     fontSize: "14px",
@@ -4095,7 +4095,7 @@ function BookingSidebar({
                 color: "#0A1628",
               }}
             >
-              £{(selectedPriceQuote.totalPence / 100).toLocaleString("en-GB")}
+              £{(selectedPriceQuote.totalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: selectedPriceQuote.totalPence % 100 ? 2 : 0, maximumFractionDigits: 2 })}
               <span
                 style={{
                   fontSize: "14px",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
 import SiteContentSection from "../components/admin/SiteContentSection";
@@ -8343,6 +8343,12 @@ export default function AdminDashboard() {
     }
   }, [myAdmin, activeSection]);
   const [searchQuery, setSearchQuery] = useState("");
+  // Listings search waits for a pause in typing before asking the server.
+  const [debouncedListingQuery, setDebouncedListingQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedListingQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [toastMessage, setToastMessage] = useState(null);
   const [users, setUsers] = useState([]);
   const [usersPage, setUsersPage] = useState(1);
@@ -8739,7 +8745,7 @@ export default function AdminDashboard() {
       const API = import.meta.env.VITE_API_URL;
       const params = new URLSearchParams({ page, limit: 50 });
       if (!["all", "draft"].includes(status)) params.set("status", status);
-      if (searchQuery.trim()) params.set("q", searchQuery.trim());
+      if (debouncedListingQuery) params.set("q", debouncedListingQuery);
       if (locationFilter) params.set("city", locationFilter);
       if (noPhotosOnly) params.set("noPhotos", "true");
       if (vatNotSetOnly) params.set("vatNotSet", "true");
@@ -8773,7 +8779,7 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Failed to fetch listings:", err);
     }
-  }, [searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
 
   // Deliberately independent of fetchListings/listingsPage -- the queue
   // needs to see every pending_review listing platform-wide, not just
@@ -8925,7 +8931,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setListingsPage(1);
-  }, [searchQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
 
   useEffect(() => {
     if (!token) return;
