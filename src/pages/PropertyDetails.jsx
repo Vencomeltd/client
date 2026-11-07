@@ -842,7 +842,12 @@ export default function PropertyDetails() {
   const today = startOfDay(new Date());
   const [property, setProperty] = useState(loaderData?.property || null);
   const [loading, setLoading] = useState(!loaderData?.property);
-  const [error, setError] = useState(null);
+  // "not_found" only for a real 404; "failed" for a 5xx or network error.
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // Which id the listing on screen belongs to, so a failed background
+  // re-fetch keeps it instead of replacing it with an error page.
+  const loadedIdRef = useRef(loaderData?.property ? id : null);
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -1006,33 +1011,48 @@ export default function PropertyDetails() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const fetchProperty = async () => {
+      // Booked dates load on their own, so a failure there can't hide the listing.
+      fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((bookingData) => {
+          if (bookingData && !cancelled) setBookedDates(bookingData.bookedDates || []);
+        })
+        .catch(() => {});
       try {
-        const [propRes, bookingsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`),
-          fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`),
-        ]);
-        if (!propRes.ok) throw new Error("Property not found");
+        const propRes = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`);
+        if (!propRes.ok) {
+          throw Object.assign(new Error("Couldn't load this listing"), { status: propRes.status });
+        }
         const data = await propRes.json();
         const prop = data.property || data;
+        if (cancelled) return;
         setProperty(prop);
+        setLoadError(null);
+        loadedIdRef.current = id;
         // SEO meta tags (title/description/OG/canonical/JSON-LD) are now
         // handled declaratively by this route's meta() export + the SSR
         // loader above, instead of imperative DOM manipulation here.
-
-        if (bookingsRes.ok) {
-          const bookingData = await bookingsRes.json();
-          setBookedDates(bookingData.bookedDates || []);
-        }
       } catch (err) {
-        setError(err.message);
+        if (cancelled) return;
+        // Keep a listing that's already on screen; the server on Render can
+        // be slow or fail briefly, and that doesn't mean the listing is gone.
+        if (loadedIdRef.current === id) {
+          console.error("Failed to refresh listing:", err);
+          return;
+        }
+        setLoadError(err.status === 404 ? "not_found" : "failed");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (id) fetchProperty();
-  }, [id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, reloadKey]);
 
   // Guest-facing visibility into Property.unitsCount (e.g. "3 of 5 available
   // for these dates") -- only meaningful once both dates are picked, and
@@ -1467,7 +1487,34 @@ export default function PropertyDetails() {
     );
   }
 
-  if (error || !propertyView) {
+  if (loadError === "failed") {
+    return (
+      <>
+        <Navbar />
+        <div style={{ textAlign: "center", padding: "80px 24px" }}>
+          <p style={{ fontSize: "20px", color: "#111827", marginBottom: "8px" }}>
+            Couldn't load this listing
+          </p>
+          <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "24px" }}>
+            Something went wrong on our side. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError(null);
+              setLoading(true);
+              setReloadKey((key) => key + 1);
+            }}
+            style={{ color: "#0A1628", fontWeight: "600", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", fontSize: "inherit" }}
+          >
+            Try again
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (loadError === "not_found" || !propertyView) {
     return (
       <>
         <Navbar />
