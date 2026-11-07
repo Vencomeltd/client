@@ -5105,7 +5105,7 @@ function BroadcastSection({ users, stats }) {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={handleSend} disabled={sending} style={{ padding: "14px 32px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.7 : 1 }}>
-              {sending ? "Sending..." : scheduledFor ? `Schedule for ${targetCount} users` : `Send to ${targetCount} users`}
+              {sending ? "Sending..." : scheduledFor ? `Schedule for ${targetCount} user${targetCount === 1 ? "" : "s"}` : `Send to ${targetCount} user${targetCount === 1 ? "" : "s"}`}
             </button>
             <button
               type="button"
@@ -5197,7 +5197,7 @@ function BroadcastSection({ users, stats }) {
                       </span>
                     </div>
                     <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>
-                      {b.target}{b.recipientCount ? ` · ${b.recipientCount} recipients` : ""} · {formatDate(b.status === "scheduled" ? b.scheduledFor : b.sentAt || b.createdAt)}
+                      {b.target}{b.recipientCount ? ` · ${b.recipientCount} recipient${b.recipientCount === 1 ? "" : "s"}` : ""} · {formatDate(b.status === "scheduled" ? b.scheduledFor : b.sentAt || b.createdAt)}
                     </p>
                     {b.status === "scheduled" && (
                       <button type="button" onClick={() => handleCancelScheduled(b)} style={{ border: "none", background: "none", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, padding: 0 }}>
@@ -7317,7 +7317,7 @@ function CommunicationsSection() {
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcasts` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcast${scheduledTotal === 1 ? "" : "s"}` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
