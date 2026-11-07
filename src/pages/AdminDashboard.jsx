@@ -5015,7 +5015,8 @@ function BroadcastSection({ users, stats }) {
         <p className="mt-1 text-[13px] text-[#6B7280]">Send announcements and updates to your users</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+      {/* One column on phones: two columns pushed the page sideways there. */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[2fr_1fr]">
         <div style={{ background: "#fff", borderRadius: 20, padding: 32, border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", margin: 0 }}>Compose Broadcast</h3>
