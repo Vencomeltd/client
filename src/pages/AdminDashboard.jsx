@@ -8381,6 +8381,10 @@ export default function AdminDashboard() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [showTestAccounts, setShowTestAccounts] = useState(false);
   const [listings, setListings] = useState([]);
+  // Skeleton while a tab/page loads, like Users. The request id drops a slow
+  // answer for a tab the admin has already left.
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const listingsRequest = useRef(0);
   const [listingsPage, setListingsPage] = useState(1);
   const [listingStatus, setListingStatus] = useState("all");
   const [showTestListings, setShowTestListings] = useState(false);
@@ -8759,6 +8763,8 @@ export default function AdminDashboard() {
   }, [roleFilter, statusFilter]);
 
   const fetchListings = useCallback(async (page, { status = "all", showTest = false } = {}) => {
+    const request = ++listingsRequest.current;
+    setListingsLoading(true);
     try {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
@@ -8776,6 +8782,7 @@ export default function AdminDashboard() {
         fetch(`${API}/admin/properties/counts?excludeTest=true`, { headers }),
         showTest ? fetch(`${API}/admin/properties/counts`, { headers }) : null,
       ]);
+      if (request !== listingsRequest.current) return;
       if (res.ok) {
         const data = await res.json();
         setListings(data.properties || []);
@@ -8797,6 +8804,8 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error("Failed to fetch listings:", err);
+    } finally {
+      if (request === listingsRequest.current) setListingsLoading(false);
     }
   }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
 
@@ -9085,7 +9094,7 @@ export default function AdminDashboard() {
         setNoPhotosOnly={setNoPhotosOnly}
         vatNotSetOnly={vatNotSetOnly}
         setVatNotSetOnly={setVatNotSetOnly}
-        loading={loading}
+        loading={listingsLoading}
         moderationQueue={moderationQueue}
         setModerationQueue={setModerationQueue}
         listingQueueFilter={listingQueueFilter}
