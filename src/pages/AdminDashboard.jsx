@@ -7311,12 +7311,13 @@ function CommunicationsSection() {
     setMonth(d.toISOString().slice(0, 7));
   };
   const selectClass = "h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]";
+  const viewEmailCount = view === "calendar" ? Object.values(calendarDays).reduce((sum, count) => sum + count, 0) : total;
 
   return (
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcasts` : `${formatNumber(view === "calendar" ? Object.values(calendarDays).reduce((sum, count) => sum + count, 0) : total)} emails in this view`}</p>
+        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcasts` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -7500,7 +7501,7 @@ function CommunicationsSection() {
 
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <p className="text-[13px] text-[#6B7280]">
-            Page {page} of {totalPages} — {formatNumber(total)} emails total
+            Page {page} of {totalPages} — {formatNumber(total)} email{total === 1 ? "" : "s"} total
           </p>
           <div className="flex items-center gap-2">
             <button
