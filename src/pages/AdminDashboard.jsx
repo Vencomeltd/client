@@ -7177,9 +7177,11 @@ function CommunicationsSection() {
   const [type, setType] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [emailsError, setEmailsError] = useState("");
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [month, setMonth] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" }).slice(0, 7));
   const [calendarDays, setCalendarDays] = useState({});
+  const [calendarError, setCalendarError] = useState("");
   const [scheduled, setScheduled] = useState([]);
   const [scheduledPage, setScheduledPage] = useState(1);
   const [scheduledPages, setScheduledPages] = useState(1);
@@ -7200,6 +7202,7 @@ function CommunicationsSection() {
   const fetchEmails = useCallback(
     async (pageNum) => {
       setLoading(true);
+      setEmailsError("");
       try {
         const params = filterParams();
         params.set("page", String(pageNum));
@@ -7209,15 +7212,19 @@ function CommunicationsSection() {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/emails?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) {
-          const data = await res.json();
-          setEmails(data.emails || []);
-          setPage(data.page || pageNum);
-          setTotalPages(data.pages || 1);
-          setTotal(data.total || 0);
-        }
+        if (!res.ok) throw new Error("Couldn't load emails.");
+        const data = await res.json();
+        setEmails(data.emails || []);
+        setPage(data.page || pageNum);
+        setTotalPages(data.pages || 1);
+        setTotal(data.total || 0);
       } catch (err) {
         console.error("Failed to fetch emails:", err);
+        // Don't leave the last view's rows under the new filter.
+        setEmails([]);
+        setTotalPages(1);
+        setTotal(0);
+        setEmailsError(err.message || "Couldn't load emails.");
       } finally {
         setLoading(false);
       }
@@ -7237,10 +7244,17 @@ function CommunicationsSection() {
     if (view !== "calendar") return;
     const params = filterParams();
     params.set("month", month);
+    setCalendarError("");
     fetch(`${import.meta.env.VITE_API_URL}/admin/emails/calendar?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => (res.ok ? res.json() : { days: {} }))
+      .then((res) => {
+        if (!res.ok) throw new Error("Couldn't load the calendar.");
+        return res.json();
+      })
       .then((data) => setCalendarDays(data.days || {}))
-      .catch(() => setCalendarDays({}));
+      .catch((err) => {
+        setCalendarDays({});
+        setCalendarError(err.message || "Couldn't load the calendar.");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, month, filterParams]);
 
@@ -7258,6 +7272,8 @@ function CommunicationsSection() {
       setScheduledPages(lastPage);
       setScheduledTotal(data.total || 0);
     } catch (err) {
+      setScheduled([]);
+      setScheduledTotal(0);
       setScheduledError(err.message || "Couldn't load scheduled broadcasts.");
     } finally {
       setScheduledLoading(false);
@@ -7367,6 +7383,7 @@ function CommunicationsSection() {
 
       {view === "calendar" && (
         <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+          {calendarError && <p role="alert" className="mb-3 text-[13px] text-[#DC2626]">{calendarError}</p>}
           <div className="mb-4 flex items-center justify-between">
             <button type="button" onClick={() => shiftMonth(-1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">← Previous</button>
             <p className="text-[15px] font-bold text-[#0A1628]">
@@ -7435,6 +7452,7 @@ function CommunicationsSection() {
 
       {view === "log" && (
       <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+        {emailsError && <p role="alert" className="px-4 py-3 text-[13px] text-[#DC2626]">{emailsError}</p>}
         {loading ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading emails...</div>
         ) : emails.length === 0 ? (
