@@ -181,6 +181,13 @@ export default function SupportChatWidget() {
     return () => window.removeEventListener(OPEN_CHAT_EVENT, openChat);
   }, []);
 
+  // A page where the bubble is hidden can still open the chat on purpose
+  // (e.g. "Contact VenCome to end lease" in My Bookings). Leaving for a
+  // hidden page closes it, so it never covers that page uninvited.
+  useEffect(() => {
+    if (isHiddenPath(location.pathname)) setOpen(false);
+  }, [location.pathname]);
+
   // A small "Need help?" nudge next to the closed bubble, shown once per
   // browser session (sessionStorage) after a short delay so it doesn't
   // flash in before the page has settled.
@@ -246,7 +253,7 @@ export default function SupportChatWidget() {
     }
   }, [open, messages]);
 
-  if (hidden) return null;
+  if (hidden && !open) return null;
 
   const startConversation = async (categoryValue, message) => {
     const trimmed = message.trim();
