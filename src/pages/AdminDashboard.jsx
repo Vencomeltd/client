@@ -53,6 +53,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { hostPublicName } from "../utils/hostName";
+import { downloadCsv } from "../utils/csv";
 
 const PAYMENTS_RANGE_DAYS = {
   "Last 7 days": 7,
@@ -2429,6 +2431,32 @@ const vatNotSet = (listing) =>
     ([unit, keys]) => keys.some((key) => Number(listing.pricing?.[key]) > 0) && !listing.pricing?.vat?.[unit]
   );
 
+// Listings CSV export: one row per listing, from the admin list payload.
+const VAT_STATUS_LABEL = { includes: "Includes VAT", excludes: "Excludes VAT", none: "No VAT" };
+const LISTING_CSV_HEADER = ["Title", "Host", "City", "Category", "Status", "Hourly", "Daily", "Weekly", "Monthly", "VAT status", "Created"];
+const listingCsvRow = (listing) => {
+  const price = (keys) => keys.map((key) => Number(listing.pricing?.[key])).find((value) => value > 0) ?? "";
+  const vatStatuses = [...new Set(Object.values(listing.pricing?.vat || {}).map((tax) => VAT_STATUS_LABEL[tax?.status]).filter(Boolean))];
+  return [
+    listing.title,
+    hostPublicName(listing.host),
+    listing.location?.city,
+    listing.category?.name,
+    getListingStatus(listing),
+    price(VAT_PRICE_KEYS.hourly),
+    price(VAT_PRICE_KEYS.daily),
+    price(VAT_PRICE_KEYS.weekly),
+    price(VAT_PRICE_KEYS.monthly),
+    vatNotSet(listing) ? "Not set" : vatStatuses.join("; "),
+    formatDate(listing.createdAt),
+  ];
+};
+// Category filter, matched on the listing's main category or any of its categories.
+const inListingCategory = (listing, categoryId) =>
+  !categoryId ||
+  (listing.category?._id || listing.category) === categoryId ||
+  (listing.categories || []).some((category) => (category?._id || category) === categoryId);
+
 // "Name · email", or just the email when the account has no name yet.
 const personLine = (user) => {
   if (!user) return "—";
@@ -2610,6 +2638,8 @@ function ListingsSection({
   locationFilter, setLocationFilter,
   noPhotosOnly, setNoPhotosOnly,
   vatNotSetOnly, setVatNotSetOnly,
+  categoryFilter, setCategoryFilter,
+  onExportCsv,
   loading,
   moderationQueue,
   setModerationQueue,
@@ -2657,7 +2687,18 @@ function ListingsSection({
     return true;
   });
 
-  const filteredListings = listings;
+  // The server may not filter by category yet, so the page is filtered here too.
+  const filteredListings = listings.filter((listing) => inListingCategory(listing, categoryFilter));
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/admin/categories`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("vencome_token")}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setCategoryOptions(data?.categories || []))
+      .catch(() => {});
+  }, []);
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -2896,6 +2937,16 @@ function ListingsSection({
                 <option key={city} value={city}>{city}</option>
               ))}
             </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map((category) => (
+                <option key={category._id} value={category._id}>{category.name}</option>
+              ))}
+            </select>
             <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
               <input type="checkbox" checked={noPhotosOnly} onChange={(e) => setNoPhotosOnly(e.target.checked)} />
               No photos
@@ -2908,6 +2959,26 @@ function ListingsSection({
               <input type="checkbox" checked={showTestListings} onChange={(e) => setShowTestListings(e.target.checked)} />
               Show test and internal accounts
             </label>
+            {listingStatus !== "draft" && (
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    await onExportCsv();
+                  } catch {
+                    onToast("Couldn't export listings. Please try again.");
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-[#111827] disabled:opacity-60"
+              >
+                <Download size={14} />
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
           </div>
         </div>
 
@@ -8398,6 +8469,7 @@ export default function AdminDashboard() {
   const [locationFilter, setLocationFilter] = useState("");
   const [noPhotosOnly, setNoPhotosOnly] = useState(false);
   const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [listingsTotalPages, setListingsTotalPages] = useState(1);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({
@@ -8767,6 +8839,35 @@ export default function AdminDashboard() {
     }
   }, [roleFilter, statusFilter]);
 
+  // The admin listings filter as /admin/properties query params (shared by
+  // the table and the CSV export).
+  const listingParams = useCallback((page, limit, { status = "all", showTest = false } = {}) => {
+    const params = new URLSearchParams({ page, limit });
+    if (!["all", "draft"].includes(status)) params.set("status", status);
+    if (debouncedListingQuery) params.set("q", debouncedListingQuery);
+    if (locationFilter) params.set("city", locationFilter);
+    if (noPhotosOnly) params.set("noPhotos", "true");
+    if (vatNotSetOnly) params.set("vatNotSet", "true");
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (!showTest) params.set("excludeTest", "true");
+    return params;
+  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter]);
+
+  // Every page of the current filter, then a CSV of it.
+  const exportListingsCsv = useCallback(async (filter) => {
+    const headers = { Authorization: `Bearer ${localStorage.getItem("vencome_token")}` };
+    const all = [];
+    for (let page = 1, pages = 1; page <= pages; page += 1) {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties?${listingParams(page, 200, filter)}`, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      const data = await res.json();
+      all.push(...(data.properties || []));
+      pages = data.pages || 1;
+    }
+    const rows = all.filter((listing) => inListingCategory(listing, categoryFilter)).map(listingCsvRow);
+    downloadCsv(`vencome-listings-${new Date().toISOString().slice(0, 10)}.csv`, [LISTING_CSV_HEADER, ...rows]);
+  }, [listingParams, categoryFilter]);
+
   const fetchListings = useCallback(async (page, { status = "all", showTest = false } = {}) => {
     const request = ++listingsRequest.current;
     setListingsLoading(true);
@@ -8774,13 +8875,7 @@ export default function AdminDashboard() {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
       const API = import.meta.env.VITE_API_URL;
-      const params = new URLSearchParams({ page, limit: 50 });
-      if (!["all", "draft"].includes(status)) params.set("status", status);
-      if (debouncedListingQuery) params.set("q", debouncedListingQuery);
-      if (locationFilter) params.set("city", locationFilter);
-      if (noPhotosOnly) params.set("noPhotos", "true");
-      if (vatNotSetOnly) params.set("vatNotSet", "true");
-      if (!showTest) params.set("excludeTest", "true");
+      const params = listingParams(page, 50, { status, showTest });
       const [res, realCountsRes, tabCountsRes] = await Promise.all([
         fetch(`${API}/admin/properties?${params}`, { headers }),
         // The Overview always counts real accounts only (same as GET /stats).
@@ -8812,7 +8907,7 @@ export default function AdminDashboard() {
     } finally {
       if (request === listingsRequest.current) setListingsLoading(false);
     }
-  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly]);
+  }, [listingParams]);
 
   // Deliberately independent of fetchListings/listingsPage -- the queue
   // needs to see every pending_review listing platform-wide, not just
@@ -8967,7 +9062,7 @@ export default function AdminDashboard() {
     fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
   }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
-  const listingFilterKey = [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly].join("|");
+  const listingFilterKey = [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter].join("|");
   const [prevListingFilterKey, setPrevListingFilterKey] = useState(listingFilterKey);
   if (listingFilterKey !== prevListingFilterKey) {
     setPrevListingFilterKey(listingFilterKey);
@@ -9099,6 +9194,9 @@ export default function AdminDashboard() {
         setNoPhotosOnly={setNoPhotosOnly}
         vatNotSetOnly={vatNotSetOnly}
         setVatNotSetOnly={setVatNotSetOnly}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        onExportCsv={() => exportListingsCsv({ status: listingStatus, showTest: showTestListings })}
         loading={listingsLoading}
         moderationQueue={moderationQueue}
         setModerationQueue={setModerationQueue}
