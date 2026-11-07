@@ -2067,13 +2067,11 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
   );
 }
 
-// Marks staff and QA accounts so they're never mistaken for real customers.
+// Marks QA accounts so they're never mistaken for real customers. Staff
+// already show an "Admin" role badge next to these flags.
 function AccountFlags({ user }) {
   return (
     <>
-      {user.isAdmin ? (
-        <span className="rounded-full bg-[rgba(124,58,237,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Admin</span>
-      ) : null}
       {user.isTestAccount ? (
         <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">
           {user.accountFlag === "internal" ? "Internal" : "Test account"}
