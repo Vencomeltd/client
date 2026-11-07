@@ -2279,7 +2279,7 @@ function UsersSection({
                           : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                       }`}
                     >
-                      {getUserRole(user) === "host" ? "Host" : "Customer"}
+                      {getUserRole(user) === "admin" ? "Admin" : getUserRole(user) === "host" ? "Host" : "Customer"}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
@@ -2370,7 +2370,7 @@ function UsersSection({
                       : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                   }`}
                 >
-                  {getUserRole(user) === "host" ? "Host" : "Customer"}
+                  {getUserRole(user) === "admin" ? "Admin" : getUserRole(user) === "host" ? "Host" : "Customer"}
                 </span>
                 <StatusPill status={getUserStatus(user)} type="userStatus" />
                 <AccountFlags user={user} />
