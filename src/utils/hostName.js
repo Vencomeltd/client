@@ -1,14 +1,23 @@
-// The name a host is shown under to guests: their profile name, else their
-// business name, else their first name, else "Host". A VenCome-sounding name
-// is only ever shown for VenCome's own (internal) accounts -- a third-party
-// host must never look like VenCome owns the space.
+// The name a host is shown under to guests: their VERIFIED business name,
+// else their profile name, else their first name, else "Host". A
+// VenCome-sounding name is only ever shown for VenCome's own (internal)
+// accounts -- a third-party host must never look like VenCome owns the space.
+// The server decides this (host.publicName, utils/hostName.js there); the
+// rule below is the backstop for responses that don't carry it yet.
 // Word start only, so a name like "Stevencombe" is not caught.
 const VENCOME_NAME = /\bven\s*com/i;
 
+// An unverified, under-review or rejected business name is never shown.
+export function verifiedCompanyName(host) {
+  const verification = host?.businessVerification;
+  return verification?.status === "verified" ? verification.companyName : undefined;
+}
+
 export function hostPublicName(host) {
   if (!host) return "Host";
+  if (host.publicName) return host.publicName;
   const ownAccount = host.accountFlag === "internal";
-  const candidates = [host.displayName, host.businessVerification?.companyName, host.firstName];
+  const candidates = [verifiedCompanyName(host), host.displayName, host.firstName];
   for (const candidate of candidates) {
     const name = (candidate || "").trim();
     if (name && (ownAccount || !VENCOME_NAME.test(name))) return name;

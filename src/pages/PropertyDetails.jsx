@@ -49,7 +49,7 @@ import {
   openWeekdays,
   STANDARD_HOURS,
 } from "../utils/recurringDates";
-import { hostPublicName } from "../utils/hostName";
+import { hostPublicName, verifiedCompanyName } from "../utils/hostName";
 import useSiteText from "../hooks/useSiteText";
 
 const BRAND = {
@@ -421,7 +421,7 @@ const normalizePropertyData = (property) => {
     pricing,
     host: {
       name: hostName,
-      company: property.host?.businessVerification?.companyName || "",
+      company: verifiedCompanyName(property.host) || "",
       avatar: property.host?.profileImage || property.host?.avatar || property.coverImage || "",
       verified: Boolean(property.host?.venComeVerified),
       venComeVerified: Boolean(property.host?.venComeVerified),
