@@ -5047,9 +5047,9 @@ function BroadcastSection({ users, stats }) {
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Send to</label>
             <select value={target} onChange={e => { setTarget(e.target.value); setSent(false); }} style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none" }}>
-              <option value="all">All Users ({users.length})</option>
-              <option value="hosts">Hosts only ({users.filter(u => u.isHost).length})</option>
-              <option value="customers">Customers only ({users.filter(u => !u.isHost).length})</option>
+              <option value="all">All Users ({stats.totalUsers ?? 0})</option>
+              <option value="hosts">Hosts only ({stats.totalHosts ?? 0})</option>
+              <option value="customers">Customers only ({stats.totalCustomers ?? 0})</option>
               <option value="specific">Specific users...</option>
             </select>
           </div>
