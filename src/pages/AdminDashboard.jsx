@@ -2963,14 +2963,14 @@ function ListingsSection({
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
                       <img src={listing.coverImage} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold text-[#0A1628]">
-                          {listing.title}
+                      <div className="min-w-0 max-w-[280px]">
+                        <p className="truncate text-[13px] font-semibold text-[#0A1628]" title={listing.title}>{listing.title}</p>
+                        <p className="flex flex-wrap gap-1">
                           {!hasPhotos(listing) && (
-                            <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
+                            <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
                           )}
                           {vatNotSet(listing) && (
-                            <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
+                            <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
                           )}
                         </p>
                         <p className="truncate text-[12px] text-[#6B7280]">
