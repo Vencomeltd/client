@@ -19,7 +19,7 @@ import {
   UserRound,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-import { hostPublicName, hostProfileIncomplete } from "../utils/hostName";
+import { hostPublicName, hostProfileIncomplete, hasProfilePhoto } from "../utils/hostName";
 
 const ACTIONS = [
   { icon: Plus, title: "List Your Space", description: "Start earning from your property", href: "/create-space" },
@@ -115,7 +115,7 @@ function IncompleteProfileBanner({ token }) {
   }, [token]);
 
   if (!me?.isHost || !hostProfileIncomplete(me)) return null;
-  const missing = [hostPublicName(me) === "Host" && "a name or business name", !me.profileImage && "a profile photo"].filter(Boolean);
+  const missing = [hostPublicName(me) === "Host" && "a name or business name", !hasProfilePhoto(me) && "a profile photo"].filter(Boolean);
 
   return (
     <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C7D2FE] bg-[#EEF2FF] px-5 py-4 sm:px-6">
