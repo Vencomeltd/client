@@ -2664,6 +2664,17 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
       </div>
 
       {images.length > 1 ? (
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-[#111827] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#111827] md:hidden"
+        >
+          <Grid size={16} />
+          <span>View all {images.length} photos</span>
+        </button>
+      ) : null}
+
+      {images.length > 1 ? (
         <div className="mt-2 flex gap-2 overflow-x-auto md:hidden">
           {images.map((image, index) => (
             <button
