@@ -85,7 +85,7 @@ export default function Checkout() {
           });
           const statusData = await statusRes.json();
           if (statusRes.ok && statusData.status === "complete") {
-            navigate(`/property/${bookingData.property}?success=true&bookingId=${bookingData._id}&value=${bookingData.totalPrice}`, { replace: true });
+            navigate(`/booking/${bookingData._id}/confirmed?success=true`, { replace: true });
             return;
           }
         }
@@ -131,10 +131,9 @@ export default function Checkout() {
       clientSecret,
       // Embedded mode has no success_url/cancel_url -- this is the
       // equivalent for card payments that complete inline (no redirect-based
-      // step like 3D Secure needed). Matches the exact query params
-      // PropertyDetails.jsx's existing success-modal effect already reads.
+      // step like 3D Secure needed).
       onComplete: () => {
-        navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${booking.totalPrice}`);
+        navigate(`/booking/${booking._id}/confirmed?success=true`);
       },
     };
   }, [clientSecret, booking, navigate]);
@@ -201,7 +200,13 @@ export default function Checkout() {
                   payLabel={booking.status === "pending" ? "Send booking request" : `Pay £${rentTotal.toFixed(2)}`}
                   consentText={v2Consent}
                   onSuccess={() =>
-                    navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${rentTotal}`)
+                    // A series covers several bookings, so it keeps the old
+                    // success modal on the listing (it reads ?success=true).
+                    navigate(
+                      series
+                        ? `/property/${booking.property}?success=true&bookingId=${booking._id}&value=${rentTotal}`
+                        : `/booking/${booking._id}/confirmed?success=true`
+                    )
                   }
                 />
               )}

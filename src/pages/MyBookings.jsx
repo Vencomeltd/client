@@ -271,6 +271,13 @@ export default function MyBookings() {
         });
 
         setAllBookings(mapped);
+        // ?booking=<id> (e.g. "Manage booking" on the confirmation page):
+        // open that booking's tab and its details.
+        const linked = mapped.find((b) => b.id === new URLSearchParams(window.location.search).get("booking"));
+        if (linked) {
+          setActiveTab(linked.tab);
+          setSelectedBooking(linked);
+        }
       } catch (err) {
         console.error("Failed to fetch bookings:", err);
       } finally {

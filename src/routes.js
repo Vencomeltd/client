@@ -113,6 +113,8 @@ export default [
     route("checkout/:bookingId", "pages/Checkout.jsx"),
     // Recurring / Multiple Dates: one checkout for every date in the series.
     route("checkout/series/:groupId", "pages/Checkout.jsx", { id: "checkout-series" }),
+    // Post-payment page for a single booking (Checkout redirects here).
+    route("booking/:id/confirmed", "pages/BookingConfirmed.jsx"),
   ]),
 
   layout("routes/layouts/admin-route.jsx", [
