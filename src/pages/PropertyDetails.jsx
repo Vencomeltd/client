@@ -4104,7 +4104,7 @@ function BookingSidebar({
                 }}
               >
                 {" "}
-                {selectedOption.unit}{selectedPriceQuote.vatStatus !== "none" ? " inc. VAT" : ""}
+                {selectedOption.unit}{selectedPriceQuote.vatRatePct > 0 ? " inc. VAT" : ""}{selectedPriceQuote.utilitiesPence > 0 ? " incl. utilities" : ""}
               </span>
             </p>
           ) : null}
