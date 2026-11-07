@@ -7313,12 +7313,14 @@ function CommunicationsSection() {
   };
   const selectClass = "h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]";
   const viewEmailCount = view === "calendar" ? Object.values(calendarDays).reduce((sum, count) => sum + count, 0) : total;
+  // A failed load isn't an empty result, so show only the error, not "0 emails".
+  const viewLoadError = view === "calendar" ? calendarError : view === "log" ? emailsError : "";
 
   return (
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcast${scheduledTotal === 1 ? "" : "s"}` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>
+        {!viewLoadError && <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcast${scheduledTotal === 1 ? "" : "s"}` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -7459,7 +7461,7 @@ function CommunicationsSection() {
         {emailsError && <p role="alert" className="px-4 py-3 text-[13px] text-[#DC2626]">{emailsError}</p>}
         {loading ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading emails...</div>
-        ) : emails.length === 0 ? (
+        ) : emailsError ? null : emails.length === 0 ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No emails in this view</div>
         ) : (
           <div className="flex flex-col">
@@ -7500,6 +7502,7 @@ function CommunicationsSection() {
           </div>
         )}
 
+        {!emailsError && (
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <p className="text-[13px] text-[#6B7280]">
             Page {page} of {totalPages} — {formatNumber(total)} email{total === 1 ? "" : "s"} total
@@ -7523,6 +7526,7 @@ function CommunicationsSection() {
             </button>
           </div>
         </div>
+        )}
       </div>
       )}
 
