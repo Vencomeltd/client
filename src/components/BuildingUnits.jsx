@@ -111,7 +111,7 @@ export function BuildingSummary({ building }) {
       <div className="rounded-[12px] bg-[#0A1628] p-4 text-white">
         <p className="text-[13px] text-white/70">Available now or soon</p>
         <p className="text-[20px] font-extrabold">{unitsAvailableText(building.unitsAvailable)}</p>
-        {from ? <p className="text-[13px] text-white/70">from {from.price}/month</p> : null}
+        {from ? <p className="text-[13px] text-white/70">from {from.price}{from.unit}</p> : null}
       </div>
       <p className="mt-4 text-[13px] leading-6 text-[#6B7280]">
         Each room has its own price and is booked directly. Pick a room from the list to see its details and book it.
