@@ -4,6 +4,8 @@ export default [
   // Phase 3: public, data-fetching pages -- each has its own loader/meta.
   index("pages/Homepage.jsx"),
   route("property/:id", "pages/PropertyDetails.jsx"),
+  // A room of a building: /property/<buildingSlug>/<roomSlug>.
+  route("property/:buildingSlug/:roomSlug", "pages/PropertyDetails.jsx", { id: "property-room" }),
   route("blog", "pages/BlogList.jsx"),
   route("blogs", "routes/redirect-to-blog.jsx"),
   route("blog/:slug", "pages/BlogDetails.jsx"),

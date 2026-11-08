@@ -352,6 +352,10 @@ function getListingStatus(listing = {}) {
 }
 
 function getListingPriceLabel(listing = {}) {
+  // A building has no price of its own: its rooms do.
+  if (listing.listingType === "building") {
+    return listing.fromPricePence > 0 ? `From ${formatCurrency(listing.fromPricePence / 100)} / month` : "See rooms";
+  }
   if (listing.pricing?.hourly) return `${formatCurrency(listing.pricing.hourly)} / hr`;
   if (listing.pricing?.daily) return `${formatCurrency(listing.pricing.daily)} / day`;
   if (listing.pricing?.weekly) return `${formatCurrency(listing.pricing.weekly)} / week`;
@@ -3037,6 +3041,9 @@ function ListingsSection({
                       <div className="min-w-0 max-w-[280px]">
                         <p className="truncate text-[13px] font-semibold text-[#0A1628]" title={listing.title}>{listing.title}</p>
                         <p className="flex flex-wrap gap-1">
+                          {listing.listingType === "building" && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#0A1628] px-2 py-0.5 text-[10px] font-semibold text-white"><Building2 size={10} /> Building</span>
+                          )}
                           {!hasPhotos(listing) && (
                             <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
                           )}
@@ -3113,6 +3120,9 @@ function ListingsSection({
                   <div className="min-w-0">
                     <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">
                       {listing.title}
+                      {listing.listingType === "building" && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#0A1628] px-2 py-0.5 align-middle text-[10px] font-semibold text-white"><Building2 size={10} /> Building</span>
+                      )}
                       {vatNotSet(listing) && (
                         <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
                       )}

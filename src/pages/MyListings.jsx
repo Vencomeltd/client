@@ -175,6 +175,12 @@ export default function MyListings() {
                     <span>{`${listing.location?.city || ""}, ${listing.location?.country || ""}`}</span>
                   </div>
 
+                  {listing.listingType === "building" && !(listing.unitsAvailable > 0) ? (
+                    <p className="mt-3 rounded-lg bg-[#FEF3C7] px-3 py-2 text-[12px] font-semibold text-[#92400E]">
+                      Add a room to make this building visible.
+                    </p>
+                  ) : null}
+
                   <div className="mt-4 border-t border-[#F3F4F6] pt-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <a

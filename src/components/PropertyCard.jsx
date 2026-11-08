@@ -1,10 +1,11 @@
 ﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Heart, MapPin, Star } from "lucide-react";
+import { Building2, Heart, MapPin, Star } from "lucide-react";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
 import { quote } from "../utils/vatPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
+import { fromPrice, isBuilding, unitsAvailableText } from "../utils/buildingListing";
 
 const BADGE_STYLES = {
   Featured: "bg-[#305CDE] text-white",
@@ -93,7 +94,13 @@ const resolveListingData = ({
   isLoading,
 }) => {
   const source = property || {};
-  const listingPrice = getListingPrice(source);
+  // A building listing has no price of its own: it shows "From £X/month"
+  // from its cheapest available unit.
+  const building = isBuilding(source);
+  const buildingFrom = building ? fromPrice(source) : null;
+  const listingPrice = building
+    ? { price: buildingFrom?.price ?? "POA", unit: buildingFrom?.unit ?? "", fromPrefix: Boolean(buildingFrom) }
+    : getListingPrice(source);
 
   return {
     id: id ?? source._id ?? source.id ?? "listing",
@@ -126,8 +133,10 @@ const resolveListingData = ({
       const firstSubcategory = source.subcategories?.[0];
       return firstSubcategory ? [...mainCategories, firstSubcategory] : mainCategories;
     })(),
-    price: price ?? listingPrice.price ?? getLegacyPrice(source),
-    priceUnit: priceUnit ?? listingPrice.unit ?? getLegacyPriceUnit(source),
+    price: (building ? undefined : price) ?? listingPrice.price ?? getLegacyPrice(source),
+    priceUnit: (building ? undefined : priceUnit) ?? listingPrice.unit ?? getLegacyPriceUnit(source),
+    isBuilding: building,
+    unitsAvailable: source.unitsAvailable ?? 0,
     priceFromPrefix: listingPrice.fromPrefix ?? false,
     rating: rating ?? source.rating ?? 0,
     reviewCount: reviewCount ?? source.reviewCount ?? 0,
@@ -217,7 +226,7 @@ export default function PropertyCard({
     isLoading,
   });
 
-  const displayBadge = listing.badge || (listing.isNew ? "New" : null);
+  const displayBadge = listing.isBuilding ? "Building" : listing.badge || (listing.isNew ? "New" : null);
   const badgeClassName =
     BADGE_STYLES[displayBadge] || "bg-[#0A1628] text-white";
   const displayPrice =
@@ -259,7 +268,7 @@ export default function PropertyCard({
         transition={{ duration: 0.2, ease: "easeOut" }}
         className="group h-full w-full"
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-[18px] border border-[#E5E7EB] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition duration-200 ease-out group-hover:border-[#305CDE] group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)]">
+        <div className={`flex h-full flex-col overflow-hidden rounded-[18px] border bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)] transition duration-200 ease-out group-hover:border-[#305CDE] group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.18)] ${listing.isBuilding ? "border-2 border-[#305CDE]" : "border-[#E5E7EB]"}`}>
           <Link
             to={`/property/${listing.slug || listing.id}`}
             className="flex flex-1 flex-col"
@@ -279,9 +288,16 @@ export default function PropertyCard({
 
               {displayBadge ? (
                 <span
-                  className={`absolute left-3 top-3 z-[2] rounded-full px-3 py-[5px] text-[11px] font-bold uppercase tracking-[0.5px] ${badgeClassName}`}
+                  className={`absolute left-3 top-3 z-[2] rounded-full px-3 py-[5px] text-[11px] font-bold uppercase tracking-[0.5px] ${badgeClassName} ${listing.isBuilding ? "flex items-center gap-1" : ""}`}
                 >
+                  {listing.isBuilding ? <Building2 size={12} /> : null}
                   {displayBadge}
+                </span>
+              ) : null}
+
+              {listing.isBuilding ? (
+                <span className="absolute bottom-3 left-3 z-[2] rounded-md bg-black/55 px-2 py-1 text-[11px] font-semibold text-white">
+                  Representative photos
                 </span>
               ) : null}
 
@@ -349,6 +365,11 @@ export default function PropertyCard({
               </h3>
 
               <div className="mt-1.5 flex flex-1 flex-wrap content-start gap-1.5">
+                {listing.isBuilding ? (
+                  <span className="inline-block rounded-md bg-[rgba(48,92,222,0.1)] px-2 py-[3px] text-[11px] font-bold text-[#305CDE]">
+                    {unitsAvailableText(listing.unitsAvailable)}
+                  </span>
+                ) : null}
                 {listing.categories.length > 0 ? (
                   listing.categories.map((catName) => (
                     <span
@@ -378,6 +399,9 @@ export default function PropertyCard({
                   </span>
                 ) : null}
               </p>
+              {listing.isBuilding ? (
+                <span className="mt-2 text-[13px] font-semibold text-[#305CDE]">View available units →</span>
+              ) : null}
             </div>
           </Link>
 
