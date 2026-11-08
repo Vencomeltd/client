@@ -1122,7 +1122,7 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
     },
     {
       icon: AlertTriangle,
-      label: "Pending Listings",
+      label: "Inactive listings",
       value: formatNumber(pendingListingsCount),
       growth: "",
       iconClasses: "bg-[rgba(239,68,68,0.1)] text-[#DC2626]",

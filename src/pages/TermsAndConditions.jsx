@@ -41,15 +41,11 @@ const SECTIONS = [
         "100%"
       ],
       [
-        "More than 24 hours but less than 48 hours before the scheduled start",
+        "24 hours or more but less than 48 hours before the scheduled start",
         "75%"
       ],
       [
-        "More than 23 hours and up to 24 hours before the scheduled start",
-        "50%"
-      ],
-      [
-        "23 hours or less before the scheduled start",
+        "Less than 24 hours before the scheduled start",
         "0%"
       ]
     ],

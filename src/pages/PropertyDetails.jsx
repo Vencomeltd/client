@@ -154,7 +154,7 @@ const MOCK_PROPERTY = {
     "Catering must be pre-arranged 48hrs in advance",
     "Maximum 24 guests at any time",
     "Access via reception — photo ID required",
-    "Cancellation: 72 hours notice for full refund",
+    "Cancellation: 48 hours notice for full refund",
   ],
   location_detail: {
     lat: 51.5045,

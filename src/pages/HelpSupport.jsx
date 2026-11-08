@@ -65,13 +65,12 @@ const HelpSupport = () => {
           content: (
             <>
               <p>
-                Cancellation depends on the host's policy (shown on each
-                listing):
+                Refunds depend on how long before check-in you cancel:
               </p>
               <ul className="list-disc pl-6 mt-3 space-y-2">
-                <li>Flexible: Full refund if cancelled 7+ days before</li>
-                <li>Moderate: 50% refund if cancelled 5+ days before</li>
-                <li>Strict: No refund after confirmation</li>
+                <li>48 hours or more before check-in: 100% refund</li>
+                <li>24 to under 48 hours before check-in: 75% refund</li>
+                <li>Under 24 hours before check-in: no refund</li>
               </ul>
               <p className="mt-4">
                 Go to <strong>My Bookings</strong> → select booking → Cancel (if
