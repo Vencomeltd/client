@@ -16,6 +16,7 @@ import {
   Flag,
   Grid,
   Heart,
+  Info,
   Lock,
   Map,
   MapPin,
@@ -52,6 +53,8 @@ import {
 } from "../utils/recurringDates";
 import { hostPublicName, verifiedCompanyName } from "../utils/hostName";
 import useSiteText from "../hooks/useSiteText";
+import { BuildingSummary, BuildingUnitsSection } from "../components/BuildingUnits";
+import { isBuilding, unitsAvailableText } from "../utils/buildingListing";
 
 const BRAND = {
   navy: "#0A1628",
@@ -743,6 +746,10 @@ export async function loader({ params, request }) {
   if (!res?.ok) return data({ property: null }, { status: 503, headers: { "Retry-After": "120" } });
   const body = await res.json();
   const property = body.property || body;
+  // A room has no page of its own: send visitors to its building.
+  if (property?.listingType === "unit" && property.parentBuilding) {
+    return redirect(`/property/${property.parentBuilding.slug || property.parentBuilding._id}`);
+  }
   // Canonicalize old ObjectId links to the slug URL once one exists, so
   // search engines index a single URL per listing instead of two. Keep the
   // query string (e.g. Checkout.jsx's ?success=true&bookingId=...) so the
@@ -777,12 +784,16 @@ export function meta({ data }) {
     [p.annual, "YEAR"],
   ];
   const [price, priceUnit] = tiers.find(([amount]) => Number(amount) > 0) || [0, ""];
-  const description = `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
+  const description = isBuilding(prop)
+    ? `${prop.title} in ${location}: ${unitsAvailableText(prop.unitsAvailable)}. ${prop.description?.slice(0, 120) || "Rooms and studios available on VenCome."}`
+    : `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
   const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
   const url = `https://www.vencome.com/property/${prop.slug || prop._id}`;
 
   return [
     { title },
+    // A room is only ever shown on its building's page.
+    ...(prop.listingType === "unit" ? [{ name: "robots", content: "noindex" }] : []),
     { name: "description", content: description },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
@@ -891,6 +902,8 @@ export default function PropertyDetails() {
   const [bookedDates, setBookedDates] = useState([]);
   const [unitAvailability, setUnitAvailability] = useState(null);
   const [enquiryMessage, setEnquiryMessage] = useState("");
+  // The building room an enquiry is about, or null for a normal listing.
+  const [enquiryUnit, setEnquiryUnit] = useState(null);
   const [enquiryLoading, setEnquiryLoading] = useState(false);
   const [enquiryError, setEnquiryError] = useState(null);
   const [showTermsGate, setShowTermsGate] = useState(false);
@@ -1029,6 +1042,10 @@ export default function PropertyDetails() {
         const data = await propRes.json();
         const prop = data.property || data;
         if (cancelled) return;
+        if (prop.listingType === "unit" && prop.parentBuilding) {
+          window.location.replace(`/property/${prop.parentBuilding.slug || prop.parentBuilding._id}`);
+          return;
+        }
         setProperty(prop);
         setLoadError(null);
         loadedIdRef.current = id;
@@ -1853,6 +1870,18 @@ export default function PropertyDetails() {
     setShowEnquiryModal(true);
   };
 
+  const handleUnitEnquiry = (unit) => {
+    if (!localStorage.getItem("vencome_token")) {
+      window.location.href = "/login";
+      return;
+    }
+    const label = unit.unitDetails?.label || unit.title;
+    setEnquiryMessage(`Hi, I am interested in ${label} at ${property.title}. Is it still available?`);
+    setEnquiryError(null);
+    setEnquiryUnit(unit);
+    setShowEnquiryModal(true);
+  };
+
   const submitEnquiry = async () => {
     setEnquiryLoading(true);
     setEnquiryError(null);
@@ -1867,15 +1896,19 @@ export default function PropertyDetails() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          propertyId: property._id,
-          checkIn,
-          checkOut,
-          guests,
-          durationType: selectedDurationType || "hourly",
-          totalPrice: bookingMetrics.subtotal || 0,
-          message: enquiryMessage,
-        }),
+        body: JSON.stringify(
+          enquiryUnit
+            ? { propertyId: property._id, unitId: enquiryUnit._id, message: enquiryMessage }
+            : {
+                propertyId: property._id,
+                checkIn,
+                checkOut,
+                guests,
+                durationType: selectedDurationType || "hourly",
+                totalPrice: bookingMetrics.subtotal || 0,
+                message: enquiryMessage,
+              }
+        ),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -1926,6 +1959,8 @@ export default function PropertyDetails() {
     transition: { ...SECTION_REVEAL.transition, delay },
   });
 
+  const buildingListing = isBuilding(property);
+
   return (
     <>
       <Navbar />
@@ -1939,6 +1974,15 @@ export default function PropertyDetails() {
           onChangeImage={changeImage}
           onSelectImage={selectImage}
         />
+
+        {buildingListing && (
+          <div className="mx-auto max-w-[1280px] px-4 pt-4 md:px-6">
+            <div className="flex items-start gap-2 rounded-[12px] border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
+              <Info size={16} className="mt-[1px] shrink-0" />
+              <span>Photos are representative of the building and its studios; individual units may differ.</span>
+            </div>
+          </div>
+        )}
 
         <div className="mx-auto max-w-[1280px] px-4 py-8 md:px-6 md:py-12">
           <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.95fr)] lg:gap-16">
@@ -1981,7 +2025,13 @@ export default function PropertyDetails() {
                 <AmenitiesSection property={property} />
               </motion.section>
 
-              {property?.unitsCount > 1 && (
+              {buildingListing && (
+                <motion.section {...sectionProps(0.18)}>
+                  <BuildingUnitsSection units={property.units} onEnquire={handleUnitEnquiry} />
+                </motion.section>
+              )}
+
+              {!buildingListing && property?.unitsCount > 1 && (
                 <motion.section {...sectionProps(0.18)}>
                   <UnitsAvailableSection
                     unitsCount={property.unitsCount}
@@ -1991,6 +2041,7 @@ export default function PropertyDetails() {
                 </motion.section>
               )}
 
+              {!buildingListing && (<>
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
@@ -2024,6 +2075,7 @@ export default function PropertyDetails() {
                   dayHoursList={propertyView.availabilityDayHours}
                 />
               </motion.section>
+              </>)}
 
               <motion.section {...sectionProps(0.3)}>
                 <HouseRulesSection property={property} />
@@ -2068,6 +2120,7 @@ export default function PropertyDetails() {
               transition={{ duration: 0.45, ease: "easeOut" }}
               className="lg:self-start"
             >
+              {buildingListing ? <BuildingSummary building={property} /> : (
               <BookingSidebar
                 property={property}
                 enabledPricingOptions={enabledPricingOptions}
@@ -2102,6 +2155,7 @@ export default function PropertyDetails() {
                 leaseConfig={leaseConfig}
                 onLeaseConfigChange={setLeaseConfig}
               />
+              )}
             </motion.aside>
           </div>
         </div>
@@ -2109,11 +2163,13 @@ export default function PropertyDetails() {
         <SimilarSpaces spaces={similarSpaces} />
         <Footer />
 
+        {!buildingListing && (
         <MobileBookingBar
           selectedTier={selectedTier}
           rating={propertyView.rating}
           onBookNow={focusBooking}
         />
+        )}
       </div>
 
       {bookingSuccess && (
@@ -2355,7 +2411,7 @@ export default function PropertyDetails() {
               color: "#0A1628",
               marginBottom: "8px",
             }}>
-              Request to Book
+              {enquiryUnit ? `Enquire about ${enquiryUnit.unitDetails?.label || enquiryUnit.title}` : "Request to Book"}
             </h2>
             <p style={{
               fontSize: "14px",
@@ -2363,7 +2419,9 @@ export default function PropertyDetails() {
               marginBottom: "20px",
               lineHeight: "1.6",
             }}>
-              Send your booking request to the host. They will review and respond within 24 hours.
+              {enquiryUnit
+                ? `Send an enquiry about this unit at ${property.title} to the host. They will reply in your messages.`
+                : "Send your booking request to the host. They will review and respond within 24 hours."}
             </p>
 
             {checkIn && checkOut && (
@@ -2416,6 +2474,7 @@ export default function PropertyDetails() {
                 onClick={() => {
                   setShowEnquiryModal(false);
                   setEnquiryError(null);
+                  setEnquiryUnit(null);
                 }}
                 style={{
                   flex: 1,
@@ -2446,7 +2505,7 @@ export default function PropertyDetails() {
                   cursor: enquiryLoading ? "not-allowed" : "pointer",
                 }}
               >
-                {enquiryLoading ? "Sending..." : "Send Request"}
+                {enquiryLoading ? "Sending..." : enquiryUnit ? "Send Enquiry" : "Send Request"}
               </button>
             </div>
           </div>
