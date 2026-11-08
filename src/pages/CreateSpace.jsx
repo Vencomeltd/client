@@ -31,7 +31,7 @@ import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, minimumTermPayload } from "../utils/vatForm";
 import { minBookingHoursPayload } from "../utils/minBookingHours";
 import UnitForm from "../components/UnitForm";
-import { MAX_UNITS, emptyUnit, validateUnit, unitToPayload } from "../utils/buildingListing";
+import { BUILDING_SKIPPED_FIELDS, MAX_UNITS, emptyUnit, validateUnit, unitToPayload } from "../utils/buildingListing";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -200,14 +200,6 @@ const optionCardClassName =
   "rounded-xl border-[1.5px] border-[#E5E7EB] bg-white p-4 text-left transition hover:border-[#305CDE]";
 
 const sectionTitleClassName = "text-[20px] font-bold text-[#0A1628]";
-
-// Form fields a building listing doesn't send: they describe a bookable
-// space, and a building's rooms carry their own pricing and availability.
-const BUILDING_SKIPPED_FIELDS = [
-  "pricing", "bookingSettings", "availability", "deposit", "depositPolicy", "minBookingHours",
-  "unitsCount", "extras", "discounts", "blockedDates", "bookingApproval", "icalUrl",
-  "leaseFile", "existingLeaseAgreement",
-];
 
 const defaultState = {
   listingType: "single",

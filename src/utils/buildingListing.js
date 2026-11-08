@@ -8,6 +8,14 @@ import { vatPayload, minimumTermPayload, vatFormState } from "./vatForm";
 
 export const MAX_UNITS = 100;
 
+// Form fields a building listing never sends: they describe a bookable
+// space, and a building's rooms carry their own pricing and availability.
+export const BUILDING_SKIPPED_FIELDS = [
+  "pricing", "bookingSettings", "availability", "deposit", "depositPolicy", "minBookingHours",
+  "unitsCount", "extras", "discounts", "blockedDates", "bookingApproval", "icalUrl",
+  "leaseFile", "existingLeaseAgreement",
+];
+
 export const isBuilding = (property) => property?.listingType === "building";
 
 // Whole pounds stay whole (£650); anything with pence shows both digits
@@ -105,6 +113,9 @@ export const validateUnit = (unit) => {
   if (!(Number(unit.price) > 0)) return `${name}: add a monthly price.`;
   if (!unit.vatStatus) return `${name}: choose a VAT status for the price.`;
   if (unit.availStatus === "available_from" && !unit.availableFrom) return `${name}: choose the date it becomes available.`;
+  const features = splitFeatures(unit.features);
+  if (features.length > 20) return `${name}: list at most 20 features.`;
+  if (features.some((feature) => feature.length > 60)) return `${name}: keep each feature under 60 characters.`;
   return "";
 };
 

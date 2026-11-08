@@ -8,6 +8,8 @@ import DepositSection, { depositPolicyPayload, depositPolicyFromListing } from "
 import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, vatFormState, minimumTermPayload } from "../utils/vatForm";
 import { minBookingHoursPayload } from "../utils/minBookingHours";
+import BuildingRoomsEditor from "../components/BuildingRoomsEditor";
+import { BUILDING_SKIPPED_FIELDS } from "../utils/buildingListing";
 
 // Price options that have VAT / utilities settings (annual has none).
 const VAT_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
@@ -30,6 +32,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
   const [deletingPhotoUrl, setDeletingPhotoUrl] = useState(null);
   const [photoError, setPhotoError] = useState("");
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  // A building listing: its id and rooms (null for a normal listing).
+  const [building, setBuilding] = useState(null);
 
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
@@ -101,6 +105,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         if (!response.ok) throw new Error("Property not found");
         const data = await response.json();
         const p = data.property || data;
+        if (p.listingType === "building") setBuilding({ id: p._id, units: p.units || [] });
 
         const pricing = {
           hourly: { enabled: false, price: "" },
@@ -412,6 +417,9 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       console.log("Sending whatsIncluded:", formData.whatsIncluded);
       console.log("formData.rules value:", formData.rules);
       console.log("formData.capacity value:", formData.capacity);
+
+      // Pricing, availability and booking belong to a building's rooms.
+      if (building) BUILDING_SKIPPED_FIELDS.forEach((field) => payload.delete(field));
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
         method: "PUT",
@@ -900,6 +908,9 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           ) : null}
         </div>
 
+        {building && <BuildingRoomsEditor buildingId={building.id} initialUnits={building.units} />}
+
+        {!building && (<>
         <div
           style={{
             background: "#fff",
@@ -1762,6 +1773,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             </p>
           ) : null}
         </div>
+        </>)}
 
         <div
           style={{
@@ -2085,6 +2097,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           </div>
         </div>
 
+        {!building && (
         <div
           style={{
             background: "#fff",
@@ -2150,6 +2163,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             </div>
           )}
         </div>
+        )}
 
         <div
           style={{

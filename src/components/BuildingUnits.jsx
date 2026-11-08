@@ -105,7 +105,7 @@ export function BuildingSummary({ building }) {
         {from ? <p className="text-[13px] text-white/70">from {from.price}/month inc. VAT</p> : null}
       </div>
       <p className="mt-4 text-[13px] leading-6 text-[#6B7280]">
-        Each room has its own price. Choose a room below and send an enquiry to the host; there is nothing to pay online.
+        Each room has its own price. Pick a room from the list and send an enquiry to the host; there is nothing to pay online.
       </p>
       <a
         href="#available-units"
