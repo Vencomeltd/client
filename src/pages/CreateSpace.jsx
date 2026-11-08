@@ -486,6 +486,14 @@ export default function CreateSpace() {
   const [draftId, setDraftId] = useState(null);
   const [draftActionLoading, setDraftActionLoading] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  // Result of the manual "Save Draft" button, shown under the step counter
+  // (a native alert() blocked the page until it was dismissed).
+  const [draftNotice, setDraftNotice] = useState(null);
+  useEffect(() => {
+    if (!draftNotice) return undefined;
+    const timer = setTimeout(() => setDraftNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [draftNotice]);
   const [beforeSelection, setBeforeSelection] = useState(0);
   const [afterSelection, setAfterSelection] = useState(0);
   const [bufferBefore, setBufferBefore] = useState(0);
@@ -1399,19 +1407,23 @@ export default function CreateSpace() {
       const videoFileToUpload = form.video instanceof File ? form.video : null;
       const resolvedVideoUrl = videoFileToUpload ? await uploadFileToR2(videoFileToUpload) : null;
 
-      let mergedImages;
-      let mergedLease;
-      let mergedVideo;
-      setForm((prev) => {
-        mergedImages = (prev.images || []).map((image) => resolvedMap.get(image) ?? image);
-        mergedLease =
-          prev.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl
-            ? resolvedLeaseUrl
-            : prev.leaseAgreement;
-        mergedVideo =
-          prev.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : prev.video;
-        return { ...prev, images: mergedImages, leaseAgreement: mergedLease, video: mergedVideo };
-      });
+      // The saved payload is computed from the form as it is now. It must NOT
+      // read values assigned inside the setForm updater below: React runs that
+      // updater later when updates are queued, so those variables were still
+      // undefined here and `mergedImages[0]` threw (the draft failed to save).
+      const mergedImages = (form.images || []).map((image) => resolvedMap.get(image) ?? image);
+      const mergedLease =
+        form.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl ? resolvedLeaseUrl : form.leaseAgreement;
+      const mergedVideo = form.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : form.video;
+      // Local state is merged against whatever it is at commit time, so photos
+      // added while an upload was in flight survive.
+      setForm((prev) => ({
+        ...prev,
+        images: (prev.images || []).map((image) => resolvedMap.get(image) ?? image),
+        leaseAgreement:
+          prev.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl ? resolvedLeaseUrl : prev.leaseAgreement,
+        video: prev.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : prev.video,
+      }));
 
       const payload = {
         title: form.title || form.locationName || "Untitled space",
@@ -1440,10 +1452,10 @@ export default function CreateSpace() {
         const data = await res.json();
         setDraftId(data.draft._id);
       }
-      if (!silent) alert("Draft saved! You can continue later from your dashboard.");
+      if (!silent) setDraftNotice({ ok: true, text: "Draft saved. You can continue later from your dashboard." });
     } catch (err) {
       console.error("Failed to save draft:", err);
-      if (!silent) alert("Failed to save draft. Please try again.");
+      if (!silent) setDraftNotice({ ok: false, text: "Failed to save the draft. Please try again." });
     } finally {
       if (!silent) setSavingDraft(false);
     }
@@ -4809,6 +4821,11 @@ export default function CreateSpace() {
               <p className="text-center text-[13px] text-[#6B7280]">
                 Step {flow.indexOf(step) + 1} of {flow.length}
               </p>
+              {draftNotice && (
+                <p role="status" className={`text-center text-[12px] font-semibold ${draftNotice.ok ? "text-[#047857]" : "text-[#DC2626]"}`}>
+                  {draftNotice.text}
+                </p>
+              )}
             </div>
 
             {step < 14 ? (
