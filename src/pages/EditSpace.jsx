@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
@@ -9,7 +9,7 @@ import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, vatFormState, minimumTermPayload } from "../utils/vatForm";
 import { minBookingHoursPayload } from "../utils/minBookingHours";
 import BuildingRoomsEditor from "../components/BuildingRoomsEditor";
-import { BUILDING_SKIPPED_FIELDS } from "../utils/buildingListing";
+import { BUILDING_SKIPPED_FIELDS, ROOM_SKIPPED_FIELDS, roomFeaturesProblem, roomUnitDetails } from "../utils/buildingListing";
 
 // Price options that have VAT / utilities settings (annual has none).
 const VAT_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
@@ -34,6 +34,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
   const [viewingPhoto, setViewingPhoto] = useState(null);
   // A building listing: its id and rooms (null for a normal listing).
   const [building, setBuilding] = useState(null);
+  // A room of a building: its building and its own details (null otherwise).
+  const [room, setRoom] = useState(null);
 
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarSavedUrl, setCalendarSavedUrl] = useState("");
@@ -106,6 +108,18 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         const data = await response.json();
         const p = data.property || data;
         if (p.listingType === "building") setBuilding({ id: p._id, units: p.units || [] });
+        if (p.listingType === "unit") {
+          const details = p.unitDetails || {};
+          setRoom({
+            building: p.parentBuilding,
+            // A room with no photos of its own is sent the building's: they are not its to edit.
+            inheritedPhotos: Boolean(p.imagesInherited),
+            sizeSqFt: details.sizeSqFt ? String(details.sizeSqFt) : "",
+            unitFeatures: (details.features || []).join(", "),
+            unitStatus: details.availability?.status || "available",
+            unitAvailableFrom: details.availability?.availableFrom ? String(details.availability.availableFrom).slice(0, 10) : "",
+          });
+        }
 
         const pricing = {
           hourly: { enabled: false, price: "" },
@@ -148,7 +162,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           lat: p.coordinates?.lat || p.coordinates?.latitude || null,
           lng: p.coordinates?.lng || p.coordinates?.longitude || null,
           photos: [],
-          photoUrls: p.images || [],
+          photoUrls: p.imagesInherited ? [] : p.images || [],
           extras: p.extras || [],
           pricing,
           customDayPricingEnabled: (p.pricing?.customDayPricing?.length || 0) > 0,
@@ -290,6 +304,11 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
   };
 
   const handleSave = async () => {
+    const featuresProblem = room ? roomFeaturesProblem(room.unitFeatures) : "";
+    if (featuresProblem) {
+      alert(featuresProblem);
+      return;
+    }
     setSaving(true);
     try {
       const token = localStorage.getItem("vencome_token");
@@ -418,8 +437,13 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
       console.log("formData.rules value:", formData.rules);
       console.log("formData.capacity value:", formData.capacity);
 
-      // Pricing, availability and booking belong to a building's rooms.
+      // Pricing, discounts and booking belong to a building's rooms.
       if (building) BUILDING_SKIPPED_FIELDS.forEach((field) => payload.delete(field));
+      if (room) {
+        // A room keeps its building's location, category and lease.
+        ROOM_SKIPPED_FIELDS.forEach((field) => payload.delete(field));
+        payload.append("unitDetails", JSON.stringify(roomUnitDetails({ ...room, title: formData.title, capacity: formData.capacity })));
+      }
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`, {
         method: "PUT",
@@ -571,6 +595,11 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             <p style={{ color: "#6B7280", fontSize: "14px", marginTop: "4px" }}>
               Update your listing details below
             </p>
+            {room?.building?._id && !embedded ? (
+              <Link to={`/edit-space/${room.building._id}`} style={{ display: "inline-block", marginTop: "6px", fontSize: "13px", fontWeight: "600", color: "#305CDE" }}>
+                Back to {room.building.title || "the building"}
+              </Link>
+            ) : null}
           </div>
           <button
             onClick={handleSave}
@@ -700,6 +729,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           </div>
         </div>
 
+        {room && (
         <div
           style={{
             background: "#fff",
@@ -710,8 +740,76 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           }}
         >
           <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: "16px" }}>
-            Photos
+            Room Details
           </h3>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Size (sq ft)</label>
+            <input
+              type="number"
+              min="0"
+              value={room.sizeSqFt}
+              onChange={(e) => setRoom((prev) => ({ ...prev, sizeSqFt: e.target.value }))}
+              onWheel={(e) => e.target.blur()}
+              style={{ ...{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none", boxSizing: "border-box" }, maxWidth: "200px" }}
+            />
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Key features (comma separated)</label>
+            <textarea
+              rows={2}
+              value={room.unitFeatures}
+              onChange={(e) => setRoom((prev) => ({ ...prev, unitFeatures: e.target.value }))}
+              placeholder="e.g. Natural light, Air conditioning, Own lockable door"
+              style={{ ...{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none", boxSizing: "border-box" }, fontFamily: "inherit", resize: "vertical" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Room status</label>
+              <select
+                value={room.unitStatus}
+                onChange={(e) => setRoom((prev) => ({ ...prev, unitStatus: e.target.value }))}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              >
+                <option value="available">Available now</option>
+                <option value="available_from">Available from a date</option>
+                <option value="let">Let</option>
+              </select>
+            </div>
+            {room.unitStatus === "available_from" && (
+              <div style={{ flex: "1 1 160px" }}>
+                <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Available from</label>
+                <input
+                  type="date"
+                  value={room.unitAvailableFrom}
+                  onChange={(e) => setRoom((prev) => ({ ...prev, unitAvailableFrom: e.target.value }))}
+                  style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1.5px solid #E5E7EB", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+            marginBottom: "16px",
+          }}
+        >
+          <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", marginBottom: room ? "4px" : "16px" }}>
+            {room ? "Photos (optional)" : "Photos"}
+          </h3>
+          {room ? (
+            <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
+              {room.inheritedPhotos || formData.photoUrls.length === 0
+                ? "This room has no photos of its own, so guests see the building's photos."
+                : "If you remove all of this room's photos, guests see the building's photos."}
+            </p>
+          ) : null}
 
           {photoError && (
             <p style={{ fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>{photoError}</p>
@@ -1419,6 +1517,8 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           </div>
         </div>
 
+        </>)}
+
         <div
           style={{
             background: "#fff",
@@ -1648,6 +1748,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               </>
             )}
           </div>
+          {!building && (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <input
               type="checkbox"
@@ -1664,8 +1765,10 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
               Enable Instant Book
             </label>
           </div>
+          )}
         </div>
 
+        {!building && (<>
         <div
           style={{
             background: "#fff",
@@ -1775,6 +1878,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         </div>
         </>)}
 
+        {!room && (
         <div
           style={{
             background: "#fff",
@@ -1949,6 +2053,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             </p>
           </div>
         </div>
+        )}
 
         <div
           style={{
@@ -2097,7 +2202,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
           </div>
         </div>
 
-        {!building && (
+        {!room && (
         <div
           style={{
             background: "#fff",
@@ -2165,6 +2270,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
         </div>
         )}
 
+        {!room && (
         <div
           style={{
             background: "#fff",
@@ -2230,6 +2336,7 @@ export default function EditSpace({ embedded = false, idOverride, onClose } = {}
             </div>
           )}
         </div>
+        )}
 
         <div style={{ display: "flex", gap: "12px", justifyContent: "space-between", paddingBottom: "40px" }}>
           <button

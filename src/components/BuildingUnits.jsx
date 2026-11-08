@@ -1,10 +1,12 @@
+import { Link } from "react-router-dom";
 import { Check, Ruler, Users } from "lucide-react";
 import { fromPrice, unitAvailability, unitPriceDisplay, unitsAvailableText } from "../utils/buildingListing";
 
 // The "Available units" part of a building listing page: a card per room with
-// its price, size, capacity, key features and availability. Rooms have no
-// photos. Layout and styling follow the approved mock-up
-// (pages/BuildingListingPreview.jsx). v1 rooms are enquiry-only.
+// its cover image (its own, else the building's), price, size, capacity, key
+// features and availability. Each room is a full listing that guests book at
+// its own page, so a card links there. Layout and styling follow the approved
+// mock-up (pages/BuildingListingPreview.jsx).
 
 const BADGE_STYLES = {
   available: "bg-[#DCFCE7] text-[#166534]",
@@ -12,7 +14,7 @@ const BADGE_STYLES = {
   let: "bg-[#FEF3C7] text-[#92400E]",
 };
 
-function UnitCard({ unit, onEnquire }) {
+function UnitCard({ unit }) {
   const details = unit.unitDetails || {};
   const availability = unitAvailability(details);
   const price = unitPriceDisplay(unit);
@@ -22,6 +24,14 @@ function UnitCard({ unit, onEnquire }) {
     <div
       className={`flex h-full flex-col rounded-[18px] border border-[#E5E7EB] bg-white p-5 shadow-[0_4px_14px_rgba(0,0,0,0.08)] ${isLet ? "opacity-60" : ""}`}
     >
+      {unit.coverImage ? (
+        <img
+          src={unit.coverImage}
+          alt={details.label || unit.title}
+          loading="lazy"
+          className="-mx-1 -mt-1 mb-4 h-40 w-[calc(100%+0.5rem)] rounded-[12px] object-cover"
+        />
+      ) : null}
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-[18px] font-extrabold text-[#0A1628]">{details.label || unit.title}</h3>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${BADGE_STYLES[availability.key]}`}>
@@ -61,20 +71,19 @@ function UnitCard({ unit, onEnquire }) {
         ))}
       </ul>
 
-      {isLet ? null : (
-        <button
-          type="button"
-          onClick={() => onEnquire(unit)}
-          className="mt-5 w-full rounded-[10px] bg-[#0A1628] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#1E293B]"
+      {isLet || !unit.path ? null : (
+        <Link
+          to={unit.path}
+          className="mt-5 block w-full rounded-[10px] bg-[#0A1628] px-4 py-3 text-center text-[14px] font-semibold text-white transition hover:bg-[#1E293B]"
         >
-          Enquire about this unit
-        </button>
+          View and book
+        </Link>
       )}
     </div>
   );
 }
 
-export function BuildingUnitsSection({ units = [], onEnquire }) {
+export function BuildingUnitsSection({ units = [] }) {
   // Let rooms stay visible, after the ones you can still enquire about.
   const sorted = [...units].sort(
     (a, b) => Number(unitAvailability(a.unitDetails).key === "let") - Number(unitAvailability(b.unitDetails).key === "let")
@@ -87,7 +96,7 @@ export function BuildingUnitsSection({ units = [], onEnquire }) {
       ) : (
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           {sorted.map((unit) => (
-            <UnitCard key={unit._id} unit={unit} onEnquire={onEnquire} />
+            <UnitCard key={unit._id} unit={unit} />
           ))}
         </div>
       )}
@@ -102,10 +111,10 @@ export function BuildingSummary({ building }) {
       <div className="rounded-[12px] bg-[#0A1628] p-4 text-white">
         <p className="text-[13px] text-white/70">Available now or soon</p>
         <p className="text-[20px] font-extrabold">{unitsAvailableText(building.unitsAvailable)}</p>
-        {from ? <p className="text-[13px] text-white/70">from {from.price}/month inc. VAT</p> : null}
+        {from ? <p className="text-[13px] text-white/70">from {from.price}/month</p> : null}
       </div>
       <p className="mt-4 text-[13px] leading-6 text-[#6B7280]">
-        Each room has its own price. Pick a room from the list and send an enquiry to the host; there is nothing to pay online.
+        Each room has its own price and is booked directly. Pick a room from the list to see its details and book it.
       </p>
       <a
         href="#available-units"

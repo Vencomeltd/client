@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import DepositSection, { depositPolicyPayload } from "../components/DepositSection";
 import {
@@ -30,8 +30,7 @@ import BlockDatesEditor from "../components/BlockDatesEditor";
 import PriceTaxFields from "../components/PriceTaxFields";
 import { vatPayload, minimumTermPayload } from "../utils/vatForm";
 import { minBookingHoursPayload } from "../utils/minBookingHours";
-import UnitForm from "../components/UnitForm";
-import { BUILDING_SKIPPED_FIELDS, MAX_UNITS, emptyUnit, validateUnit, unitToPayload } from "../utils/buildingListing";
+import { BUILDING_SKIPPED_FIELDS, ROOM_SKIPPED_FIELDS, roomFeaturesProblem, roomUnitDetails } from "../utils/buildingListing";
 
 // Load Google Maps script
 const loadGoogleMapsScript = () => {
@@ -85,20 +84,23 @@ const STEP_LABELS = [
   "Lease",
   "Calendar",
   "Preview",
-  "Rooms",
 ];
 
-// The order steps are shown in. A building skips pricing, availability,
-// discounts, booking, buffer, block dates, lease and calendar (each room has
-// its own price and availability) and adds the Rooms step (15).
+// The order steps are shown in (ids index STEP_LABELS). A building has only
+// building-level steps: its rooms are listings of their own, added afterwards
+// through the room flow, which is the normal flow minus Category, Location
+// and Lease (the building has one lease for all its rooms).
 const SINGLE_FLOW = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-const BUILDING_FLOW = [1, 2, 3, 4, 5, 15, 14];
+const BUILDING_FLOW = [1, 2, 3, 4, 5, 7, 12, 14];
+const ROOM_FLOW = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14];
+const flowFor = (listingType) =>
+  listingType === "building" ? BUILDING_FLOW : listingType === "unit" ? ROOM_FLOW : SINGLE_FLOW;
 const LISTING_TYPE_OPTIONS = [
   { id: "single", title: "A single space", description: "One room, desk or studio that guests book directly." },
   {
     id: "building",
     title: "A building or site with several rooms",
-    description: "One listing with photos of the site, and a card for each room with its price, size and features. Guests send an enquiry about a room.",
+    description: "One listing with photos of the site. You then add each room as its own listing, with its own price, photos and calendar, that guests book directly.",
   },
 ];
 
@@ -202,9 +204,15 @@ const optionCardClassName =
 const sectionTitleClassName = "text-[20px] font-bold text-[#0A1628]";
 
 const defaultState = {
+  // "single" | "building" | "unit" (a room added to a building).
   listingType: "single",
-  // Building listings only: the rooms (see utils/buildingListing.js).
-  units: [],
+  // Rooms only: the building, and the details kept in unitDetails.
+  parentBuilding: "",
+  parentBuildingTitle: "",
+  sizeSqFt: "",
+  unitFeatures: "",
+  unitStatus: "available",
+  unitAvailableFrom: "",
   category: "",
   categoryName: "",
   subcategory: "",
@@ -511,9 +519,12 @@ export default function CreateSpace() {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const [mapsLoaded, setMapsLoaded] = useState(false);
-  // Building publish creates the building, then its rooms; kept across
-  // retries so a failed room never creates a second building.
-  const builtRef = useRef({ id: null, savedUnits: new Set() });
+  // Adding a room to a building: /create-space?building=<buildingId>.
+  const [searchParams] = useSearchParams();
+  const parentBuildingId = searchParams.get("building");
+  const [roomSetupError, setRoomSetupError] = useState("");
+  // The id of the listing just published (a building gets rooms added to it).
+  const [publishedId, setPublishedId] = useState(null);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -659,6 +670,23 @@ export default function CreateSpace() {
   }, [step]);
 
   useEffect(() => {
+    if (parentBuildingId) {
+      // Adding a room to a building: straight into the room flow.
+      (async () => {
+        try {
+          const res = await apiFetch(`/properties/${parentBuildingId}`);
+          const data = await res.json();
+          const building = data.property || data;
+          if (!res.ok || building.listingType !== "building") throw new Error("Not a building");
+          setForm({ ...defaultState, listingType: "unit", parentBuilding: building._id, parentBuildingTitle: building.title });
+          setStep(ROOM_FLOW[0]);
+          setEntryPhase("wizard");
+        } catch {
+          setRoomSetupError("We couldn't open that building. Go back to your listings and try again.");
+        }
+      })();
+      return;
+    }
     const fetchDrafts = async () => {
       try {
         const res = await apiFetch("/drafts");
@@ -672,7 +700,7 @@ export default function CreateSpace() {
       }
     };
     fetchDrafts();
-  }, []);
+  }, [parentBuildingId]);
 
   const continueDraft = async (id) => {
     setDraftActionLoading(id);
@@ -685,7 +713,8 @@ export default function CreateSpace() {
       if (savedForm.bufferBefore) setBufferBefore(savedForm.bufferBefore);
       if (savedForm.bufferAfter) setBufferAfter(savedForm.bufferAfter);
       setDraftId(data.draft._id);
-      setStep(data.draft.step || 1);
+      const draftFlow = flowFor(savedForm.listingType);
+      setStep(draftFlow.includes(data.draft.step) ? data.draft.step : draftFlow[0]);
       setEntryPhase("wizard");
     } catch (err) {
       console.error("Failed to load draft:", err);
@@ -840,19 +869,6 @@ export default function CreateSpace() {
 
   const updateField = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const updateUnit = (localId, patch) => {
-    setForm((current) => ({
-      ...current,
-      units: current.units.map((unit) => (unit.localId === localId ? { ...unit, ...patch } : unit)),
-    }));
-  };
-  const addUnit = () => {
-    setForm((current) => ({ ...current, units: [...(current.units || []), emptyUnit()] }));
-  };
-  const removeUnit = (localId) => {
-    setForm((current) => ({ ...current, units: current.units.filter((unit) => unit.localId !== localId) }));
   };
 
   const toggleDay = (day) => {
@@ -1025,7 +1041,8 @@ export default function CreateSpace() {
   };
 
   const isBuilding = form.listingType === "building";
-  const flow = isBuilding ? BUILDING_FLOW : SINGLE_FLOW;
+  const isRoom = form.listingType === "unit";
+  const flow = flowFor(form.listingType);
 
   const nextStep = () => {
     setValidationError("");
@@ -1049,7 +1066,16 @@ export default function CreateSpace() {
     // Step 3 — Title and description required
     if (step === 3) {
       if (!form.title?.trim()) {
-        setValidationError("Please enter a listing title before continuing.");
+        setValidationError(isRoom ? "Please enter a room name or number before continuing." : "Please enter a listing title before continuing.");
+        return;
+      }
+    }
+
+    // Step 5 -- a room's key features must fit the server's limits
+    if (step === 5 && isRoom) {
+      const problem = roomFeaturesProblem(form.unitFeatures);
+      if (problem) {
+        setValidationError(problem);
         return;
       }
     }
@@ -1084,21 +1110,20 @@ export default function CreateSpace() {
   const publishIssues = () => {
     const issues = [];
     if (!form.description?.trim()) issues.push({ step: 3, message: "Add a description to publish this listing." });
-    if (!form.images || form.images.length === 0) issues.push({ step: 4, message: "Add at least one photo to publish this listing." });
-    if (isBuilding) {
-      // Each room carries its own price and availability; there is no
-      // listing-level pricing or opening hours to check.
-      const units = form.units || [];
-      const badUnit = units.find((unit) => validateUnit(unit));
-      if (units.length === 0) issues.push({ step: 15, message: "Add at least one room to publish this building." });
-      else if (badUnit) issues.push({ step: 15, message: validateUnit(badUnit) });
-      return issues;
+    // A room's photos are optional: with none, guests see the building's.
+    if (!isRoom && (!form.images || form.images.length === 0)) issues.push({ step: 4, message: "Add at least one photo to publish this listing." });
+    if (isRoom) {
+      const problem = roomFeaturesProblem(form.unitFeatures);
+      if (problem) issues.push({ step: 5, message: problem });
     }
-    const enabledPrices = Object.values(form.pricing || {}).filter((option) => option.enabled && option.price);
-    if (enabledPrices.length === 0) issues.push({ step: 6, message: "Add at least one price to publish this listing." });
-    else if (enabledPrices.some((option) => !option.vatStatus)) issues.push({ step: 6, message: "Choose a VAT status for each price to publish this listing." });
+    // A building has no price of its own: each room has one.
+    if (!isBuilding) {
+      const enabledPrices = Object.values(form.pricing || {}).filter((option) => option.enabled && option.price);
+      if (enabledPrices.length === 0) issues.push({ step: 6, message: "Add at least one price to publish this listing." });
+      else if (enabledPrices.some((option) => !option.vatStatus)) issues.push({ step: 6, message: "Choose a VAT status for each price to publish this listing." });
+    }
     if (!form.availabilityDays || form.availabilityDays.length === 0) {
-      issues.push({ step: 7, message: "Choose the days the space is available to publish this listing." });
+      issues.push({ step: 7, message: isBuilding ? "Choose the days the site is open to publish this listing." : "Choose the days the space is available to publish this listing." });
     } else if (form.hoursMode === "custom") {
       const missingDay = form.availabilityDays.find((day) => {
         const hours = form.dayHours[day];
@@ -1107,6 +1132,9 @@ export default function CreateSpace() {
       if (missingDay) issues.push({ step: 7, message: `Set the hours for ${missingDay} to publish this listing.` });
     } else if (!form.is24Hours && (!form.startTime || !form.endTime)) {
       issues.push({ step: 7, message: "Set the open and close times to publish this listing." });
+    }
+    if (isRoom && form.unitStatus === "available_from" && !form.unitAvailableFrom) {
+      issues.push({ step: 7, message: "Choose the date this room becomes available to publish this listing." });
     }
     return issues;
   };
@@ -1303,49 +1331,31 @@ export default function CreateSpace() {
         }
       }
       if (isBuilding) {
-        // Pricing, availability and booking belong to the rooms, not the building.
+        // Pricing, discounts and booking belong to the building's rooms.
         BUILDING_SKIPPED_FIELDS.forEach((field) => formData.delete(field));
         formData.append("listingType", "building");
+      } else if (isRoom) {
+        // A room is a full listing minus what it inherits from its building.
+        ROOM_SKIPPED_FIELDS.forEach((field) => formData.delete(field));
+        formData.append("listingType", "unit");
+        formData.append("parentBuilding", form.parentBuilding);
+        formData.append("unitDetails", JSON.stringify(roomUnitDetails(form)));
       }
 
-      // A retry after some rooms failed must not create the building twice.
-      if (!(isBuilding && builtRef.current.id)) {
-        const res = await apiFetch("/properties", {
-          method: "POST",
-          body: formData,
-        });
+      const res = await apiFetch("/properties", {
+        method: "POST",
+        body: formData,
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          setError(data.message || data.error || "Failed to create listing");
-          setIsLoading(false);
-          setIsPublishing(false);
-          return;
-        }
-        if (isBuilding) builtRef.current.id = data.property?._id;
+      if (!res.ok) {
+        setError(data.message || data.error || "Failed to create listing");
+        setIsLoading(false);
+        setIsPublishing(false);
+        return;
       }
-
-      if (isBuilding) {
-        const failed = [];
-        for (const unit of form.units) {
-          if (builtRef.current.savedUnits.has(unit.localId)) continue;
-          const unitRes = await apiFetch(`/properties/${builtRef.current.id}/units`, {
-            method: "POST",
-            body: JSON.stringify(unitToPayload(unit)),
-          });
-          if (unitRes.ok) {
-            builtRef.current.savedUnits.add(unit.localId);
-          } else {
-            const body = await unitRes.json().catch(() => ({}));
-            failed.push(`${unit.label.trim()} (${body.message || body.error || "failed"})`);
-          }
-        }
-        if (failed.length > 0) {
-          setError(`The building was created, but these rooms were not saved: ${failed.join(", ")}. Press Publish to try them again.`);
-          return;
-        }
-      }
+      setPublishedId(data.property?._id || null);
 
       setPublishSuccess(true);
       if (draftId) {
@@ -1524,6 +1534,23 @@ export default function CreateSpace() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [entryPhase, publishSuccess]);
 
+  if (roomSetupError) {
+    return (
+      <DashboardLayout title="Create Space">
+        <div className="mx-auto max-w-[720px] px-4 py-16 text-center">
+          <p className="text-[15px] text-[#374151]">{roomSetupError}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/host/listings")}
+            className="mt-6 rounded-[10px] bg-[#0A1628] px-6 py-3 text-[14px] font-semibold text-white"
+          >
+            View My Listings
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (entryPhase === "loading") {
     return (
       <DashboardLayout title="Create Space">
@@ -1569,7 +1596,7 @@ export default function CreateSpace() {
                     {draft.title || "Untitled space"}
                   </p>
                   <p className="mt-0.5 text-[12px] text-[#6B7280]">
-                    {draft.step === 15 ? "Rooms step" : `Step ${draft.step} of ${SINGLE_FLOW.length}`} · Last saved{" "}
+                    {STEP_LABELS[draft.step - 1] || "Details"} step · Last saved{" "}
                     {new Date(draft.updatedAt).toLocaleDateString("en-GB")}
                   </p>
                 </div>
@@ -1613,6 +1640,11 @@ export default function CreateSpace() {
     <DashboardLayout title="Create Space">
       <div className="bg-[#F8F6F0]">
         <StepIndicator step={step} flow={flow} incomplete={new Set(publishIssues().map((issue) => issue.step))} />
+        {isRoom ? (
+          <p className="mx-auto mb-4 max-w-[720px] rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
+            Adding a room to <strong>{form.parentBuildingTitle || "your building"}</strong>. The room uses the building's location, category and lease agreement.
+          </p>
+        ) : null}
 
         <AnimatePresence mode="wait">
           <StepFrame key={`${step}-${direction}`}>
@@ -2211,14 +2243,18 @@ export default function CreateSpace() {
             {step === 3 ? (
               <div>
                 <SectionHeader
-                  title="Add the Listing Details"
-                  subtitle="Describe your space clearly so guests understand what makes it premium and how it works."
+                  title={isRoom ? "Add the Room Details" : "Add the Listing Details"}
+                  subtitle={
+                    isRoom
+                      ? "Name the room and describe it so guests know what they are booking. Its size and capacity show on the building's room cards."
+                      : "Describe your space clearly so guests understand what makes it premium and how it works."
+                  }
                 />
 
                 <div className="space-y-5">
                   <div>
                     <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
-                      Listing title
+                      {isRoom ? "Room name or number" : "Listing title"}
                     </label>
                     <input
                       className={inputClassName}
@@ -2257,6 +2293,23 @@ export default function CreateSpace() {
                     </div>
                   </div>
 
+                  {isRoom ? (
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Size (sq ft)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        className={inputClassName}
+                        value={form.sizeSqFt}
+                        onChange={(event) => updateField("sizeSqFt", event.target.value)}
+                        onWheel={(event) => event.target.blur()}
+                      />
+                    </div>
+                  ) : null}
+
+                  {!isRoom && (
                   <div>
                     <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                       Number of identical units
@@ -2274,6 +2327,7 @@ export default function CreateSpace() {
                       onWheel={(event) => event.target.blur()}
                     />
                   </div>
+                  )}
                   </>)}
 
                   <div>
@@ -2315,10 +2369,18 @@ export default function CreateSpace() {
             {step === 4 ? (
               <div>
                 <SectionHeader
-                  title={isBuilding ? "Representative photos of the building and its studios" : "Upload Photos"}
+                  title={
+                    isBuilding
+                      ? "Representative photos of the building and its studios"
+                      : isRoom
+                      ? "Photos of this room (optional). If you add none, guests see the building's photos."
+                      : "Upload Photos"
+                  }
                   subtitle={
                     isBuilding
                       ? "Upload photos of the building and a typical room. Guests see them labelled as representative, so individual rooms can differ. First photo will be the cover image. Maximum 10 photos."
+                      : isRoom
+                      ? "You can skip this step and add photos later. First photo will be the cover image. Maximum 10 photos."
                       : "Upload high quality photos of your space. First photo will be the cover image. Maximum 10 photos."
                   }
                 />
@@ -2605,6 +2667,22 @@ export default function CreateSpace() {
                 />
 
                 <div className="space-y-6">
+                  {isRoom ? (
+                    <div>
+                      <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
+                        Key features (comma separated)
+                      </label>
+                      <p className="mb-2 text-[12px] text-[#6B7280]">
+                        Shown as a short list on this room's card in the building, e.g. Natural light, Air conditioning, Own lockable door.
+                      </p>
+                      <textarea
+                        rows={2}
+                        className={textareaClassName}
+                        value={form.unitFeatures}
+                        onChange={(event) => updateField("unitFeatures", event.target.value)}
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between rounded-xl border border-[#E5E7EB] bg-white p-5">
                     <div>
                       <p className="text-[15px] font-bold text-[#0A1628]">WiFi Access</p>
@@ -2714,6 +2792,7 @@ export default function CreateSpace() {
                   </div>
 
                   {!isBuilding && (<>
+                  {!isRoom && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                     <div>
                       <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
@@ -2742,6 +2821,7 @@ export default function CreateSpace() {
                       />
                     </div>
                   </div>
+                  )}
 
                   <div>
                     <div
@@ -2881,6 +2961,11 @@ export default function CreateSpace() {
 
             {step === 6 ? (
               <div>
+                {isRoom ? (
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
+                    Rooms are usually let monthly: add a monthly price so this room counts towards the building's "From" price.
+                  </p>
+                ) : null}
                 <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
                   Special terms or requirements?{" "}
                   <button
@@ -3330,7 +3415,11 @@ export default function CreateSpace() {
               <div>
                 <SectionHeader
                   title="Availability"
-                  subtitle="Define when your listing can be booked and how much notice guests need before checkout."
+                  subtitle={
+                    isBuilding
+                      ? "Choose the days and opening hours of the site."
+                      : "Define when your listing can be booked and how much notice guests need before checkout."
+                  }
                 />
                 <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 16px" }}>
                   Special terms or requirements?{" "}
@@ -3344,6 +3433,32 @@ export default function CreateSpace() {
                 </p>
 
                 <div className="space-y-6">
+                  {isRoom ? (
+                    <div>
+                      <h3 className={sectionTitleClassName}>Room status</h3>
+                      <div className="mt-3 flex flex-wrap items-end gap-3">
+                        <select
+                          className={inputClassName}
+                          style={{ maxWidth: 240 }}
+                          value={form.unitStatus}
+                          onChange={(event) => updateField("unitStatus", event.target.value)}
+                        >
+                          <option value="available">Available now</option>
+                          <option value="available_from">Available from a date</option>
+                          <option value="let">Let</option>
+                        </select>
+                        {form.unitStatus === "available_from" ? (
+                          <input
+                            type="date"
+                            className={inputClassName}
+                            style={{ maxWidth: 200 }}
+                            value={form.unitAvailableFrom}
+                            onChange={(event) => updateField("unitAvailableFrom", event.target.value)}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                   <div>
                     <h3 className={sectionTitleClassName}>Open Days</h3>
                     <div className="mt-4 flex flex-wrap gap-3">
@@ -3482,6 +3597,7 @@ export default function CreateSpace() {
                     )}
                   </div>
 
+                  {!isBuilding && (
                   <div style={{ marginTop: "24px" }}>
                     <label
                       style={{
@@ -3532,6 +3648,7 @@ export default function CreateSpace() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                 </div>
               </div>
@@ -3960,7 +4077,11 @@ export default function CreateSpace() {
               <div>
                 <SectionHeader
                   title="Lease Agreement & Video"
-                  subtitle="Upload your standard lease agreement and an optional video tour of the space. Both are optional and can be added later."
+                  subtitle={
+                    isBuilding
+                      ? "Upload the lease agreement used for all the rooms in this building, and an optional video tour. Both are optional and can be added later."
+                      : "Upload your standard lease agreement and an optional video tour of the space. Both are optional and can be added later."
+                  }
                 />
 
                 <div
@@ -4442,53 +4563,6 @@ export default function CreateSpace() {
               </div>
             ) : null}
 
-            {step === 15 ? (
-              <div>
-                <SectionHeader
-                  title="Add the Rooms"
-                  subtitle="Add each room that is available in this building, with its own price, size and key features. Rooms have no photos of their own: guests see the building's photos. Guests send you an enquiry about a room."
-                />
-
-                <div className="space-y-4">
-                  {(form.units || []).length === 0 ? (
-                    <div className="rounded-xl border-[1.5px] border-dashed border-[#E5E7EB] p-6 text-center text-[14px] text-[#9CA3AF]">
-                      No rooms added yet. Click "Add a room" to add one.
-                    </div>
-                  ) : (
-                    form.units.map((unit, index) => (
-                      <div key={unit.localId} className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <p className="text-[15px] font-bold text-[#0A1628]">
-                            Room {index + 1}
-                            {unit.label.trim() ? ` · ${unit.label.trim()}` : ""}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => removeUnit(unit.localId)}
-                            className="text-[13px] font-semibold text-[#DC2626] hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <UnitForm value={unit} onChange={(patch) => updateUnit(unit.localId, patch)} />
-                      </div>
-                    ))
-                  )}
-                  <button
-                    type="button"
-                    onClick={addUnit}
-                    disabled={(form.units || []).length >= MAX_UNITS}
-                    className="w-full rounded-xl border-[1.5px] border-dashed border-[#E5E7EB] bg-white py-3 text-[14px] font-semibold text-[#0A1628] transition hover:border-[#305CDE] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    + Add a room
-                  </button>
-                  <p className="text-[12px] text-[#6B7280]">
-                    {(form.units || []).length} of {MAX_UNITS} rooms. You can add, change or mark rooms as let later from Edit listing.
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
             {step === 14 ? (
               <div>
                 <SectionHeader
@@ -4512,9 +4586,11 @@ export default function CreateSpace() {
                     />
                     <div className="p-6">
                       <div className="flex flex-wrap items-center gap-2">
+                        {isRoom ? null : (
                         <span className="rounded-full bg-[#0A1628] px-3 py-1 text-[12px] font-semibold text-white">
                           {previewCategory}
                         </span>
+                        )}
                         {form.instantBook ? (
                           <span className="rounded-full bg-[rgba(22,163,74,0.1)] px-3 py-1 text-[12px] font-semibold text-[#16A34A]">
                             Instant Book
@@ -4528,16 +4604,9 @@ export default function CreateSpace() {
 
                       <div className="mt-3 flex flex-wrap items-center gap-4 text-[14px] text-[#6B7280]">
                         <span className="inline-flex items-center gap-1.5">
-                          <MapPin size={14} />
-                          {form.locationName}
+                          {isRoom ? <Building2 size={14} /> : <MapPin size={14} />}
+                          {isRoom ? form.parentBuildingTitle : form.locationName}
                         </span>
-                        {isBuilding ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <Building2 size={14} />
-                            {(form.units || []).length} {(form.units || []).length === 1 ? "room" : "rooms"}
-                          </span>
-                        ) : (
-                          <>
                         <span className="inline-flex items-center gap-1.5">
                           <Clock3 size={14} />
                           {form.hoursMode === "custom"
@@ -4550,13 +4619,17 @@ export default function CreateSpace() {
                           <CalendarDays size={14} />
                           {form.availabilityDays.length} days open
                         </span>
-                          </>
-                        )}
                       </div>
 
                       <p className="mt-4 text-[15px] leading-7 text-[#374151]">
                         {form.description}
                       </p>
+
+                      {isRoom && !(form.photoUrls?.length || form.images?.length) ? (
+                        <p className="mt-5 rounded-xl bg-[#F8F9FB] px-4 py-3 text-[13px] text-[#6B7280]">
+                          No photos added: guests will see the building's photos for this room.
+                        </p>
+                      ) : null}
 
                       {(form.photoUrls?.length || form.images?.length) > 0 ? (
                         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -4578,20 +4651,6 @@ export default function CreateSpace() {
                       ) : null}
                     </div>
                   </div>
-
-                  {isBuilding ? (
-                    <div className="rounded-xl border border-[#E5E7EB] bg-white p-5">
-                      <h3 className={sectionTitleClassName}>Rooms</h3>
-                      <ul className="mt-4 grid gap-2 text-[14px] text-[#374151]">
-                        {(form.units || []).map((unit) => (
-                          <li key={unit.localId} className="flex justify-between gap-3">
-                            <span className="font-semibold text-[#0A1628]">{unit.label || "Unnamed room"}</span>
-                            <span>{unit.price ? `${formatCurrency(unit.price)} / month` : "No price yet"}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
 
                   <div className="grid gap-4 md:grid-cols-3">
                     {!isBuilding && Object.entries(form.pricing || {})
@@ -4709,7 +4768,7 @@ export default function CreateSpace() {
         <div className="sticky bottom-0 z-50 -mx-4 mt-8 border-t border-[#E5E7EB] bg-white px-4 py-3 sm:-mx-10 sm:px-8 sm:py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-h-[48px] items-center">
-              {step > 1 ? (
+              {flow.indexOf(step) > 0 ? (
                 <button
                   type="button"
                   onClick={previousStep}
@@ -4813,7 +4872,7 @@ export default function CreateSpace() {
                   ) : (
                     <>
                       <Upload size={16} />
-                      Publish Listing
+                      {isRoom ? "Publish Room" : isBuilding ? "Publish Building" : "Publish Listing"}
                     </>
                   )}
                 </button>
@@ -4855,7 +4914,7 @@ export default function CreateSpace() {
                   marginBottom: "12px",
                 }}
               >
-                Your listing is live!
+                {isBuilding ? "Add your first room" : isRoom ? "Your room is live!" : "Your listing is live!"}
               </h2>
               <p
                 style={{
@@ -4865,8 +4924,11 @@ export default function CreateSpace() {
                   marginBottom: "32px",
                 }}
               >
-                {form.title || "Your listing"} has been published successfully.
-                Tenants can now discover and book your space.
+                {isBuilding
+                  ? `${form.title || "Your building"} is saved. Add a room to make this building visible: guests book each room directly, with its own price and calendar.`
+                  : isRoom
+                  ? `${form.title || "Your room"} has been added to ${form.parentBuildingTitle || "the building"}. Guests can now book it.`
+                  : `${form.title || "Your listing"} has been published successfully. Tenants can now discover and book your space.`}
               </p>
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                 <button
@@ -4886,7 +4948,11 @@ export default function CreateSpace() {
                 </button>
                 <button
                   onClick={() => {
-                    window.location.href = "/create-space";
+                    window.location.href = isBuilding && publishedId
+                      ? `/create-space?building=${publishedId}`
+                      : isRoom
+                      ? `/create-space?building=${form.parentBuilding}`
+                      : "/create-space";
                   }}
                   style={{
                     background: "transparent",
@@ -4899,7 +4965,7 @@ export default function CreateSpace() {
                     cursor: "pointer",
                   }}
                 >
-                  Add Another Space
+                  {isBuilding ? "Add your first room" : isRoom ? "Add another room" : "Add Another Space"}
                 </button>
               </div>
             </div>

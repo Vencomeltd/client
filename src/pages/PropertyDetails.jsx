@@ -54,7 +54,7 @@ import {
 import { hostPublicName, verifiedCompanyName } from "../utils/hostName";
 import useSiteText from "../hooks/useSiteText";
 import { BuildingSummary, BuildingUnitsSection } from "../components/BuildingUnits";
-import { isBuilding, unitsAvailableText } from "../utils/buildingListing";
+import { isBuilding, unitAvailability as roomAvailability, unitsAvailableText } from "../utils/buildingListing";
 
 const BRAND = {
   navy: "#0A1628",
@@ -734,9 +734,11 @@ export async function loader({ params, request }) {
   // (retry later) for anything else. The component re-fetches client-side
   // when property is null, so human visitors still get the listing.
   let res = null;
+  // A room of a building lives at /property/<buildingSlug>/<roomSlug>.
+  const apiPath = params.roomSlug ? `${params.buildingSlug}/rooms/${params.roomSlug}` : params.id;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${params.id}`);
+      res = await fetch(`${import.meta.env.VITE_API_URL}/properties/${apiPath}`);
       if (res.ok || res.status === 404) break;
     } catch {
       res = null;
@@ -746,9 +748,15 @@ export async function loader({ params, request }) {
   if (!res?.ok) return data({ property: null }, { status: 503, headers: { "Retry-After": "120" } });
   const body = await res.json();
   const property = body.property || body;
-  // A room has no page of its own: send visitors to its building.
-  if (property?.listingType === "unit" && property.parentBuilding) {
-    return redirect(`/property/${property.parentBuilding.slug || property.parentBuilding._id}`);
+  // A room's page is the nested /property/<building>/<room> path: send old
+  // /property/<roomIdOrSlug> links there, and fix a stale building slug.
+  if (property?.listingType === "unit" && property.path) {
+    const search = new URL(request.url).search;
+    const requested = decodeURIComponent(new URL(request.url).pathname).replace(/\/$/, "");
+    if (!params.roomSlug || requested !== property.path) {
+      return redirect(`${property.path}${search}`, 301);
+    }
+    return edgeCached({ property });
   }
   // Canonicalize old ObjectId links to the slug URL once one exists, so
   // search engines index a single URL per listing instead of two. Keep the
@@ -788,12 +796,10 @@ export function meta({ data }) {
     ? `${prop.title} in ${location}: ${unitsAvailableText(prop.unitsAvailable)}. ${prop.description?.slice(0, 120) || "Rooms and studios available on VenCome."}`
     : `Book ${prop.title} in ${location}. ${prop.description?.slice(0, 120) || "Professional commercial space available on VenCome."}`;
   const image = prop.coverImage || "https://www.vencome.com/vencome-og.jpg";
-  const url = `https://www.vencome.com/property/${prop.slug || prop._id}`;
+  const url = `https://www.vencome.com${prop.path || `/property/${prop.slug || prop._id}`}`;
 
   return [
     { title },
-    // A room is only ever shown on its building's page.
-    ...(prop.listingType === "unit" ? [{ name: "robots", content: "noindex" }] : []),
     { name: "description", content: description },
     { property: "og:title", content: title },
     { property: "og:description", content: description },
@@ -848,7 +854,9 @@ export function meta({ data }) {
 }
 
 export default function PropertyDetails() {
-  const { id } = useParams();
+  const { id: idParam, buildingSlug, roomSlug } = useParams();
+  // What identifies the listing to the API: the id or slug, or building/room.
+  const id = roomSlug ? `${buildingSlug}/rooms/${roomSlug}` : idParam;
   const navigate = useNavigate();
   const loaderData = useLoaderData();
   const today = startOfDay(new Date());
@@ -902,8 +910,6 @@ export default function PropertyDetails() {
   const [bookedDates, setBookedDates] = useState([]);
   const [unitAvailability, setUnitAvailability] = useState(null);
   const [enquiryMessage, setEnquiryMessage] = useState("");
-  // The building room an enquiry is about, or null for a normal listing.
-  const [enquiryUnit, setEnquiryUnit] = useState(null);
   const [enquiryLoading, setEnquiryLoading] = useState(false);
   const [enquiryError, setEnquiryError] = useState(null);
   const [showTermsGate, setShowTermsGate] = useState(false);
@@ -1028,12 +1034,15 @@ export default function PropertyDetails() {
     let cancelled = false;
     const fetchProperty = async () => {
       // Booked dates load on their own, so a failure there can't hide the listing.
-      fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((bookingData) => {
-          if (bookingData && !cancelled) setBookedDates(bookingData.bookedDates || []);
-        })
-        .catch(() => {});
+      const loadBookedDates = (propertyKey) =>
+        fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${propertyKey}/booked-dates`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((bookingData) => {
+            if (bookingData && !cancelled) setBookedDates(bookingData.bookedDates || []);
+          })
+          .catch(() => {});
+      // A room's id is only known once the room has loaded.
+      if (!roomSlug) loadBookedDates(id);
       try {
         const propRes = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`);
         if (!propRes.ok) {
@@ -1042,10 +1051,11 @@ export default function PropertyDetails() {
         const data = await propRes.json();
         const prop = data.property || data;
         if (cancelled) return;
-        if (prop.listingType === "unit" && prop.parentBuilding) {
-          window.location.replace(`/property/${prop.parentBuilding.slug || prop.parentBuilding._id}`);
+        if (prop.listingType === "unit" && prop.path && !roomSlug) {
+          window.location.replace(prop.path);
           return;
         }
+        if (roomSlug) loadBookedDates(prop._id);
         setProperty(prop);
         setLoadError(null);
         loadedIdRef.current = id;
@@ -1070,7 +1080,7 @@ export default function PropertyDetails() {
     return () => {
       cancelled = true;
     };
-  }, [id, reloadKey]);
+  }, [id, roomSlug, reloadKey]);
 
   // Guest-facing visibility into Property.unitsCount (e.g. "3 of 5 available
   // for these dates") -- only meaningful once both dates are picked, and
@@ -1086,7 +1096,7 @@ export default function PropertyDetails() {
     const fetchUnitAvailability = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/bookings/property/${id}/unit-availability?checkIn=${encodeURIComponent(
+          `${import.meta.env.VITE_API_URL}/bookings/property/${property._id}/unit-availability?checkIn=${encodeURIComponent(
             checkIn
           )}&checkOut=${encodeURIComponent(checkOut)}`
         );
@@ -1101,7 +1111,7 @@ export default function PropertyDetails() {
     return () => {
       cancelled = true;
     };
-  }, [property, checkIn, checkOut, id]);
+  }, [property, checkIn, checkOut]);
 
   useEffect(() => {
     const intent = localStorage.getItem("vencome_booking_intent");
@@ -1870,18 +1880,6 @@ export default function PropertyDetails() {
     setShowEnquiryModal(true);
   };
 
-  const handleUnitEnquiry = (unit) => {
-    if (!localStorage.getItem("vencome_token")) {
-      window.location.href = "/login";
-      return;
-    }
-    const label = unit.unitDetails?.label || unit.title;
-    setEnquiryMessage(`Hi, I am interested in ${label} at ${property.title}. Is it still available?`);
-    setEnquiryError(null);
-    setEnquiryUnit(unit);
-    setShowEnquiryModal(true);
-  };
-
   const submitEnquiry = async () => {
     setEnquiryLoading(true);
     setEnquiryError(null);
@@ -1896,19 +1894,15 @@ export default function PropertyDetails() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(
-          enquiryUnit
-            ? { propertyId: property._id, unitId: enquiryUnit._id, message: enquiryMessage }
-            : {
-                propertyId: property._id,
-                checkIn,
-                checkOut,
-                guests,
-                durationType: selectedDurationType || "hourly",
-                totalPrice: bookingMetrics.subtotal || 0,
-                message: enquiryMessage,
-              }
-        ),
+        body: JSON.stringify({
+          propertyId: property._id,
+          checkIn,
+          checkOut,
+          guests,
+          durationType: selectedDurationType || "hourly",
+          totalPrice: bookingMetrics.subtotal || 0,
+          message: enquiryMessage,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -1960,6 +1954,7 @@ export default function PropertyDetails() {
   });
 
   const buildingListing = isBuilding(property);
+  const roomBuilding = property?.listingType === "unit" ? property.parentBuilding : null;
 
   return (
     <>
@@ -1975,7 +1970,21 @@ export default function PropertyDetails() {
           onSelectImage={selectImage}
         />
 
-        {buildingListing && (
+        {roomBuilding && (
+          <div className="mx-auto max-w-[1280px] px-4 pt-4 md:px-6">
+            <Link
+              to={`/property/${roomBuilding.slug || roomBuilding._id}`}
+              className="inline-flex items-center gap-1 text-[14px] font-semibold text-[#305CDE] hover:underline"
+            >
+              <ChevronLeft size={16} /> Back to {roomBuilding.title}
+            </Link>
+            {roomAvailability(property.unitDetails).key === "let" ? (
+              <p className="mt-2 text-[13px] font-semibold text-[#92400E]">This room is currently let and can't be booked.</p>
+            ) : null}
+          </div>
+        )}
+
+        {(buildingListing || property?.imagesInherited) && (
           <div className="mx-auto max-w-[1280px] px-4 pt-4 md:px-6">
             <div className="flex items-start gap-2 rounded-[12px] border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
               <Info size={16} className="mt-[1px] shrink-0" />
@@ -2027,7 +2036,28 @@ export default function PropertyDetails() {
 
               {buildingListing && (
                 <motion.section {...sectionProps(0.18)}>
-                  <BuildingUnitsSection units={property.units} onEnquire={handleUnitEnquiry} />
+                  <BuildingUnitsSection units={property.units} />
+                </motion.section>
+              )}
+
+              {buildingListing && (
+                <motion.section {...sectionProps(0.2)}>
+                  <div className="border-b border-[#E5E7EB] py-6">
+                    <h2 className="text-[20px] font-bold text-[#0A1628]">Opening hours</h2>
+                    <p className="mt-1 text-[13px] text-[#6B7280]">{propertyView.availabilityLabel}</p>
+                    {propertyView.availabilityDayHours ? (
+                      <div className="mt-2 grid max-w-xs grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                        {propertyView.availabilityDayHours.map(({ day, label }) => (
+                          <p key={day} className="contents text-[13px] text-[#6B7280]">
+                            <span className="font-medium text-[#374151]">{day}</span>
+                            <span>{label}</span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-[13px] text-[#6B7280]">{propertyView.availabilityHours}</p>
+                    )}
+                  </div>
                 </motion.section>
               )}
 
@@ -2411,7 +2441,7 @@ export default function PropertyDetails() {
               color: "#0A1628",
               marginBottom: "8px",
             }}>
-              {enquiryUnit ? `Enquire about ${enquiryUnit.unitDetails?.label || enquiryUnit.title}` : "Request to Book"}
+              Request to Book
             </h2>
             <p style={{
               fontSize: "14px",
@@ -2419,9 +2449,7 @@ export default function PropertyDetails() {
               marginBottom: "20px",
               lineHeight: "1.6",
             }}>
-              {enquiryUnit
-                ? `Send an enquiry about this unit at ${property.title} to the host. They will reply in your messages.`
-                : "Send your booking request to the host. They will review and respond within 24 hours."}
+              Send your booking request to the host. They will review and respond within 24 hours.
             </p>
 
             {checkIn && checkOut && (
@@ -2474,7 +2502,6 @@ export default function PropertyDetails() {
                 onClick={() => {
                   setShowEnquiryModal(false);
                   setEnquiryError(null);
-                  setEnquiryUnit(null);
                 }}
                 style={{
                   flex: 1,
@@ -2505,7 +2532,7 @@ export default function PropertyDetails() {
                   cursor: enquiryLoading ? "not-allowed" : "pointer",
                 }}
               >
-                {enquiryLoading ? "Sending..." : enquiryUnit ? "Send Enquiry" : "Send Request"}
+                {enquiryLoading ? "Sending..." : "Send Request"}
               </button>
             </div>
           </div>
