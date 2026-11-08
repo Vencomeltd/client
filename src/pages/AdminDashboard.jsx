@@ -5845,7 +5845,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
       // fall back to the list's (content-less) blog object below
     }
     setEditingBlog(fullBlog);
-    setBlogForm({ title: fullBlog.title, excerpt: fullBlog.excerpt, content: fullBlog.content || "", coverImage: fullBlog.coverImage || "", category: fullBlog.category, tags: (fullBlog.tags || []).join(", "), author: fullBlog.author, status: fullBlog.status });
+    setBlogForm({ title: fullBlog.title, excerpt: fullBlog.excerpt, content: fullBlog.content || "", coverImage: fullBlog.coverImage || "", category: fullBlog.category, tags: (fullBlog.tags || []).join(", "), author: fullBlog.author, status: fullBlog.status, seoTitle: fullBlog.seoTitle || "", seoDescription: fullBlog.seoDescription || "", ogImage: fullBlog.ogImage || "" });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };

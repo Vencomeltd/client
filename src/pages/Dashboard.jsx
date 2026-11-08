@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import getGreeting from "../utils/greeting";
 import {
@@ -268,6 +268,7 @@ function OnboardingChecklist({ token }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const token = localStorage.getItem("vencome_token");
   const user = JSON.parse(localStorage.getItem("vencome_user") || "{}");
   const [listings, setListings] = useState([]);
@@ -294,6 +295,20 @@ export default function Dashboard() {
       if (listingsRes.ok) {
         const listingsData = await listingsRes.json();
         const allListings = listingsData.properties || [];
+        // A host who has no listing at all goes straight to creating (or resuming) one,
+        // once per browser session so "back" from the form doesn't bounce them again.
+        // They may have a draft; /create-space resumes it.
+        if (allListings.length === 0 && !JSON.parse(localStorage.getItem("vencome_user") || "{}").isAdmin) {
+          let alreadySent = false;
+          try {
+            alreadySent = sessionStorage.getItem("vencome_first_listing_redirect") === "1";
+            sessionStorage.setItem("vencome_first_listing_redirect", "1");
+          } catch { /* private mode: still redirect once per load */ }
+          if (!alreadySent) {
+            navigate("/create-space", { replace: true });
+            return;
+          }
+        }
         setListings(allListings);
         setStats((prev) => ({
           ...prev,
@@ -323,7 +338,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, navigate]);
 
   useEffect(() => {
     fetchHostDashboard();
