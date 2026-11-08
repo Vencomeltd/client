@@ -4768,7 +4768,7 @@ export default function CreateSpace() {
           </div>
         )}
 
-        <div className="sticky bottom-0 z-50 -mx-4 mt-8 border-t border-[#E5E7EB] bg-white px-4 py-3 sm:-mx-10 sm:px-8 sm:py-4">
+        <div className="sticky bottom-0 z-50 -mx-4 mt-8 border-t border-[#E5E7EB] bg-white px-4 py-3 md:-mx-8 md:px-8 md:py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-h-[48px] items-center">
               {flow.indexOf(step) > 0 ? (
