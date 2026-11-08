@@ -2622,8 +2622,70 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
   const fieldStyle = { width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 14, color: "#0A1628", boxSizing: "border-box" };
   const labelStyle = { display: "block", fontSize: 12, fontWeight: 700, color: "#6B7280", margin: "10px 0 4px" };
 
+  // What the host's wizard would still ask for before this can be published
+  // (mirrors publishIssues in CreateSpace.jsx, plus the steps that block Continue).
+  const missing = (() => {
+    if (!openDraft) return [];
+    const items = [];
+    const isBuilding = form.listingType === "building";
+    const isRoom = form.listingType === "unit";
+    if (!form.category) items.push("Category");
+    if (!form.city || !form.country) items.push("Location");
+    if (!String(form.title || openDraft.title || "").trim()) items.push("Title");
+    if (!String(form.description || "").trim()) items.push("Description");
+    if (!isRoom && images.length === 0) items.push("At least one photo");
+    if (!isBuilding) {
+      const enabled = Object.values(form.pricing || {}).filter((option) => option?.enabled && option.price);
+      if (enabled.length === 0) items.push("At least one price");
+      else if (enabled.some((option) => !option.vatStatus)) items.push("VAT status for each price");
+    }
+    if (!(form.availabilityDays || []).length) items.push("Opening days");
+    return items;
+  })();
+
+  // Full editor = the host's own wizard, run on the host's behalf (needs the
+  // server's act-as-host support; the listing is published in the host's name).
+  const openFullEditor = () => {
+    const host = openDraft.host || {};
+    if (!host._id) return onToast("This draft has no host account");
+    window.location.assign(`/create-space?forHost=${host._id}&hostName=${encodeURIComponent(personLine(host))}&draft=${openDraft._id}`);
+  };
+
+  // "New draft for a customer": pick a customer, then build in their wizard.
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickQuery, setPickQuery] = useState("");
+  const [pickResults, setPickResults] = useState([]);
+  const [pickLoading, setPickLoading] = useState(false);
+  useEffect(() => {
+    if (!pickOpen || pickQuery.trim().length < 2) {
+      setPickResults([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setPickLoading(true);
+      try {
+        const token = localStorage.getItem("vencome_token");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users?q=${encodeURIComponent(pickQuery.trim())}&limit=8`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) setPickResults(res.ok ? data.users || [] : []);
+      } finally {
+        if (!cancelled) setPickLoading(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [pickOpen, pickQuery]);
+
   return (
     <div className="p-4">
+      <div className="mb-3 flex justify-end">
+        <button type="button" onClick={() => { setPickQuery(""); setPickOpen(true); }} className="rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white">
+          New draft for a customer
+        </button>
+      </div>
       {loading ? (
         <p className="py-8 text-center text-[14px] text-[#6B7280]">Loading drafts...</p>
       ) : drafts.length === 0 ? (
@@ -2672,6 +2734,36 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
           <button type="button" onClick={() => setPage((current) => current + 1)} disabled={loading || page >= pages} className="rounded-lg border border-[#E5E7EB] px-3 py-2 disabled:opacity-40">Next</button>
         </div>
       </div>
+
+      <Modal isOpen={pickOpen} onClose={() => setPickOpen(false)}>
+        <div style={{ maxHeight: "75vh", overflowY: "auto" }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1628", margin: "0 0 4px" }}>New draft for a customer</h3>
+          <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 12px" }}>
+            Find the customer's account. You'll build the listing in their wizard; it is saved to their account as a draft, and you can publish it for them when everything is filled in.
+          </p>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#6B7280", marginBottom: 4 }} htmlFor="draft-pick-search">Name or email</label>
+          <input id="draft-pick-search" style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }} value={pickQuery} onChange={(e) => setPickQuery(e.target.value)} placeholder="At least 2 letters" autoFocus />
+          {pickLoading && <p style={{ fontSize: 13, color: "#6B7280", margin: "10px 0 0" }}>Searching...</p>}
+          {!pickLoading && pickQuery.trim().length >= 2 && pickResults.length === 0 && <p style={{ fontSize: 13, color: "#6B7280", margin: "10px 0 0" }}>No matching accounts.</p>}
+          <div style={{ marginTop: 10 }}>
+            {pickResults.map((user) => (
+              <div key={user._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderBottom: "1px solid #F3F4F6" }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "#0A1628", margin: 0 }}>{personLine(user)}</p>
+                  <p style={{ fontSize: 12, color: "#6B7280", margin: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{user.email}{user.isHost ? " · host" : ""}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.location.assign(`/create-space?forHost=${user._id}&hostName=${encodeURIComponent(personLine(user))}`)}
+                  style={{ border: "1px solid #0A1628", background: "#0A1628", color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Start
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={!!openDraft} onClose={closeModal}>
         {openDraft && edit && (
@@ -2762,13 +2854,29 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
                   <p style={{ fontSize: 14, color: "#0A1628", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{String(value)}</p>
                 </div>
               ))}
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            {missing.length > 0 ? (
+              <p style={{ fontSize: 13, color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "8px 10px", margin: "8px 0" }}>
+                Still missing to publish: {missing.join(", ")}.
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, color: "#166534", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 10px", margin: "8px 0" }}>
+                Everything needed to publish is filled in.
+              </p>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={openFullEditor}
+                style={{ border: "1px solid #305CDE", color: "#fff", background: "#305CDE", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Open full editor
+              </button>
               <button
                 type="button"
                 onClick={startEdit}
                 style={{ border: "1px solid #0A1628", color: "#fff", background: "#0A1628", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
               >
-                Edit draft
+                Quick edit
               </button>
               <button
                 type="button"

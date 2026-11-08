@@ -23,7 +23,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-import apiFetch from "../utils/apiClient";
+import apiFetch, { setActAsHost } from "../utils/apiClient";
 import { setNavGuard, clearNavGuard, requestNavConfirm } from "../utils/navGuard";
 import DayOfWeekPricing from "../components/DayOfWeekPricing";
 import BlockDatesEditor from "../components/BlockDatesEditor";
@@ -522,6 +522,12 @@ export default function CreateSpace() {
   // Adding a room to a building: /create-space?building=<buildingId>.
   const [searchParams] = useSearchParams();
   const parentBuildingId = searchParams.get("building");
+  // An admin building a listing for a customer: ?forHost=<host user id>
+  // (&hostName=... for the banner, &draft=<draft id> to open one directly).
+  // The server only honours this for admins; see utils/apiClient.js.
+  const forHostId = searchParams.get("forHost");
+  const forHostName = searchParams.get("hostName") || "the host";
+  const openDraftParam = searchParams.get("draft");
   const [roomSetupError, setRoomSetupError] = useState("");
   // The id of the listing just published (a building gets rooms added to it).
   const [publishedId, setPublishedId] = useState(null);
@@ -669,6 +675,13 @@ export default function CreateSpace() {
     };
   }, [step]);
 
+  // Declared before the drafts-loading effect below so the header is set
+  // before its first request; cleared when the wizard closes.
+  useEffect(() => {
+    setActAsHost(forHostId || "");
+    return () => setActAsHost("");
+  }, [forHostId]);
+
   useEffect(() => {
     if (parentBuildingId) {
       // Adding a room to a building: straight into the room flow.
@@ -689,18 +702,27 @@ export default function CreateSpace() {
     }
     const fetchDrafts = async () => {
       try {
+        // Opened straight from an admin's draft list: go to that draft.
+        if (forHostId && openDraftParam) {
+          await continueDraft(openDraftParam);
+          // If it couldn't be opened (continueDraft already said so), fall back to a blank wizard.
+          setEntryPhase((phase) => (phase === "loading" ? "wizard" : phase));
+          return;
+        }
         const res = await apiFetch("/drafts");
         const data = await res.json();
         const list = data.drafts || [];
         setDraftsList(list);
-        setEntryPhase(list.length > 0 ? "choice" : "wizard");
+        // An admin starting a new listing for a customer goes straight to a
+        // blank wizard; otherwise offer any saved drafts first.
+        setEntryPhase(list.length > 0 && !(forHostId && !openDraftParam) ? "choice" : "wizard");
       } catch (err) {
         console.error("Failed to load drafts:", err);
         setEntryPhase("wizard");
       }
     };
     fetchDrafts();
-  }, [parentBuildingId]);
+  }, [parentBuildingId, forHostId, openDraftParam]);
 
   const continueDraft = async (id) => {
     setDraftActionLoading(id);
@@ -1506,10 +1528,10 @@ export default function CreateSpace() {
         console.error("Failed to save draft before leaving:", err);
       }
       clearNavGuard();
-      navigate("/dashboard");
+      navigate(forHostId ? "/admin?section=listings" : "/dashboard");
     });
     return () => clearNavGuard();
-  }, [entryPhase, publishSuccess, navigate]);
+  }, [entryPhase, publishSuccess, navigate, forHostId]);
 
   useEffect(() => {
     if (entryPhase !== "wizard" || publishSuccess) return;
@@ -1640,6 +1662,12 @@ export default function CreateSpace() {
     <DashboardLayout title="Create Space">
       <div className="bg-[#F8F6F0]">
         <StepIndicator step={step} flow={flow} incomplete={new Set(publishIssues().map((issue) => issue.step))} />
+        {forHostId && (
+          <p className="mx-auto mb-4 max-w-[720px] rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-[13px] text-[#92400E]">
+            You are working on behalf of <strong>{forHostName}</strong>. Drafts you save and listings you publish here belong to their account, with you recorded as the creator.
+            Steps marked incomplete above still need filling in before this can be published.
+          </p>
+        )}
         {isRoom ? (
           <p className="mx-auto mb-4 max-w-[720px] rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
             Adding a room to <strong>{form.parentBuildingTitle || "your building"}</strong>. The room uses the building's location, category and lease agreement.
@@ -4935,7 +4963,7 @@ export default function CreateSpace() {
               </p>
               <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
                 <button
-                  onClick={() => navigate("/host/listings")}
+                  onClick={() => navigate(forHostId ? "/admin?section=listings" : "/host/listings")}
                   style={{
                     background: "#0A1628",
                     color: "#fff",
@@ -4947,7 +4975,7 @@ export default function CreateSpace() {
                     cursor: "pointer",
                   }}
                 >
-                  View My Listings
+                  {forHostId ? "Back to admin" : "View My Listings"}
                 </button>
                 <button
                   onClick={() => {
@@ -4955,6 +4983,8 @@ export default function CreateSpace() {
                       ? `/create-space?building=${publishedId}`
                       : isRoom
                       ? `/create-space?building=${form.parentBuilding}`
+                      : forHostId
+                      ? `/create-space?forHost=${forHostId}&hostName=${encodeURIComponent(forHostName)}`
                       : "/create-space";
                   }}
                   style={{

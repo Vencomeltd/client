@@ -1,5 +1,23 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Per-tab (sessionStorage) so it can never leak into another tab.
+const ACT_AS_KEY = "vencome_act_as_host";
+export const getActAsHost = () => {
+  try {
+    return sessionStorage.getItem(ACT_AS_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+export const setActAsHost = (hostId) => {
+  try {
+    if (hostId) sessionStorage.setItem(ACT_AS_KEY, hostId);
+    else sessionStorage.removeItem(ACT_AS_KEY);
+  } catch {
+    // storage unavailable: the wizard simply works as the signed-in user
+  }
+};
+
 const refreshAccessToken = async () => {
   const refreshToken = localStorage.getItem("vencome_refresh");
   if (!refreshToken) {
@@ -56,6 +74,15 @@ export const apiFetch = async (endpoint, options = {}) => {
 
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
+  }
+
+  // An admin building a listing for a customer in the host wizard (see
+  // CreateSpace.jsx, ?forHost=). Only draft requests and the create-listing
+  // POST carry it, and the server only honours it for admins.
+  const actAsHost = getActAsHost();
+  const method = (options.method || "GET").toUpperCase();
+  if (actAsHost && (endpoint.startsWith("/drafts") || (endpoint === "/properties" && method === "POST"))) {
+    headers["X-Act-As-Host"] = actAsHost;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
