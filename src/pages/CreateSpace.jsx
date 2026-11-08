@@ -96,11 +96,11 @@ const ROOM_FLOW = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14];
 const flowFor = (listingType) =>
   listingType === "building" ? BUILDING_FLOW : listingType === "unit" ? ROOM_FLOW : SINGLE_FLOW;
 const LISTING_TYPE_OPTIONS = [
-  { id: "single", title: "A single space", description: "One room, desk or studio that guests book directly." },
+  { id: "single", title: "A single space", description: "One bookable space, like a meeting room, desk, studio or treatment room. Guests book and pay for it directly." },
   {
     id: "building",
     title: "A building or site with several rooms",
-    description: "One listing with photos of the site. You then add each room as its own listing, with its own price, photos and calendar, that guests book directly.",
+    description: "A site with several rooms or suites you rent out separately, like a serviced office or studio block. You add the building once, then each room with its own price, optional photos and calendar. Guests book a room directly.",
   },
 ];
 
@@ -1656,7 +1656,10 @@ export default function CreateSpace() {
                 />
 
                 <div className="mb-8">
-                  <p className="mb-3 text-[15px] font-bold text-[#0A1628]">What are you listing?</p>
+                  <p className="mb-1 text-[15px] font-bold text-[#0A1628]">What are you listing?</p>
+                  <p className="mb-3 text-[13px] leading-6 text-[#6B7280]">
+                    Not sure? If you rent out one space, choose a single space. If your building has several rooms or suites that you rent separately, choose the building option and you will add each room after the building is saved.
+                  </p>
                   <div role="radiogroup" aria-label="Listing type" className="grid gap-3 sm:grid-cols-2">
                     {LISTING_TYPE_OPTIONS.map((option) => {
                       const selected = form.listingType === option.id;

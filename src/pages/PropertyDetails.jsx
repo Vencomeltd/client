@@ -1981,6 +1981,19 @@ export default function PropertyDetails() {
             {roomAvailability(property.unitDetails).key === "let" ? (
               <p className="mt-2 text-[13px] font-semibold text-[#92400E]">This room is currently let and can't be booked.</p>
             ) : null}
+            {(property.unitDetails?.sizeSqFt || property.unitDetails?.capacity || property.unitDetails?.features?.length > 0) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px] text-[#374151]">
+                {property.unitDetails.sizeSqFt ? <span className="rounded-full bg-[#F3F4F6] px-3 py-1 font-semibold">{property.unitDetails.sizeSqFt} sq ft</span> : null}
+                {property.unitDetails.capacity ? (
+                  <span className="rounded-full bg-[#F3F4F6] px-3 py-1 font-semibold">
+                    {property.unitDetails.capacity} {property.unitDetails.capacity === 1 ? "person" : "people"}
+                  </span>
+                ) : null}
+                {(property.unitDetails.features || []).map((feature) => (
+                  <span key={feature} className="rounded-full border border-[#E5E7EB] px-3 py-1">{feature}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
