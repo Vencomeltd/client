@@ -486,6 +486,14 @@ export default function CreateSpace() {
   const [draftId, setDraftId] = useState(null);
   const [draftActionLoading, setDraftActionLoading] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  // Result of the manual "Save Draft" button, shown under the step counter
+  // (a native alert() blocked the page until it was dismissed).
+  const [draftNotice, setDraftNotice] = useState(null);
+  useEffect(() => {
+    if (!draftNotice) return undefined;
+    const timer = setTimeout(() => setDraftNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [draftNotice]);
   const [beforeSelection, setBeforeSelection] = useState(0);
   const [afterSelection, setAfterSelection] = useState(0);
   const [bufferBefore, setBufferBefore] = useState(0);
@@ -1440,10 +1448,10 @@ export default function CreateSpace() {
         const data = await res.json();
         setDraftId(data.draft._id);
       }
-      if (!silent) alert("Draft saved! You can continue later from your dashboard.");
+      if (!silent) setDraftNotice({ ok: true, text: "Draft saved. You can continue later from your dashboard." });
     } catch (err) {
       console.error("Failed to save draft:", err);
-      if (!silent) alert("Failed to save draft. Please try again.");
+      if (!silent) setDraftNotice({ ok: false, text: "Failed to save the draft. Please try again." });
     } finally {
       if (!silent) setSavingDraft(false);
     }
@@ -4809,6 +4817,11 @@ export default function CreateSpace() {
               <p className="text-center text-[13px] text-[#6B7280]">
                 Step {flow.indexOf(step) + 1} of {flow.length}
               </p>
+              {draftNotice && (
+                <p role="status" className={`text-center text-[12px] font-semibold ${draftNotice.ok ? "text-[#047857]" : "text-[#DC2626]"}`}>
+                  {draftNotice.text}
+                </p>
+              )}
             </div>
 
             {step < 14 ? (
