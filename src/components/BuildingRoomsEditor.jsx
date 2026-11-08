@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import apiFetch from "../utils/apiClient";
 import { MAX_UNITS, unitAvailability, unitPriceDisplay } from "../utils/buildingListing";
+import RoomImportPanel from "./RoomImportPanel";
 
 // Rooms of a building, inside EditSpace. Each room is a full listing: "Add
 // room" opens the room flow in CreateSpace, "Edit" opens the room in EditSpace.
@@ -30,6 +31,7 @@ export default function BuildingRoomsEditor({ buildingId, initialUnits }) {
   const [units, setUnits] = useState(initialUnits);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
 
   const reload = async () => {
@@ -80,14 +82,21 @@ export default function BuildingRoomsEditor({ buildingId, initialUnits }) {
           </p>
         </div>
         {units.length >= MAX_UNITS ? null : (
-          <Link
-            to={`/create-space?building=${buildingId}`}
-            style={{ ...smallButton, background: "#0A1628", color: "#fff", border: "none", padding: "8px 16px" }}
-          >
-            + Add a room
-          </Link>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => setImporting(true)} disabled={importing} style={{ ...smallButton, padding: "8px 16px" }}>
+              Import rooms from a spreadsheet
+            </button>
+            <Link
+              to={`/create-space?building=${buildingId}`}
+              style={{ ...smallButton, background: "#0A1628", color: "#fff", border: "none", padding: "8px 16px" }}
+            >
+              + Add a room
+            </Link>
+          </div>
         )}
       </div>
+
+      {importing && <RoomImportPanel buildingId={buildingId} onImported={reload} onClose={() => setImporting(false)} />}
 
       {units.length === 0 ? (
         <p style={{ color: "#92400E", fontSize: 13, background: "#FEF3C7", padding: "10px 14px", borderRadius: 8, margin: "0 0 12px" }}>
