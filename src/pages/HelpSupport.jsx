@@ -69,8 +69,9 @@ const HelpSupport = () => {
               </p>
               <ul className="list-disc pl-6 mt-3 space-y-2">
                 <li>48 hours or more before check-in: 100% refund</li>
-                <li>24 to under 48 hours before check-in: 75% refund</li>
-                <li>Under 24 hours before check-in: no refund</li>
+                <li>More than 24 and under 48 hours before check-in: 75% refund</li>
+                <li>More than 23 and up to 24 hours before check-in: 50% refund</li>
+                <li>23 hours or less before check-in: no refund</li>
               </ul>
               <p className="mt-4">
                 Go to <strong>My Bookings</strong> → select booking → Cancel (if

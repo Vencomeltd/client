@@ -41,7 +41,7 @@ export default function CancellationOptions() {
             If you cancel an Instant Book booking 48 hours or more before the scheduled start time, you'll receive a full refund automatically.
           </p>
           <p style={{ margin: 0 }}>
-            Cancellations made 24 to under 48 hours before the booking start time receive a 75% refund. Cancellations made under 24 hours before the start time are not refundable.
+            Cancellations made more than 24 and less than 48 hours before the booking start time receive a 75% refund. Cancellations made more than 23 hours and up to 24 hours before the start time receive a 50% refund. Cancellations made 23 hours or less before the start time are not refundable.
           </p>
         </Card>
 
