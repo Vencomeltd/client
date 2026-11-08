@@ -5,6 +5,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe
 import { CalendarDays, MapPin, ShieldCheck, Users } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { PaymentElementForm } from "../components/PaymentForms";
+import { hostPublicName } from "../utils/hostName";
 
 if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
   console.error("VITE_STRIPE_PUBLISHABLE_KEY is not set — checkout will not work.");
@@ -84,7 +85,7 @@ export default function Checkout() {
           });
           const statusData = await statusRes.json();
           if (statusRes.ok && statusData.status === "complete") {
-            navigate(`/property/${bookingData.property}?success=true&bookingId=${bookingData._id}&value=${bookingData.totalPrice}`, { replace: true });
+            navigate(`/booking/${bookingData._id}/confirmed?success=true`, { replace: true });
             return;
           }
         }
@@ -130,10 +131,9 @@ export default function Checkout() {
       clientSecret,
       // Embedded mode has no success_url/cancel_url -- this is the
       // equivalent for card payments that complete inline (no redirect-based
-      // step like 3D Secure needed). Matches the exact query params
-      // PropertyDetails.jsx's existing success-modal effect already reads.
+      // step like 3D Secure needed).
       onComplete: () => {
-        navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${booking.totalPrice}`);
+        navigate(`/booking/${booking._id}/confirmed?success=true`);
       },
     };
   }, [clientSecret, booking, navigate]);
@@ -141,6 +141,18 @@ export default function Checkout() {
   const durationUnits = booking?.totalUnits ?? booking?.totalNights;
   const durationWord = UNIT_WORD[booking?.pricingUnit] || "night";
   const rentTotal = series ? v2.amountPence / 100 : booking?.totalPrice || 0;
+  // A lease (a series paid month by month): only month 1 is paid now.
+  const lease = series && v2?.lease;
+  const charged = lease ? series.slice(0, 1) : series;
+  // Core / utilities / VAT split (summed over a series), shown only when the
+  // booking has utilities or VAT -- otherwise the total is all core.
+  const breakdown = (() => {
+    const parts = series ? charged.map((item) => item.breakdown).filter(Boolean) : [booking?.pricingBreakdown].filter(Boolean);
+    if (!parts.length) return null;
+    const sum = (field) => parts.reduce((acc, part) => acc + (part[field] || 0), 0);
+    const result = { corePence: sum("corePence"), utilitiesPence: sum("utilitiesPence"), vatPence: sum("vatPence"), vatRatePct: parts[0].vatRatePct };
+    return result.utilitiesPence || result.vatPence ? result : null;
+  })();
   const depositAmount = booking?.deposit?.amount || 0;
 
   const v2Deposit = v2?.deposit && v2.deposit.mode !== "none" ? v2.deposit : null;
@@ -152,9 +164,16 @@ export default function Checkout() {
     : v2Deposit.mode === "charged"
     ? `A refundable £${v2DepositGbp} deposit is charged to your card at booking and refunded after your stay unless the host reports damage.`
     : `£${v2DepositGbp} will be held on your card ${v2Deposit.holdLeadHours} to ${v2Deposit.holdLeadHoursMax} hours before check-in. You're only charged if there's damage.`;
-  const v2Consent = v2Deposit
-    ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.`
+  const leaseMonthPence = lease && series[1] ? series[1].amountPence : 0;
+  const leaseCopy = lease
+    ? `This is a ${lease.months}-month lease. You pay month 1 now; then ${lease.months - 1} monthly payment${lease.months - 1 === 1 ? "" : "s"} of £${(leaseMonthPence / 100).toFixed(2)} are taken from this card ${lease.chargeLeadDays} days before each month starts.`
     : "";
+  const v2Consent = [
+    lease ? `${leaseCopy} By paying, you agree that VenCome may save your card and take these monthly payments.` : "",
+    v2Deposit ? `${v2DepositCopy} By paying, you agree that VenCome may save your card to place this ${v2Deposit.mode === "charged" ? "charge" : "hold"}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
@@ -181,7 +200,13 @@ export default function Checkout() {
                   payLabel={booking.status === "pending" ? "Send booking request" : `Pay £${rentTotal.toFixed(2)}`}
                   consentText={v2Consent}
                   onSuccess={() =>
-                    navigate(`/property/${booking.property}?success=true&bookingId=${booking._id}&value=${rentTotal}`)
+                    // A series covers several bookings, so it keeps the old
+                    // success modal on the listing (it reads ?success=true).
+                    navigate(
+                      series
+                        ? `/property/${booking.property}?success=true&bookingId=${booking._id}&value=${rentTotal}`
+                        : `/booking/${booking._id}/confirmed?success=true`
+                    )
                   }
                 />
               )}
@@ -199,7 +224,7 @@ export default function Checkout() {
                 )}
                 <div style={{ padding: 24 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>
-                    Hosted by {property.host?.displayName || property.host?.firstName || "your host"}
+                    Hosted by {hostPublicName(property.host)}
                   </p>
                   <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0A1628", margin: "0 0 12px" }}>
                     {property.title}
@@ -211,7 +236,19 @@ export default function Checkout() {
                   )}
 
                   <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                    {series ? (
+                    {lease ? (
+                      <div style={{ fontSize: 13, color: "#374151" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 6 }}>
+                          <CalendarDays size={14} /> {lease.months}-month lease
+                        </div>
+                        <div style={{ padding: "0 0 0 22px", lineHeight: 1.6 }}>
+                          {new Date(series[0].checkIn).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} –{" "}
+                          {new Date(series[series.length - 1].checkOut).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          <br />
+                          Then {lease.months - 1} × £{(leaseMonthPence / 100).toFixed(2)}, each taken {lease.chargeLeadDays} days before the month starts
+                        </div>
+                      </div>
+                    ) : series ? (
                       <div style={{ fontSize: 13, color: "#374151" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 6 }}>
                           <CalendarDays size={14} /> {series.length} dates
@@ -238,12 +275,26 @@ export default function Checkout() {
                   <div style={{ borderTop: "1px solid #F3F4F6", marginTop: 16, paddingTop: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
                       <span>
-                        {series
+                        {lease
+                          ? "Month 1"
+                          : series
                           ? `${series.length} bookings`
                           : durationUnits ? `${durationUnits} ${durationWord}${durationUnits !== 1 ? "s" : ""}` : "Rent"}
                       </span>
-                      <span>£{rentTotal.toFixed(2)}</span>
+                      <span>£{(breakdown ? breakdown.corePence / 100 : rentTotal).toFixed(2)}</span>
                     </div>
+                    {breakdown?.utilitiesPence > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
+                        <span>Utilities</span>
+                        <span>£{(breakdown.utilitiesPence / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {breakdown?.vatPence > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
+                        <span>VAT at {breakdown.vatRatePct}%</span>
+                        <span>£{(breakdown.vatPence / 100).toFixed(2)}</span>
+                      </div>
+                    )}
                     {depositAmount > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
                         <span>Security deposit</span>
@@ -251,7 +302,7 @@ export default function Checkout() {
                       </div>
                     )}
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#0A1628", marginTop: 8, paddingTop: 8, borderTop: "1px solid #F3F4F6" }}>
-                      <span>Total</span>
+                      <span>{lease ? "Due today" : "Total"}</span>
                       <span>£{(rentTotal + depositAmount).toFixed(2)}</span>
                     </div>
                   </div>
@@ -266,6 +317,8 @@ export default function Checkout() {
                     <ShieldCheck size={16} color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
                     {booking.status === "pending"
                       ? "You won't be charged until the host approves your request."
+                      : lease
+                      ? "Each month's rent is held securely and released to the host 48 hours after that month starts."
                       : "Payment is held securely and released to the host after your stay."}
                   </div>
                 </div>

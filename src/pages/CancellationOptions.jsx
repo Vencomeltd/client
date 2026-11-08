@@ -38,10 +38,10 @@ export default function CancellationOptions() {
       <div style={{ display: "grid", gap: "24px" }}>
         <Card title="Instant Book cancellations">
           <p style={{ margin: 0 }}>
-            If you cancel an Instant Book booking more than 24 hours before the scheduled start time, you'll receive a full refund automatically.
+            If you cancel an Instant Book booking 48 hours or more before the scheduled start time, you'll receive a full refund automatically.
           </p>
           <p style={{ margin: 0 }}>
-            Cancellations made within 24 hours of the booking start time are reviewed on a case-by-case basis, and a partial refund may be offered at VenCome's discretion.
+            Cancellations made 24 to under 48 hours before the booking start time receive a 75% refund. Cancellations made under 24 hours before the start time are not refundable.
           </p>
         </Card>
 

@@ -5,6 +5,7 @@ import { edgeCached } from "../utils/edgeCache";
 import PropertyCard from "../components/PropertyCard";
 import Footer from "../components/Footer";
 import NotFound from "./NotFound";
+import useSiteText from "../hooks/useSiteText";
 
 // SEO landing pages: /uk, /uk/:city, /uk/:city/:service and /:serviceSlug
 // (spec in the vault, item 29). Which pages exist and whether they're
@@ -136,6 +137,7 @@ export function meta({ data: d }) {
 }
 
 export default function LandingPage() {
+  const t = useSiteText();
   const d = useLoaderData();
   if (d?.notFound) return <NotFound />;
   if (!d?.page) {
@@ -221,7 +223,7 @@ export default function LandingPage() {
         )}
 
         <section className="mt-14 max-w-3xl">
-          <h2 className="text-xl font-bold text-[#0A1628] mb-4">Frequently asked questions</h2>
+          <h2 className="text-xl font-bold text-[#0A1628] mb-4">{t("city.faq.heading")}</h2>
           <dl className="space-y-5">
             {faqs.map((f) => (
               <div key={f.q}>

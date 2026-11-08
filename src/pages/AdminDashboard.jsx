@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Modal from "../components/Modal";
+import SiteContentSection from "../components/admin/SiteContentSection";
+import DocumentsSection from "../components/admin/DocumentsSection";
+import DataBackupsSection from "../components/admin/DataBackupsSection";
 import { initSocket } from "../utils/socket";
 import {
   AlertTriangle,
@@ -16,6 +19,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Flag,
   Globe,
   GripVertical,
   Key,
@@ -39,6 +43,7 @@ import {
   Shield,
   ShieldOff,
   ShieldQuestion,
+  CalendarClock,
   Tag,
   Trash2,
   TrendingUp,
@@ -48,6 +53,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { hostPublicName } from "../utils/hostName";
+import { downloadCsv } from "../utils/csv";
 
 const PAYMENTS_RANGE_DAYS = {
   "Last 7 days": 7,
@@ -106,6 +113,12 @@ const NAV_ITEMS = [
     icon: ShieldQuestion,
   },
   {
+    label: "Leases",
+    section: "leases",
+    group: "MANAGEMENT",
+    icon: CalendarClock,
+  },
+  {
     label: "Communications",
     section: "communications",
     group: "MANAGEMENT",
@@ -160,6 +173,24 @@ const NAV_ITEMS = [
     icon: MapPin,
   },
   {
+    label: "Site content",
+    section: "site-content",
+    group: "PLATFORM",
+    icon: FileText,
+  },
+  {
+    label: "Documents",
+    section: "documents",
+    group: "PLATFORM",
+    icon: Paperclip,
+  },
+  {
+    label: "Data & backups",
+    section: "data-backups",
+    group: "PLATFORM",
+    icon: Download,
+  },
+  {
     label: "Team",
     section: "team",
     group: "PLATFORM",
@@ -192,8 +223,8 @@ const ADMIN_ROLES = [
 // unknown/loading role) sees everything; team + settings stay full_admin-only.
 const ROLE_SECTIONS = {
   finance: ["overview", "analytics", "payments", "invoices", "commission"],
-  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "communications"],
-  content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages"],
+  support: ["overview", "analytics", "users", "listings", "bookings", "disputes", "support", "claims", "leases", "communications"],
+  content: ["overview", "analytics", "markets", "categories", "broadcast", "content", "seo-pages", "site-content"],
 };
 
 function canAccessSection(adminRole, section) {
@@ -299,7 +330,7 @@ function getUserDisplayName(user = {}) {
 }
 
 function getUserRole(user = {}) {
-  return user.isHost ? "host" : "customer";
+  return user.isAdmin ? "admin" : user.isHost ? "host" : "customer";
 }
 
 function getUserStatus(user = {}) {
@@ -323,6 +354,8 @@ function getListingStatus(listing = {}) {
 function getListingPriceLabel(listing = {}) {
   if (listing.pricing?.hourly) return `${formatCurrency(listing.pricing.hourly)} / hr`;
   if (listing.pricing?.daily) return `${formatCurrency(listing.pricing.daily)} / day`;
+  if (listing.pricing?.weekly) return `${formatCurrency(listing.pricing.weekly)} / week`;
+  if (listing.pricing?.monthly) return `${formatCurrency(listing.pricing.monthly)} / month`;
   return "POA";
 }
 
@@ -926,7 +959,7 @@ function MetricCard({ icon: Icon, label, value, subtitle, growth, iconClasses, p
   );
 }
 
-function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit, onViewDetail }) {
+function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelete, onImpersonate, onRequestAccess, onEdit, onViewDetail, onFlag }) {
   // Support-access status now lives in its own request/response lifecycle
   // (see routes/admin.js support-access/status), not a flag on the user —
   // fetched lazily here, only when the admin actually opens this menu.
@@ -1006,6 +1039,15 @@ function UserMenu({ user, onClose, onVerify, onSuspend, onResetPassword, onDelet
           onClick={() => { onVerify(user._id, user.venComeVerified ? "revoke" : "grant"); onClose(); }}
         />
       ) : null}
+      {/* Test/internal accounts are left out of every admin total and chart. */}
+      {user.isTestAccount ? (
+        <UserMenuItem icon={Flag} label="Unflag (count as real)" onClick={() => { onFlag(user, null); onClose(); }} />
+      ) : (
+        <>
+          <UserMenuItem icon={Flag} label="Flag as Test" onClick={() => { onFlag(user, "test"); onClose(); }} />
+          <UserMenuItem icon={Flag} label="Flag as Internal" onClick={() => { onFlag(user, "internal"); onClose(); }} />
+        </>
+      )}
       <UserMenuItem
         icon={Trash2}
         label="Delete User"
@@ -1071,15 +1113,16 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
     },
     {
       icon: Building2,
-      label: "Total Listings",
+      label: "Active Listings",
       value: formatNumber(totalListingsCount),
+      subtitle: `${formatNumber(stats.draftListings || 0)} drafts · ${formatNumber(stats.inactiveListings || 0)} inactive`,
       growth: "",
       iconClasses: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
       positive: true,
     },
     {
       icon: AlertTriangle,
-      label: "Pending Listings",
+      label: "Inactive listings",
       value: formatNumber(pendingListingsCount),
       growth: "",
       iconClasses: "bg-[rgba(239,68,68,0.1)] text-[#DC2626]",
@@ -1418,6 +1461,28 @@ function UserDetailPanel({ user, onClose }) {
           <p style={{ fontSize: 13, color: "#DC2626" }}>{error}</p>
         ) : (
           <>
+            {!detail?.user?.isVerified && (
+              <div style={{ marginBottom: 20 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
+                  Verify-account reminders ({detail?.user?.verifyReminders?.sentAt?.length || 0})
+                </p>
+                {detail?.user?.verifyReminders?.optedOut && (
+                  <p style={{ fontSize: 13, color: "#B45309", marginBottom: 6 }}>
+                    Unsubscribed {new Date(detail.user.verifyReminders.optedOutAt).toLocaleDateString("en-GB")} — no more reminders.
+                  </p>
+                )}
+                {detail?.user?.verifyReminders?.sentAt?.length ? (
+                  detail.user.verifyReminders.sentAt.map((at) => (
+                    <p key={at} style={{ fontSize: 13, color: "#374151", margin: "2px 0" }}>
+                      Sent {new Date(at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
+                  ))
+                ) : (
+                  <p style={{ fontSize: 13, color: "#9CA3AF" }}>None sent yet. Reminders go out Mondays and Thursdays for 2 weeks after sign-up.</p>
+                )}
+              </div>
+            )}
+
             {detail?.user?.isHost && (
               <div style={{ marginBottom: 20 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#0A1628", marginBottom: 8 }}>
@@ -2004,15 +2069,15 @@ function AdminEditListingModal({ listingId, onClose, onSaved }) {
   );
 }
 
-// Marks staff and QA accounts so they're never mistaken for real customers.
+// Marks QA accounts so they're never mistaken for real customers. Staff
+// already show an "Admin" role badge next to these flags.
 function AccountFlags({ user }) {
   return (
     <>
-      {user.isAdmin ? (
-        <span className="rounded-full bg-[rgba(124,58,237,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#6D28D9]">Admin</span>
-      ) : null}
       {user.isTestAccount ? (
-        <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">Test account</span>
+        <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">
+          {user.accountFlag === "internal" ? "Internal" : "Test account"}
+        </span>
       ) : null}
     </>
   );
@@ -2044,6 +2109,7 @@ function UsersSection({
   onOpenCreateHost,
   onEditUser,
   onViewUserDetail,
+  onFlagUser,
   usersPage,
   usersTotalPages,
   onUsersPageChange,
@@ -2100,7 +2166,6 @@ function UsersSection({
             <option>All Roles</option>
             <option>Customer</option>
             <option>Host</option>
-            <option>Agent</option>
             <option>Admin</option>
           </select>
 
@@ -2139,7 +2204,7 @@ function UsersSection({
             checked={showTestAccounts}
             onChange={(event) => setShowTestAccounts(event.target.checked)}
           />
-          Show test accounts
+          Show test and internal accounts
         </label>
       </div>
 
@@ -2214,7 +2279,7 @@ function UsersSection({
                           : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                       }`}
                     >
-                      {getUserRole(user) === "host" ? "Host" : "Customer"}
+                      {getUserRole(user) === "admin" ? "Admin" : getUserRole(user) === "host" ? "Host" : "Customer"}
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
@@ -2245,6 +2310,7 @@ function UsersSection({
                           onRequestAccess={onRequestAccessUser}
                           onEdit={onEditUser}
                           onViewDetail={onViewUserDetail}
+                          onFlag={onFlagUser}
                         />
                       ) : null}
                     </AnimatePresence>
@@ -2304,7 +2370,7 @@ function UsersSection({
                       : "bg-[rgba(239,68,68,0.1)] text-[#DC2626]"
                   }`}
                 >
-                  {getUserRole(user) === "host" ? "Host" : "Customer"}
+                  {getUserRole(user) === "admin" ? "Admin" : getUserRole(user) === "host" ? "Host" : "Customer"}
                 </span>
                 <StatusPill status={getUserStatus(user)} type="userStatus" />
                 <AccountFlags user={user} />
@@ -2355,8 +2421,225 @@ function UsersSection({
   );
 }
 
+const hasPhotos = (listing) => Boolean(listing.images?.length || listing.coverImage);
+
+// A price is set but the host hasn't said whether it includes VAT (section 1:
+// pricing.vat.<unit>). Older listings have no VAT settings at all.
+const VAT_PRICE_KEYS = { hourly: ["hourly", "hourlyPrice"], daily: ["daily", "weekdayPrice"], weekly: ["weekly"], monthly: ["monthly"] };
+const vatNotSet = (listing) =>
+  Object.entries(VAT_PRICE_KEYS).some(
+    ([unit, keys]) => keys.some((key) => Number(listing.pricing?.[key]) > 0) && !listing.pricing?.vat?.[unit]
+  );
+
+// Listings CSV export: one row per listing, from the admin list payload.
+const VAT_STATUS_LABEL = { includes: "Includes VAT", excludes: "Excludes VAT", none: "No VAT" };
+const LISTING_CSV_HEADER = ["Title", "Host", "City", "Category", "Status", "Hourly", "Daily", "Weekly", "Monthly", "VAT status", "Created"];
+const listingCsvRow = (listing) => {
+  const price = (keys) => keys.map((key) => Number(listing.pricing?.[key])).find((value) => value > 0) ?? "";
+  const vatStatuses = [...new Set(Object.values(listing.pricing?.vat || {}).map((tax) => VAT_STATUS_LABEL[tax?.status]).filter(Boolean))];
+  return [
+    listing.title,
+    hostPublicName(listing.host),
+    listing.location?.city,
+    listing.category?.name,
+    getListingStatus(listing),
+    price(VAT_PRICE_KEYS.hourly),
+    price(VAT_PRICE_KEYS.daily),
+    price(VAT_PRICE_KEYS.weekly),
+    price(VAT_PRICE_KEYS.monthly),
+    vatNotSet(listing) ? "Not set" : vatStatuses.join("; "),
+    formatDate(listing.createdAt),
+  ];
+};
+// Category filter, matched on the listing's main category or any of its categories.
+const inListingCategory = (listing, categoryId) =>
+  !categoryId ||
+  (listing.category?._id || listing.category) === categoryId ||
+  (listing.categories || []).some((category) => (category?._id || category) === categoryId);
+
+// "Name · email", or just the email when the account has no name yet.
+const personLine = (user) => {
+  if (!user) return "—";
+  const name = getUserDisplayName(user);
+  return user.email && name !== user.email ? `${name} · ${user.email}` : name;
+};
+
+const LISTING_STATUS_TABS = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "draft", label: "Draft" },
+  { key: "inactive", label: "Inactive" },
+  { key: "pending", label: "Pending review" },
+];
+
+// Listing drafts (saved in the wizard, never published), oldest first. Admin
+// can open one in full -- photos included -- and delete it.
+function AdminDraftsPanel({ showTest, onToast, onChanged }) {
+  const [drafts, setDrafts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [openDraft, setOpenDraft] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts?page=${page}&limit=50${showTest ? "" : "&excludeTest=true"}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const lastPage = Math.max(1, data.pages || 1);
+        if (page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        setDrafts(data.drafts || []);
+        setPages(lastPage);
+        setTotal(data.total || 0);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [showTest, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [showTest]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const open = async (draft) => {
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts/${draft._id}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setOpenDraft((await res.json()).draft);
+    else onToast("Couldn't open this draft");
+  };
+
+  const remove = async (draft) => {
+    if (!window.confirm(`Delete the draft "${draft.title}" by ${personLine(draft.host)}? The host stops getting "finish your listing" emails for it. This can't be undone.`)) return;
+    const token = localStorage.getItem("vencome_token");
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/drafts/${draft._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return onToast("Couldn't delete the draft");
+    onToast("Draft deleted");
+    setOpenDraft(null);
+    load();
+    onChanged?.();
+  };
+
+  const form = openDraft?.formData || {};
+  const images = (form.images || []).filter((image) => typeof image === "string" && image);
+  const prices = Object.entries(form.pricing || {}).filter(([, option]) => option?.enabled && option.price);
+
+  return (
+    <div className="p-4">
+      {loading ? (
+        <p className="py-8 text-center text-[14px] text-[#6B7280]">Loading drafts...</p>
+      ) : drafts.length === 0 ? (
+        <p className="py-8 text-center text-[14px] text-[#6B7280]">No drafts</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F8F6F0]">
+                {["Draft", "Host account", "Created by", "Step", "Last saved", "Actions"].map((heading) => (
+                  <th key={heading} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-[#6B7280]">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((draft) => (
+                <tr key={draft._id} className="border-b border-[#F3F4F6]">
+                  <td className="px-4 py-3 font-semibold text-[#0A1628]">{draft.title}</td>
+                  <td className="px-4 py-3 text-[#374151]">{personLine(draft.host)}</td>
+                  <td className="px-4 py-3 text-[#374151]">{personLine(draft.createdBy || draft.host)}</td>
+                  <td className="px-4 py-3 text-[#374151]">{draft.step} of 14</td>
+                  <td className="px-4 py-3 text-[#6B7280]">{formatDate(draft.updatedAt)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => open(draft)} className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]">
+                        Open
+                      </button>
+                      <button type="button" onClick={() => remove(draft)} className="rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-[12px] font-medium text-[#DC2626]">
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="mt-4 flex items-center justify-between gap-3 text-[13px] text-[#6B7280]">
+        <p>Page {page} of {pages} · {formatNumber(total)} drafts</p>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setPage((current) => current - 1)} disabled={loading || page <= 1} className="rounded-lg border border-[#E5E7EB] px-3 py-2 disabled:opacity-40">Prev</button>
+          <button type="button" onClick={() => setPage((current) => current + 1)} disabled={loading || page >= pages} className="rounded-lg border border-[#E5E7EB] px-3 py-2 disabled:opacity-40">Next</button>
+        </div>
+      </div>
+
+      <Modal isOpen={!!openDraft} onClose={() => setOpenDraft(null)}>
+        {openDraft && (
+          <div style={{ maxHeight: "75vh", overflowY: "auto" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1628", margin: "0 0 4px" }}>{openDraft.title}</h3>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
+              Draft · step {openDraft.step} of 14 · host {personLine(openDraft.host)} · created by {personLine(openDraft.createdBy || openDraft.host)}
+            </p>
+            {images.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 16 }}>
+                {images.map((src) => (
+                  <a key={src} href={src} target="_blank" rel="noreferrer">
+                    <img src={src} alt="" style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8 }} />
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: "#B45309", marginBottom: 16 }}>No photos uploaded yet.</p>
+            )}
+            {[
+              ["Location", [form.locationName, form.address, form.city, form.postcode, form.country].filter(Boolean).join(", ")],
+              ["Description", form.description],
+              ["Prices", prices.map(([key, option]) => `${key}: £${option.price}${option.vatStatus ? ` (${option.vatStatus} VAT)` : ""}`).join(" · ")],
+              ["Capacity", form.capacity],
+              ["Open days", (form.availabilityDays || []).join(", ")],
+            ]
+              .filter(([, value]) => value)
+              .map(([label, value]) => (
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", margin: 0 }}>{label}</p>
+                  <p style={{ fontSize: 14, color: "#0A1628", margin: "2px 0 0", whiteSpace: "pre-wrap" }}>{String(value)}</p>
+                </div>
+              ))}
+            <button
+              type="button"
+              onClick={() => remove(openDraft)}
+              style={{ marginTop: 12, border: "1px solid #FCA5A5", color: "#DC2626", background: "#fff", borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Delete draft
+            </button>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
 function ListingsSection({
   listings,
+  locationOptions,
+  locationFilter, setLocationFilter,
+  noPhotosOnly, setNoPhotosOnly,
+  vatNotSetOnly, setVatNotSetOnly,
+  categoryFilter, setCategoryFilter,
+  onExportCsv,
   loading,
   moderationQueue,
   setModerationQueue,
@@ -2371,8 +2654,12 @@ function ListingsSection({
   listingsTotalPages,
   onListingsPageChange,
   onRefresh,
-  searchQuery,
   highlightListingId,
+  listingStatus,
+  onListingStatusChange,
+  listingCounts,
+  showTestListings,
+  setShowTestListings,
 }) {
   const [selectedListing, setSelectedListing] = useState(null);
   const [editingListingId, setEditingListingId] = useState(null);
@@ -2392,7 +2679,6 @@ function ListingsSection({
     }, 2500);
     return () => clearTimeout(timer);
   }, [highlightListingId, moderationQueue]);
-  const [locationFilter, setLocationFilter] = useState("");
   const [showReorder, setShowReorder] = useState(false);
 
   const filteredQueue = moderationQueue.filter((listing) => {
@@ -2401,29 +2687,18 @@ function ListingsSection({
     return true;
   });
 
-  const locationOptions = useMemo(() => {
-    const cities = listings.map((listing) => listing.location?.city).filter(Boolean);
-    return Array.from(new Set(cities)).sort();
-  }, [listings]);
-
-  const filteredListings = useMemo(() => {
-    const q = (searchQuery || "").trim().toLowerCase();
-    return listings.filter((listing) => {
-      if (locationFilter && listing.location?.city !== locationFilter) return false;
-      if (!q) return true;
-      const haystack = [
-        listing.title,
-        listing.location?.city,
-        listing.location?.neighborhood,
-        listing.location?.address,
-        getListingHostName(listing),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [listings, searchQuery, locationFilter]);
+  // The server may not filter by category yet, so the page is filtered here too.
+  const filteredListings = listings.filter((listing) => inListingCategory(listing, categoryFilter));
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/admin/categories`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("vencome_token")}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setCategoryOptions(data?.categories || []))
+      .catch(() => {});
+  }, []);
 
   const removeQueueItem = (id) => {
     setModerationQueue((current) => current.filter((item) => item.id !== id));
@@ -2628,7 +2903,21 @@ function ListingsSection({
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
         <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-[15px] font-bold text-[#0A1628]">All Listings ({filteredListings.length})</h3>
+          <div className="flex flex-wrap gap-2">
+            {LISTING_STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onListingStatusChange(tab.key)}
+                className={`rounded-full px-4 py-2 text-[13px] font-medium ${
+                  listingStatus === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
+                }`}
+              >
+                {tab.label}
+                {listingCounts ? ` (${formatNumber(listingCounts[tab.key] ?? 0)})` : ""}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -2648,10 +2937,57 @@ function ListingsSection({
                 <option key={city} value={city}>{city}</option>
               ))}
             </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map((category) => (
+                <option key={category._id} value={category._id}>{category.name}</option>
+              ))}
+            </select>
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+              <input type="checkbox" checked={noPhotosOnly} onChange={(e) => setNoPhotosOnly(e.target.checked)} />
+              No photos
+            </label>
+            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+              <input type="checkbox" checked={vatNotSetOnly} onChange={(e) => setVatNotSetOnly(e.target.checked)} />
+              VAT status not set
+            </label>
+            <label className="flex h-10 items-center gap-2 text-[13px] text-[#374151]">
+              <input type="checkbox" checked={showTestListings} onChange={(e) => setShowTestListings(e.target.checked)} />
+              Show test and internal accounts
+            </label>
+            {listingStatus !== "draft" && (
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true);
+                  try {
+                    await onExportCsv();
+                  } catch {
+                    onToast("Couldn't export listings. Please try again.");
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-[#111827] disabled:opacity-60"
+              >
+                <Download size={14} />
+                {exporting ? "Exporting…" : "Export CSV"}
+              </button>
+            )}
           </div>
         </div>
 
         {showReorder ? <HomepageOrderPanel onToast={onToast} /> : null}
+
+        {listingStatus === "draft" ? (
+          <AdminDraftsPanel showTest={showTestListings} onToast={onToast} onChanged={onRefresh} />
+        ) : (
+        <>
 
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full border-collapse">
@@ -2698,8 +3034,16 @@ function ListingsSection({
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
                       <img src={listing.coverImage} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
+                      <div className="min-w-0 max-w-[280px]">
+                        <p className="truncate text-[13px] font-semibold text-[#0A1628]" title={listing.title}>{listing.title}</p>
+                        <p className="flex flex-wrap gap-1">
+                          {!hasPhotos(listing) && (
+                            <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">No photos</span>
+                          )}
+                          {vatNotSet(listing) && (
+                            <span className="rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
+                          )}
+                        </p>
                         <p className="truncate text-[12px] text-[#6B7280]">
                           {listing.location?.city || ""}
                           {listing.subcategory ? ` · ${listing.subcategory}` : ""}
@@ -2708,7 +3052,11 @@ function ListingsSection({
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-[13px] text-[#374151]">{listing.location?.city || ""}</td>
-                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">{getListingHostName(listing)}</td>
+                  <td className="px-4 py-3.5 text-[13px] text-[#374151]">
+                    <p className="font-medium">{getListingHostName(listing)}</p>
+                    {listing.host?.email && <p className="text-[12px] text-[#6B7280]">{listing.host.email}</p>}
+                    <p className="text-[11px] text-[#6B7280]">Created by {personLine(listing.createdBy || listing.host)}</p>
+                  </td>
                   <td className="px-4 py-3.5">
                     <StatusPill status={getListingStatus(listing)} type="listing" />
                   </td>
@@ -2763,12 +3111,21 @@ function ListingsSection({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">{listing.title}</p>
+                    <p className="mt-1 break-words text-[13px] font-semibold text-[#0A1628]">
+                      {listing.title}
+                      {vatNotSet(listing) && (
+                        <span className="ml-2 rounded-full bg-[rgba(217,119,6,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">VAT status not set</span>
+                      )}
+                    </p>
                     <p className="mt-1 text-[12px] text-[#6B7280]">{listing.location?.city || ""}</p>
                   </div>
                   <StatusPill status={getListingStatus(listing)} type="listing" />
                 </div>
-                <p className="mt-3 text-[12px] text-[#374151]">{getListingHostName(listing)}</p>
+                <p className="mt-3 text-[12px] text-[#374151]">
+                  {getListingHostName(listing)}
+                  {listing.host?.email ? ` · ${listing.host.email}` : ""}
+                </p>
+                <p className="mt-1 text-[11px] text-[#6B7280]">Created by {personLine(listing.createdBy || listing.host)}</p>
                 <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
                 <div className="mt-4 flex gap-2">
                   <button
@@ -2814,6 +3171,8 @@ function ListingsSection({
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
       {selectedListing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
@@ -4556,6 +4915,7 @@ function BroadcastSection({ users, stats }) {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const { confirm, ConfirmDialog } = useConfirm();
   const [templateName, setTemplateName] = useState("");
+  const [testNote, setTestNote] = useState("");
 
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -4650,6 +5010,22 @@ function BroadcastSection({ users, stats }) {
     }
   };
 
+  // The broadcast exactly as recipients get it, to the signed-in admin only.
+  const handleSendTest = async () => {
+    setTestNote("");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ subject, message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setTestNote(res.ok ? `Test sent to ${data.sentTo}.` : data.error || "Couldn't send the test");
+    } catch {
+      setTestNote("Couldn't send the test");
+    }
+  };
+
   const handleSaveTemplate = async () => {
     if (!templateName.trim() || !subject || !message) return;
     try {
@@ -4708,7 +5084,8 @@ function BroadcastSection({ users, stats }) {
         <p className="mt-1 text-[13px] text-[#6B7280]">Send announcements and updates to your users</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+      {/* One column on phones: two columns pushed the page sideways there. */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[2fr_1fr]">
         <div style={{ background: "#fff", borderRadius: 20, padding: 32, border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", margin: 0 }}>Compose Broadcast</h3>
@@ -4740,9 +5117,9 @@ function BroadcastSection({ users, stats }) {
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Send to</label>
             <select value={target} onChange={e => { setTarget(e.target.value); setSent(false); }} style={{ width: "100%", padding: "10px 14px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, color: "#374151", outline: "none" }}>
-              <option value="all">All Users ({users.length})</option>
-              <option value="hosts">Hosts only ({users.filter(u => u.isHost).length})</option>
-              <option value="customers">Customers only ({users.filter(u => !u.isHost).length})</option>
+              <option value="all">All Users ({stats.totalUsers ?? 0})</option>
+              <option value="hosts">Hosts only ({stats.totalHosts ?? 0})</option>
+              <option value="customers">Customers only ({stats.totalCustomers ?? 0})</option>
               <option value="specific">Specific users...</option>
             </select>
           </div>
@@ -4798,7 +5175,15 @@ function BroadcastSection({ users, stats }) {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={handleSend} disabled={sending} style={{ padding: "14px 32px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.7 : 1 }}>
-              {sending ? "Sending..." : scheduledFor ? `Schedule for ${targetCount} users` : `Send to ${targetCount} users`}
+              {sending ? "Sending..." : scheduledFor ? `Schedule for ${targetCount} user${targetCount === 1 ? "" : "s"}` : `Send to ${targetCount} user${targetCount === 1 ? "" : "s"}`}
+            </button>
+            <button
+              type="button"
+              onClick={handleSendTest}
+              disabled={!subject || !message || sending}
+              style={{ padding: "14px 20px", background: "white", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (!subject || !message) ? "not-allowed" : "pointer", opacity: (!subject || !message) ? 0.5 : 1 }}
+            >
+              Send test to myself
             </button>
             <button
               type="button"
@@ -4809,6 +5194,8 @@ function BroadcastSection({ users, stats }) {
               Save as Template
             </button>
           </div>
+
+          {testNote && <p style={{ fontSize: 13, color: "#374151", marginTop: 10 }}>{testNote}</p>}
 
           {showSaveTemplate && (
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -4880,7 +5267,7 @@ function BroadcastSection({ users, stats }) {
                       </span>
                     </div>
                     <p style={{ fontSize: 12, color: "#6B7280", margin: "2px 0 0" }}>
-                      {b.target}{b.recipientCount ? ` · ${b.recipientCount} recipients` : ""} · {formatDate(b.status === "scheduled" ? b.scheduledFor : b.sentAt || b.createdAt)}
+                      {b.target}{b.recipientCount ? ` · ${b.recipientCount} recipient${b.recipientCount === 1 ? "" : "s"}` : ""} · {formatDate(b.status === "scheduled" ? b.scheduledFor : b.sentAt || b.createdAt)}
                     </p>
                     {b.status === "scheduled" && (
                       <button type="button" onClick={() => handleCancelScheduled(b)} style={{ border: "none", background: "none", color: "#DC2626", fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, padding: 0 }}>
@@ -4894,7 +5281,209 @@ function BroadcastSection({ users, stats }) {
           </div>
         </div>
       </div>
+      <SystemEmailTemplates />
     </>
+  );
+}
+
+// System emails (server utils/emailTemplates.js): pick one, edit its subject,
+// heading and body with a live preview, send yourself a test, save, or reset
+// to the default wording. Saves and resets are audit-logged server-side.
+function SystemEmailTemplates() {
+  const [templates, setTemplates] = useState([]);
+  const [selectedKey, setSelectedKey] = useState(null);
+  const [draft, setDraft] = useState({ subject: "", heading: "", body: "" });
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const bodyRef = useRef(null);
+  const token = localStorage.getItem("vencome_token");
+  const api = (path, options = {}) =>
+    fetch(`${import.meta.env.VITE_API_URL}/admin/email-templates${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    });
+
+  const load = useCallback(async (keepKey) => {
+    const res = await api("");
+    if (!res.ok) return;
+    const list = (await res.json()).templates || [];
+    setTemplates(list);
+    const chosen = list.find((t) => t.key === keepKey) || list[0];
+    if (chosen) {
+      setSelectedKey(chosen.key);
+      setDraft({ ...(chosen.current || chosen.default) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const selected = templates.find((t) => t.key === selectedKey);
+
+  // Live preview of the unsaved wording, rendered by the server exactly as sent.
+  useEffect(() => {
+    if (!selectedKey) return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api(`/${selectedKey}/preview`, { method: "POST", body: JSON.stringify(draft) });
+        const data = res.ok ? await res.json() : null;
+        if (active) {
+          setPreviewHtml(data?.html || "");
+          if (!res.ok) setNote("Couldn't load the preview.");
+        }
+      } catch {
+        if (active) {
+          setPreviewHtml("");
+          setNote("Couldn't load the preview.");
+        }
+      }
+    }, 400);
+    return () => { active = false; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, draft]);
+
+  const choose = (template) => {
+    setSelectedKey(template.key);
+    setDraft({ ...(template.current || template.default) });
+    setNote("");
+  };
+
+  const insertVariable = (name) => {
+    const el = bodyRef.current;
+    const variable = `{{${name}}}`;
+    if (!el) return setDraft((d) => ({ ...d, body: `${d.body}${variable}` }));
+    const { selectionStart: start, selectionEnd: end } = el;
+    setDraft((d) => ({ ...d, body: d.body.slice(0, start) + variable + d.body.slice(end) }));
+  };
+
+  const run = async (fn) => {
+    setBusy(true);
+    setNote("");
+    try {
+      await fn();
+    } catch (err) {
+      setNote(err.message || "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () =>
+    run(async () => {
+      const res = await api(`/${selectedKey}`, { method: "PUT", body: JSON.stringify(draft) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't save");
+      await load(selectedKey);
+      setNote("Saved — this wording is used from now on.");
+    });
+
+  const reset = () => {
+    if (!window.confirm(`Reset "${selected?.name}" to the default wording? Your edits to it will be lost.`)) return;
+    run(async () => {
+      const res = await api(`/${selectedKey}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Couldn't reset");
+      await load(selectedKey);
+      setNote("Reset to the default wording.");
+    });
+  };
+
+  const sendTest = () =>
+    run(async () => {
+      const res = await api(`/${selectedKey}/test`, { method: "POST", body: JSON.stringify(draft) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't send the test");
+      setNote(`Test sent to ${data.sentTo}.`);
+    });
+
+  const field = { width: "100%", padding: "10px 12px", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, boxSizing: "border-box" };
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E5E7EB", padding: 24, marginTop: 24 }}>
+      <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1628", margin: 0 }}>Email templates</h3>
+      <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 16px" }}>
+        Every system email. Edit the wording, preview it, and send yourself a test before saving.
+      </p>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 220px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {templates.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => choose(t)}
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: `1.5px solid ${t.key === selectedKey ? "#0A1628" : "#E5E7EB"}`,
+                background: t.key === selectedKey ? "#0A1628" : "#fff",
+                color: t.key === selectedKey ? "#fff" : "#0A1628",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.name}
+              {t.current && <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.8 }}>· edited</span>}
+            </button>
+          ))}
+        </div>
+
+        {selected && (
+          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 12px" }}>{selected.description}</p>
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Subject</label>
+            <input value={draft.subject} onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))} style={{ ...field, margin: "4px 0 12px" }} />
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Heading</label>
+            <input value={draft.heading} onChange={(e) => setDraft((d) => ({ ...d, heading: e.target.value }))} style={{ ...field, margin: "4px 0 12px" }} />
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#374151" }}>Body</label>
+            <textarea
+              ref={bodyRef}
+              value={draft.body}
+              onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+              rows={10}
+              style={{ ...field, margin: "4px 0 6px", fontFamily: "inherit", resize: "vertical" }}
+            />
+            <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 8px" }}>
+              Blank line = new paragraph. **text** = bold. Click a variable to insert it:
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              {selected.variables.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => insertVariable(name)}
+                  style={{ padding: "4px 10px", borderRadius: 999, border: "1px solid #C7D2FE", background: "#EEF2FF", color: "#305CDE", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {`{{${name}}}`}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" onClick={save} disabled={busy} style={{ padding: "10px 18px", background: "#0A1628", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Save
+              </button>
+              <button type="button" onClick={sendTest} disabled={busy} style={{ padding: "10px 18px", background: "#fff", color: "#111827", border: "1.5px solid #E5E7EB", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                Send test to myself
+              </button>
+              <button type="button" onClick={reset} disabled={busy || !selected.current} style={{ padding: "10px 18px", background: "#fff", color: "#DC2626", border: "1.5px solid #FECACA", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: selected.current ? "pointer" : "not-allowed", opacity: selected.current ? 1 : 0.5 }}>
+                Reset to default
+              </button>
+            </div>
+            {note && <p style={{ fontSize: 13, color: "#374151", marginTop: 10 }}>{note}</p>}
+          </div>
+        )}
+
+        {selected && (
+          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#374151", margin: "0 0 6px" }}>Preview (sample details)</p>
+            <iframe title="Email preview" srcDoc={previewHtml} sandbox="" style={{ width: "100%", height: 520, border: "1px solid #E5E7EB", borderRadius: 12, background: "#f4f4f7" }} />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -5256,7 +5845,7 @@ function ContentSection({ blogs, fetchBlogs, blogForm, setBlogForm, editingBlog,
       // fall back to the list's (content-less) blog object below
     }
     setEditingBlog(fullBlog);
-    setBlogForm({ title: fullBlog.title, excerpt: fullBlog.excerpt, content: fullBlog.content || "", coverImage: fullBlog.coverImage || "", category: fullBlog.category, tags: (fullBlog.tags || []).join(", "), author: fullBlog.author, status: fullBlog.status });
+    setBlogForm({ title: fullBlog.title, excerpt: fullBlog.excerpt, content: fullBlog.content || "", coverImage: fullBlog.coverImage || "", category: fullBlog.category, tags: (fullBlog.tags || []).join(", "), author: fullBlog.author, status: fullBlog.status, seoTitle: fullBlog.seoTitle || "", seoDescription: fullBlog.seoDescription || "", ogImage: fullBlog.ogImage || "" });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -5645,6 +6234,19 @@ function BookingsSection({ bookings, loading, onToast }) {
                     <td className="px-4 py-3.5 text-[12px] text-[#6B7280]">{formatDate(booking.checkOut)}</td>
                     <td className="px-4 py-3.5 text-[13px] font-bold text-[#0A1628]">
                       {formatCurrency(booking.totalPrice || 0)}
+                      {/* Core / utilities / VAT and VenCome's cut (bookings before
+                          VAT pricing: all core, commission + payout as stored). */}
+                      <div className="mt-1 whitespace-nowrap text-[11px] font-normal text-[#6B7280]">
+                        {booking.pricingBreakdown?.totalPence
+                          ? [
+                              `Core ${formatCurrency(booking.pricingBreakdown.corePence / 100)}`,
+                              booking.pricingBreakdown.utilitiesPence ? `Utilities ${formatCurrency(booking.pricingBreakdown.utilitiesPence / 100)}` : null,
+                              booking.pricingBreakdown.vatPence ? `VAT ${formatCurrency(booking.pricingBreakdown.vatPence / 100)}` : null,
+                              `Commission ${formatCurrency(booking.pricingBreakdown.commissionPence / 100)}`,
+                              `Host ${formatCurrency(booking.pricingBreakdown.hostPayoutPence / 100)}`,
+                            ].filter(Boolean).join(" · ")
+                          : `Commission ${formatCurrency(booking.platformFee || 0)} · Host ${formatCurrency(booking.hostAmount || 0)}`}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusPill status={booking.status} type="booking" />
@@ -6635,6 +7237,7 @@ function SupportTicketsSection({ onToast, myAdmin }) {
 // (utils/sendEmail.js logs every send) — hosts, guests, everyone. No
 // historical backfill: emails sent before this feature existed aren't here.
 function CommunicationsSection() {
+  const [view, setView] = useState("log");
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -6642,74 +7245,294 @@ function CommunicationsSection() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [audience, setAudience] = useState("");
+  const [type, setType] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [emailsError, setEmailsError] = useState("");
   const [selectedEmail, setSelectedEmail] = useState(null);
+  const [month, setMonth] = useState(() => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/London" }).slice(0, 7));
+  const [calendarDays, setCalendarDays] = useState({});
+  const [calendarError, setCalendarError] = useState("");
+  const [scheduled, setScheduled] = useState([]);
+  const [scheduledPage, setScheduledPage] = useState(1);
+  const [scheduledPages, setScheduledPages] = useState(1);
+  const [scheduledTotal, setScheduledTotal] = useState(0);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [scheduledError, setScheduledError] = useState("");
+  const token = localStorage.getItem("vencome_token");
+
+  const filterParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    if (audience) params.set("audience", audience);
+    if (type) params.set("type", type);
+    return params;
+  }, [search, statusFilter, audience, type]);
 
   const fetchEmails = useCallback(
     async (pageNum) => {
       setLoading(true);
+      setEmailsError("");
       try {
-        const token = localStorage.getItem("vencome_token");
-        const params = new URLSearchParams({ page: String(pageNum), limit: "25" });
-        if (search) params.set("search", search);
-        if (statusFilter) params.set("status", statusFilter);
-
+        const params = filterParams();
+        params.set("page", String(pageNum));
+        params.set("limit", "25");
+        if (from) params.set("from", from);
+        if (to) params.set("to", to);
         const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/emails?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (res.ok) {
-          const data = await res.json();
-          setEmails(data.emails || []);
-          setPage(data.page || pageNum);
-          setTotalPages(data.pages || 1);
-          setTotal(data.total || 0);
-        }
+        if (!res.ok) throw new Error("Couldn't load emails.");
+        const data = await res.json();
+        setEmails(data.emails || []);
+        setPage(data.page || pageNum);
+        setTotalPages(data.pages || 1);
+        setTotal(data.total || 0);
       } catch (err) {
         console.error("Failed to fetch emails:", err);
+        // Don't leave the last view's rows under the new filter.
+        setEmails([]);
+        setTotalPages(1);
+        setTotal(0);
+        setEmailsError(err.message || "Couldn't load emails.");
       } finally {
         setLoading(false);
       }
     },
-    [search, statusFilter]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterParams, from, to]
   );
 
   useEffect(() => {
+    if (view !== "log") return;
     const timeout = setTimeout(() => fetchEmails(1), search ? 300 : 0);
     return () => clearTimeout(timeout);
-  }, [fetchEmails, search]);
+  }, [fetchEmails, search, view]);
+
+  // Calendar: emails per day of the month, with the same filters.
+  useEffect(() => {
+    if (view !== "calendar") return;
+    const params = filterParams();
+    params.set("month", month);
+    setCalendarError("");
+    fetch(`${import.meta.env.VITE_API_URL}/admin/emails/calendar?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (!res.ok) throw new Error("Couldn't load the calendar.");
+        return res.json();
+      })
+      .then((data) => setCalendarDays(data.days || {}))
+      .catch((err) => {
+        setCalendarDays({});
+        setCalendarError(err.message || "Couldn't load the calendar.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, month, filterParams]);
+
+  const loadScheduled = useCallback(async function fetchScheduledPage(pageNum = 1) {
+    setScheduledLoading(true);
+    setScheduledError("");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/history?status=scheduled&page=${pageNum}&limit=25`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Couldn't load scheduled broadcasts.");
+      const data = await res.json();
+      const lastPage = Math.max(1, data.pages || 1);
+      if (pageNum > lastPage) return await fetchScheduledPage(lastPage);
+      setScheduled(data.broadcasts || []);
+      setScheduledPage(data.page || pageNum);
+      setScheduledPages(lastPage);
+      setScheduledTotal(data.total || 0);
+    } catch (err) {
+      setScheduled([]);
+      setScheduledTotal(0);
+      setScheduledError(err.message || "Couldn't load scheduled broadcasts.");
+    } finally {
+      setScheduledLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (view === "scheduled") loadScheduled(1);
+  }, [view, loadScheduled]);
+
+  const cancelScheduled = async (broadcast) => {
+    if (!window.confirm(`Cancel the scheduled broadcast "${broadcast.subject}"? It won't be sent.`)) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/${broadcast._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Couldn't cancel the scheduled broadcast.");
+      await loadScheduled(scheduledPage);
+    } catch (err) {
+      setScheduledError(err.message || "Couldn't cancel the scheduled broadcast.");
+    }
+  };
+
+  const openDay = (day) => {
+    setFrom(day);
+    setTo(day);
+    setView("log");
+  };
+
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstWeekday = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7; // Monday first
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const shiftMonth = (delta) => {
+    const d = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
+    setMonth(d.toISOString().slice(0, 7));
+  };
+  const selectClass = "h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]";
+  const viewEmailCount = view === "calendar" ? Object.values(calendarDays).reduce((sum, count) => sum + count, 0) : total;
+  // A failed load isn't an empty result, so show only the error, not "0 emails".
+  const viewLoadError = view === "calendar" ? calendarError : view === "log" ? emailsError : "";
 
   return (
     <>
       <div className="mb-5">
         <h2 className="text-[20px] font-extrabold text-[#0A1628]">Communications</h2>
-        <p className="mt-1 text-[13px] text-[#6B7280]">{formatNumber(total)} emails sent</p>
+        {!viewLoadError && <p className="mt-1 text-[13px] text-[#6B7280]">{view === "scheduled" ? `${formatNumber(scheduledTotal)} scheduled broadcast${scheduledTotal === 1 ? "" : "s"}` : `${formatNumber(viewEmailCount)} email${viewEmailCount === 1 ? "" : "s"} in this view`}</p>}
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, email, or subject"
-            className="h-10 w-72 rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
-          />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          { key: "log", label: "Sent emails" },
+          { key: "calendar", label: "Calendar" },
+          { key: "scheduled", label: "Scheduled" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setView(tab.key)}
+            className={`rounded-full px-4 py-2 text-[13px] font-medium ${view === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view !== "scheduled" && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by recipient email or name"
+              className="h-10 w-72 rounded-lg border border-[#E5E7EB] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#0A1628]"
+            />
+          </div>
+          <select value={audience} onChange={(event) => setAudience(event.target.value)} className={selectClass}>
+            <option value="">Hosts and customers</option>
+            <option value="hosts">Hosts</option>
+            <option value="customers">Customers</option>
+          </select>
+          <select value={type} onChange={(event) => setType(event.target.value)} className={selectClass}>
+            <option value="">All types</option>
+            <option value="transactional">Transactional</option>
+            <option value="reminder">Reminder</option>
+            <option value="broadcast">Broadcast</option>
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={selectClass}>
+            <option value="">All statuses</option>
+            <option value="sent">Sent</option>
+            <option value="failed">Failed</option>
+          </select>
+          {view === "log" && (
+            <>
+              <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+                From
+                <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className={selectClass} />
+              </label>
+              <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+                To
+                <input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} className={selectClass} />
+              </label>
+              {(from || to) && (
+                <button type="button" onClick={() => { setFrom(""); setTo(""); }} className="text-[13px] font-semibold text-[#305CDE]">
+                  Clear dates
+                </button>
+              )}
+            </>
+          )}
         </div>
+      )}
 
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
-        >
-          <option value="">All statuses</option>
-          <option value="sent">Sent</option>
-          <option value="failed">Failed</option>
-        </select>
-      </div>
+      {view === "calendar" && (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+          {calendarError && <p role="alert" className="mb-3 text-[13px] text-[#DC2626]">{calendarError}</p>}
+          <div className="mb-4 flex items-center justify-between">
+            <button type="button" onClick={() => shiftMonth(-1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">← Previous</button>
+            <p className="text-[15px] font-bold text-[#0A1628]">
+              {new Date(Date.UTC(year, monthNumber - 1, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}
+            </p>
+            <button type="button" onClick={() => shiftMonth(1)} className="h-9 rounded-lg border border-[#E5E7EB] px-3 text-[13px]">Next →</button>
+          </div>
+          {!calendarError && (<>
+          <div className="grid grid-cols-7 gap-2 text-center">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+              <p key={d} className="text-[11px] font-bold uppercase text-[#6B7280]">{d}</p>
+            ))}
+            {Array.from({ length: firstWeekday }, (_, i) => <div key={`blank-${i}`} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = `${month}-${String(i + 1).padStart(2, "0")}`;
+              const count = calendarDays[day] || 0;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => openDay(day)}
+                  disabled={!count}
+                  className={`flex h-16 flex-col items-center justify-center rounded-lg border text-[13px] ${count ? "border-[#C7D2FE] bg-[#EEF2FF] text-[#0A1628] hover:bg-[#E0E7FF]" : "border-[#F3F4F6] text-[#9CA3AF]"}`}
+                >
+                  <span className="font-semibold">{i + 1}</span>
+                  {count ? <span className="text-[11px] font-bold text-[#305CDE]">{count} email{count === 1 ? "" : "s"}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[12px] text-[#6B7280]">Click a day to see every email sent that day.</p>
+          </>)}
+        </div>
+      )}
 
+      {view === "scheduled" && (
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+          {scheduledError && <p role="alert" className="px-4 py-3 text-[13px] text-[#DC2626]">{scheduledError}</p>}
+          {scheduledLoading ? (
+            <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading scheduled broadcasts...</div>
+          ) : scheduled.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No scheduled broadcasts</div>
+          ) : (
+            scheduled.map((b) => (
+              <div key={b._id} className="flex flex-col gap-2 border-b border-[#F3F4F6] px-4 py-4 last:border-b-0 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0A1628]">{b.subject}</p>
+                  <p className="text-[12px] text-[#6B7280]">
+                    To {b.target === "specific" ? `${b.recipientUsers?.length || 0} chosen user${b.recipientUsers?.length === 1 ? "" : "s"}` : b.target} · {new Date(b.scheduledFor).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                <button type="button" onClick={() => cancelScheduled(b)} className="text-[13px] font-semibold text-[#DC2626]">Cancel</button>
+              </div>
+            ))
+          )}
+          <div className="flex items-center justify-between border-t border-[#F3F4F6] px-4 py-3 text-[13px] text-[#6B7280]">
+            <span>Page {scheduledPage} of {scheduledPages}</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={scheduledLoading || scheduledPage <= 1} onClick={() => loadScheduled(scheduledPage - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Prev</button>
+              <button type="button" disabled={scheduledLoading || scheduledPage >= scheduledPages} onClick={() => loadScheduled(scheduledPage + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button>
+            </div>
+          </div>
+          <p className="border-t border-[#F3F4F6] px-4 py-3 text-[12px] text-[#6B7280]">
+            Automatic: "Verify your account" reminders go out Mondays and Thursdays at 10:00; "Finish your listing" reminders weekly per draft; lease payments 3 days before each month.
+          </p>
+        </div>
+      )}
+
+      {view === "log" && (
       <div className="rounded-2xl border border-[#E5E7EB] bg-white">
+        {emailsError && <p role="alert" className="px-4 py-3 text-[13px] text-[#DC2626]">{emailsError}</p>}
         {loading ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading emails...</div>
-        ) : emails.length === 0 ? (
+        ) : emailsError ? null : emails.length === 0 ? (
           <div className="px-4 py-10 text-center text-[14px] text-[#6B7280]">No emails in this view</div>
         ) : (
           <div className="flex flex-col">
@@ -6728,6 +7551,9 @@ function CommunicationsSection() {
                     {email.toUser?.isHost ? (
                       <span className="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[11px] font-bold text-[#305CDE]">Host</span>
                     ) : null}
+                    <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[11px] font-semibold capitalize text-[#6B7280]">
+                      {email.category || "transactional"}
+                    </span>
                   </div>
                   <p className="mt-0.5 truncate text-[13px] text-[#374151]">{email.subject || "(no subject)"}</p>
                   <p className="mt-0.5 text-[12px] text-[#6B7280]">{email.to}</p>
@@ -6747,9 +7573,10 @@ function CommunicationsSection() {
           </div>
         )}
 
+        {!emailsError && (
         <div className="flex flex-col gap-3 border-t border-[#E5E7EB] px-4 py-4 md:flex-row md:items-center md:justify-between">
           <p className="text-[13px] text-[#6B7280]">
-            Page {page} of {totalPages} — {formatNumber(total)} emails total
+            Page {page} of {totalPages} — {formatNumber(total)} email{total === 1 ? "" : "s"} total
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -6770,7 +7597,9 @@ function CommunicationsSection() {
             </button>
           </div>
         </div>
+        )}
       </div>
+      )}
 
       <Modal isOpen={!!selectedEmail} onClose={() => setSelectedEmail(null)}>
         {selectedEmail ? (
@@ -6800,6 +7629,176 @@ function holdExpiryLabel(captureBefore) {
   if (!captureBefore) return null;
   const hours = Math.floor((new Date(captureBefore).getTime() - Date.now()) / 3600000);
   return hours < 0 ? "Hold expired" : `Hold expires in ${hours}h`;
+}
+
+// Monthly-instalment leases (server routes/adminLeases.js): each month's
+// payment state, and -- for a month that kept failing -- retry it or end the
+// lease. Both are written to the lease's audit trail.
+const LEASE_MONTH_STATUS = {
+  paid: { label: "Paid", className: "bg-[#ECFDF5] text-[#047857]" },
+  scheduled: { label: "Scheduled", className: "bg-[#EFF6FF] text-[#1D4ED8]" },
+  failed: { label: "Failed — retrying", className: "bg-[#FFFBEB] text-[#B45309]" },
+  awaiting_decision: { label: "Overdue — decide", className: "bg-[#FEF2F2] text-[#B91C1C]" },
+  stopped: { label: "Not charged (ended)", className: "bg-[#F3F4F6] text-[#6B7280]" },
+};
+
+function LeasesSection({ onToast }) {
+  const [leases, setLeases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [attention, setAttention] = useState("1");
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/leases?attention=${attention}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setLeases((await res.json()).leases || []);
+    } catch (err) {
+      console.error("Failed to fetch leases:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [attention]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const act = async (lease, action) => {
+    let body = {};
+    if (action === "end") {
+      const note = window.prompt("Why is this lease being ended? (saved to the audit log)");
+      if (!note || note.trim().length < 3) return;
+      if (!window.confirm("End this lease? Every unpaid month is cancelled and won't be charged. Paid months are not changed.")) return;
+      body = { confirm: "true", note: note.trim() };
+    }
+    setBusyId(lease.groupId);
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/leases/${lease.groupId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Something went wrong");
+      onToast(action === "end" ? `Lease ended — ${data.cancelledMonths} month(s) cancelled` : data.paid ? "Payment taken" : `Still declined: ${data.error || "card declined"}`);
+      await load();
+    } catch (err) {
+      onToast(err.message || "Something went wrong");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-5">
+        <h2 className="text-[20px] font-extrabold text-[#0A1628]">Leases</h2>
+        <p className="mt-1 text-[13px] text-[#6B7280]">Monthly-instalment leases and their payments</p>
+      </div>
+
+      <div className="mb-5">
+        <select
+          value={attention}
+          onChange={(event) => setAttention(event.target.value)}
+          className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] outline-none focus:border-[#0A1628]"
+        >
+          <option value="1">Needs attention</option>
+          <option value="0">All leases</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {loading ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">Loading leases...</div>
+        ) : leases.length === 0 ? (
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white px-4 py-10 text-center text-[14px] text-[#6B7280]">No leases in this view</div>
+        ) : (
+          leases.map((lease) => {
+            const overdue = lease.schedule.some((m) => m.status === "confirmed" && ["failed", "awaiting_decision"].includes(m.lease?.chargeStatus));
+            const unpaidLeft = lease.schedule.some((m) => !m.isPaid && ["pending", "confirmed"].includes(m.status));
+            return (
+              <div key={lease.groupId} className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
+                <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-[15px] font-bold text-[#0A1628]">{lease.property?.title || "Lease"}</p>
+                    <p className="mt-0.5 text-[12px] text-[#6B7280]">
+                      Host {getUserDisplayName(lease.host)} · Guest {getUserDisplayName(lease.guest)} · {lease.months} months (minimum{" "}
+                      {lease.minimumMonths})
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {overdue && (
+                      <button
+                        type="button"
+                        disabled={busyId === lease.groupId}
+                        onClick={() => act(lease, "retry")}
+                        className="h-9 rounded-lg bg-[#0A1628] px-4 text-[13px] font-semibold text-white disabled:opacity-50"
+                      >
+                        Retry payment
+                      </button>
+                    )}
+                    {unpaidLeft && (
+                      <button
+                        type="button"
+                        disabled={busyId === lease.groupId}
+                        onClick={() => act(lease, "end")}
+                        className="h-9 rounded-lg border border-[#FCA5A5] px-4 text-[13px] font-semibold text-[#DC2626] disabled:opacity-50"
+                      >
+                        End lease
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-[12px]">
+                    <tbody>
+                      {lease.schedule.map((month) => {
+                        const state = month.isPaid
+                          ? LEASE_MONTH_STATUS.paid
+                          : month.status === "cancelled"
+                          ? LEASE_MONTH_STATUS.stopped
+                          : LEASE_MONTH_STATUS[month.lease?.chargeStatus] || { label: month.status, className: "bg-[#F3F4F6] text-[#6B7280]" };
+                        return (
+                          <tr key={month._id} className="border-t border-[#F3F4F6]">
+                            <td className="py-1.5 pr-3 font-semibold text-[#0A1628]">Month {month.lease?.index}</td>
+                            <td className="py-1.5 pr-3 text-[#374151]">{new Date(month.checkIn).toLocaleDateString("en-GB")}</td>
+                            <td className="py-1.5 pr-3 text-[#374151]">£{month.totalPrice}</td>
+                            <td className="py-1.5 pr-3">
+                              <span className={`rounded-full px-2 py-0.5 font-semibold ${state.className}`}>{state.label}</span>
+                            </td>
+                            <td className="py-1.5 text-[#6B7280]">
+                              {month.lease?.lastError && !month.isPaid ? `${month.lease.lastError} (${month.lease.attempts} tries)` : ""}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {lease.audit?.length > 0 && (
+                  <div className="mt-3 text-[12px] text-[#6B7280]">
+                    {lease.audit.map((entry) => (
+                      <p key={entry._id}>
+                        {new Date(entry.at).toLocaleString("en-GB")} · {getUserDisplayName(entry.by)} · {entry.action}
+                        {entry.note ? ` — ${entry.note}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
 }
 
 // Damage claims opened by hosts against a booking's deposit. Approving takes
@@ -7441,6 +8440,12 @@ export default function AdminDashboard() {
     }
   }, [myAdmin, activeSection]);
   const [searchQuery, setSearchQuery] = useState("");
+  // Listings search waits for a pause in typing before asking the server.
+  const [debouncedListingQuery, setDebouncedListingQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedListingQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [toastMessage, setToastMessage] = useState(null);
   const [users, setUsers] = useState([]);
   const [usersPage, setUsersPage] = useState(1);
@@ -7452,7 +8457,19 @@ export default function AdminDashboard() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [showTestAccounts, setShowTestAccounts] = useState(false);
   const [listings, setListings] = useState([]);
+  // Skeleton while a tab/page loads, like Users. The request id drops a slow
+  // answer for a tab the admin has already left.
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const listingsRequest = useRef(0);
   const [listingsPage, setListingsPage] = useState(1);
+  const [listingStatus, setListingStatus] = useState("all");
+  const [showTestListings, setShowTestListings] = useState(false);
+  const [listingCounts, setListingCounts] = useState(null);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [locationFilter, setLocationFilter] = useState("");
+  const [noPhotosOnly, setNoPhotosOnly] = useState(false);
+  const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [listingsTotalPages, setListingsTotalPages] = useState(1);
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState({
@@ -7633,6 +8650,24 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleFlagUser = async (user, flag) => {
+    try {
+      const token = localStorage.getItem("vencome_token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${user._id}/flag`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ flag }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error);
+      // Re-fetch so the counts and this list follow the change.
+      fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
+      showToast(flag ? `Flagged as ${flag === "internal" ? "Internal" : "Test"} — left out of totals` : "Unflagged — counted as a real account");
+    } catch (err) {
+      showToast(err.message || "Couldn't update the flag", "error");
+    }
+  };
+
   const handleDeleteUser = async (user) => {
     if (!(await confirm(`Delete ${getUserDisplayName(user)}? This can't be undone.`))) return;
     try {
@@ -7772,6 +8807,8 @@ export default function AdminDashboard() {
       const API = import.meta.env.VITE_API_URL;
       const params = new URLSearchParams({ page, limit: 20, tab });
       if (query) params.set("q", query);
+      if (roleFilter !== "All Roles") params.set("role", roleFilter.toLowerCase());
+      if (statusFilter !== "All Status") params.set("status", statusFilter.toLowerCase());
       if (!showTest) params.set("excludeTest", "true");
       const [res, countsRes] = await Promise.all([
         fetch(`${API}/admin/users?${params}`, { headers }),
@@ -7780,7 +8817,6 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
-        setUsersPage(data.page || page);
         setUsersTotalPages(data.pages || 1);
         setUsersTotal(data.total || 0);
       }
@@ -7801,38 +8837,77 @@ export default function AdminDashboard() {
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [roleFilter, statusFilter]);
 
-  const fetchListings = useCallback(async (page) => {
+  // The admin listings filter as /admin/properties query params (shared by
+  // the table and the CSV export).
+  const listingParams = useCallback((page, limit, { status = "all", showTest = false } = {}) => {
+    const params = new URLSearchParams({ page, limit });
+    if (!["all", "draft"].includes(status)) params.set("status", status);
+    if (debouncedListingQuery) params.set("q", debouncedListingQuery);
+    if (locationFilter) params.set("city", locationFilter);
+    if (noPhotosOnly) params.set("noPhotos", "true");
+    if (vatNotSetOnly) params.set("vatNotSet", "true");
+    if (categoryFilter) params.set("category", categoryFilter);
+    if (!showTest) params.set("excludeTest", "true");
+    return params;
+  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter]);
+
+  // Every page of the current filter, then a CSV of it.
+  const exportListingsCsv = useCallback(async (filter) => {
+    const headers = { Authorization: `Bearer ${localStorage.getItem("vencome_token")}` };
+    const all = [];
+    for (let page = 1, pages = 1; page <= pages; page += 1) {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/properties?${listingParams(page, 200, filter)}`, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      const data = await res.json();
+      all.push(...(data.properties || []));
+      pages = data.pages || 1;
+    }
+    const rows = all.filter((listing) => inListingCategory(listing, categoryFilter)).map(listingCsvRow);
+    downloadCsv(`vencome-listings-${new Date().toISOString().slice(0, 10)}.csv`, [LISTING_CSV_HEADER, ...rows]);
+  }, [listingParams, categoryFilter]);
+
+  const fetchListings = useCallback(async (page, { status = "all", showTest = false } = {}) => {
+    const request = ++listingsRequest.current;
+    setListingsLoading(true);
     try {
       const authToken = localStorage.getItem("vencome_token");
       const headers = { Authorization: `Bearer ${authToken}` };
       const API = import.meta.env.VITE_API_URL;
-      const [res, totalRes] = await Promise.all([
-        fetch(`${API}/admin/properties?page=${page}&limit=50`, { headers }),
-        // Same excludeTest count as GET /stats -- data.total below is the
-        // unfiltered browse-list count, which isn't what "Total Listings"
-        // on the Overview page should show.
-        fetch(`${API}/admin/properties?limit=1&excludeTest=true`, { headers }),
+      const params = listingParams(page, 50, { status, showTest });
+      const [res, realCountsRes, tabCountsRes] = await Promise.all([
+        fetch(`${API}/admin/properties?${params}`, { headers }),
+        // The Overview always counts real accounts only (same as GET /stats).
+        fetch(`${API}/admin/properties/counts?excludeTest=true`, { headers }),
+        showTest ? fetch(`${API}/admin/properties/counts`, { headers }) : null,
       ]);
+      if (request !== listingsRequest.current) return;
       if (res.ok) {
         const data = await res.json();
-        const allListings = data.properties || [];
-        setListings(allListings);
-        setListingsPage(data.page || page);
+        setListings(data.properties || []);
+        setLocationOptions(data.locations || []);
         setListingsTotalPages(data.pages || 1);
-        const totalData = totalRes.ok ? await totalRes.json() : null;
+      }
+      const realCounts = realCountsRes.ok ? await realCountsRes.json() : null;
+      const tabCounts = tabCountsRes ? (tabCountsRes.ok ? await tabCountsRes.json() : null) : realCounts;
+      if (tabCounts) setListingCounts(tabCounts);
+      if (realCounts) {
+        // Overview: live listings only, with drafts and inactive underneath
+        // (drafts and inactive used to be counted in the total).
         setStats((prev) => ({
           ...prev,
-          totalListings: totalData?.total ?? prev.totalListings,
-          // pendingListings comes from GET /admin/stats (platform-wide),
-          // not computed here -- this page only ever has 50 listings on it.
+          totalListings: realCounts.active,
+          draftListings: realCounts.draft,
+          inactiveListings: realCounts.inactive,
         }));
       }
     } catch (err) {
       console.error("Failed to fetch listings:", err);
+    } finally {
+      if (request === listingsRequest.current) setListingsLoading(false);
     }
-  }, []);
+  }, [listingParams]);
 
   // Deliberately independent of fetchListings/listingsPage -- the queue
   // needs to see every pending_review listing platform-wide, not just
@@ -7904,7 +8979,7 @@ export default function AdminDashboard() {
         const headers = { Authorization: `Bearer ${token}` };
 
         const [bookingsRes, analyticsRes, reportsRes, statsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/admin/bookings?limit=50&excludeTest=true`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/overview-analytics`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/reports?status=all&limit=100`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/admin/stats`, { headers }),
@@ -7972,20 +9047,32 @@ export default function AdminDashboard() {
     return () => clearTimeout(timer);
   }, [userQuery]);
 
-  // A new tab, search or test-account toggle starts again from page 1.
-  useEffect(() => {
+  // A new filter starts again from page 1. Reset during render, not in an
+  // effect, so the fetch below runs once, for page 1 -- an effect let it
+  // also ask for the old page, and that answer could land last.
+  const userFilterKey = [activeUserTab, debouncedUserQuery, showTestAccounts, roleFilter, statusFilter].join("|");
+  const [prevUserFilterKey, setPrevUserFilterKey] = useState(userFilterKey);
+  if (userFilterKey !== prevUserFilterKey) {
+    setPrevUserFilterKey(userFilterKey);
     setUsersPage(1);
-  }, [activeUserTab, debouncedUserQuery, showTestAccounts]);
+  }
 
   useEffect(() => {
     if (!token) return;
     fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
   }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
+  const listingFilterKey = [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter].join("|");
+  const [prevListingFilterKey, setPrevListingFilterKey] = useState(listingFilterKey);
+  if (listingFilterKey !== prevListingFilterKey) {
+    setPrevListingFilterKey(listingFilterKey);
+    setListingsPage(1);
+  }
+
   useEffect(() => {
     if (!token) return;
-    fetchListings(listingsPage);
-  }, [token, listingsPage, fetchListings]);
+    fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings });
+  }, [token, listingsPage, listingStatus, showTestListings, fetchListings]);
 
   useEffect(() => {
     if (!token) return;
@@ -7995,20 +9082,6 @@ export default function AdminDashboard() {
   const showToast = (message) => {
     setToastMessage(message);
   };
-
-  const filteredUsers = useMemo(() => {
-    // Tab and search are applied on the server (fetchUsers); the role and
-    // status dropdowns still narrow the current page.
-    return users.filter((user) => {
-      const matchesRole =
-        roleFilter === "All Roles" || getUserRole(user) === roleFilter.toLowerCase();
-
-      const matchesStatus =
-        statusFilter === "All Status" || getUserStatus(user) === statusFilter.toLowerCase();
-
-      return matchesRole && matchesStatus;
-    });
-  }, [roleFilter, statusFilter, users]);
 
   let sectionContent = null;
 
@@ -8029,7 +9102,7 @@ export default function AdminDashboard() {
     sectionContent = (
       <>
       <UsersSection
-        users={filteredUsers}
+        users={users}
         userCounts={userCounts}
         usersTotal={usersTotal}
         showTestAccounts={showTestAccounts}
@@ -8054,6 +9127,7 @@ export default function AdminDashboard() {
         onOpenCreateHost={() => setShowCreateHostModal(true)}
         onEditUser={setEditingUser}
         onViewUserDetail={setViewingUserDetail}
+        onFlagUser={handleFlagUser}
         usersPage={usersPage}
         usersTotalPages={usersTotalPages}
         onUsersPageChange={setUsersPage}
@@ -8113,7 +9187,17 @@ export default function AdminDashboard() {
     sectionContent = (
       <ListingsSection
         listings={listings}
-        loading={loading}
+        locationOptions={locationOptions}
+        locationFilter={locationFilter}
+        setLocationFilter={setLocationFilter}
+        noPhotosOnly={noPhotosOnly}
+        setNoPhotosOnly={setNoPhotosOnly}
+        vatNotSetOnly={vatNotSetOnly}
+        setVatNotSetOnly={setVatNotSetOnly}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        onExportCsv={() => exportListingsCsv({ status: listingStatus, showTest: showTestListings })}
+        loading={listingsLoading}
         moderationQueue={moderationQueue}
         setModerationQueue={setModerationQueue}
         listingQueueFilter={listingQueueFilter}
@@ -8126,9 +9210,19 @@ export default function AdminDashboard() {
         listingsPage={listingsPage}
         listingsTotalPages={listingsTotalPages}
         onListingsPageChange={setListingsPage}
-        onRefresh={() => fetchListings(listingsPage)}
-        searchQuery={searchQuery}
+        onRefresh={() => fetchListings(listingsPage, { status: listingStatus, showTest: showTestListings })}
         highlightListingId={highlightListingId}
+        listingStatus={listingStatus}
+        onListingStatusChange={(status) => {
+          setListingStatus(status);
+          setListingsPage(1);
+        }}
+        listingCounts={listingCounts}
+        showTestListings={showTestListings}
+        setShowTestListings={(value) => {
+          setShowTestListings(value);
+          setListingsPage(1);
+        }}
       />
     );
   } else if (activeSection === "bookings") {
@@ -8141,6 +9235,12 @@ export default function AdminDashboard() {
     sectionContent = <CategoriesSection onToast={showToast} />;
   } else if (activeSection === "seo-pages") {
     sectionContent = <SeoPagesSection onToast={showToast} />;
+  } else if (activeSection === "site-content") {
+    sectionContent = <SiteContentSection onToast={showToast} />;
+  } else if (activeSection === "documents") {
+    sectionContent = <DocumentsSection onToast={showToast} />;
+  } else if (activeSection === "data-backups") {
+    sectionContent = <DataBackupsSection onToast={showToast} />;
   } else if (activeSection === "broadcast") {
     sectionContent = (
       <BroadcastSection users={users} stats={stats} />
@@ -8201,6 +9301,8 @@ export default function AdminDashboard() {
     sectionContent = <SupportTicketsSection onToast={showToast} myAdmin={myAdmin} />;
   } else if (activeSection === "claims") {
     sectionContent = <ClaimsSection onToast={showToast} />;
+  } else if (activeSection === "leases") {
+    sectionContent = <LeasesSection onToast={showToast} />;
   } else if (activeSection === "communications") {
     sectionContent = <CommunicationsSection />;
   } else if (activeSection === "invoices") {

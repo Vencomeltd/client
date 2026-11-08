@@ -50,6 +50,8 @@ export default [
   route("sitemap", "pages/Sitemap.jsx"),
   route("category-coming-soon/:categoryName", "pages/CategoryComingSoon.jsx"),
   route("refer", "pages/ReferHost.jsx"),
+  // Client review mock-up only: not linked anywhere, noindex, synthetic data.
+  route("preview/building-listing", "pages/BuildingListingPreview.jsx"),
 
   // Auth-flow pages -- no guard, no SEO value, unchanged components.
   route("login", "pages/LoginPage.jsx"),
@@ -113,6 +115,8 @@ export default [
     route("checkout/:bookingId", "pages/Checkout.jsx"),
     // Recurring / Multiple Dates: one checkout for every date in the series.
     route("checkout/series/:groupId", "pages/Checkout.jsx", { id: "checkout-series" }),
+    // Post-payment page for a single booking (Checkout redirects here).
+    route("booking/:id/confirmed", "pages/BookingConfirmed.jsx"),
   ]),
 
   layout("routes/layouts/admin-route.jsx", [

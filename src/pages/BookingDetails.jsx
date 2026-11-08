@@ -439,6 +439,7 @@ import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import SignaturePad from "../components/SignaturePad";
 import DepositV2Panel from "../components/DepositV2Panel";
+import LeasePanel from "../components/LeasePanel";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -451,6 +452,7 @@ import {
   Printer,
   X,
 } from "lucide-react";
+import { hostPublicName } from "../utils/hostName";
 
 const STATUS_CONFIG = {
   confirmed: {
@@ -1309,7 +1311,11 @@ export default function BookingDetails() {
     priceBreakdown.length > 1 && priceBreakdown.some((b) => b.rate !== priceBreakdown[0].rate);
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const canAccept = status === "pending" && isHost;
-  const canCancel = status !== "cancelled" && isHost;
+  // A lease month inside its minimum term is ended by VenCome, not cancelled
+  // online (server: inLeaseMinimumTerm).
+  const leaseLocked =
+    Boolean(booking?.lease?.securedAt) && booking?.status === "confirmed" && booking.lease.index <= booking.lease.minimumMonths;
+  const canCancel = status !== "cancelled" && isHost && !leaseLocked;
   const initials = `${guest?.firstName?.[0] || ""}${
     guest?.lastName?.[0] || ""
   }`;
@@ -1526,11 +1532,7 @@ export default function BookingDetails() {
                   <p className="font-semibold text-slate-900 text-sm">
                     {isHost
                       ? `${guest?.firstName} ${guest?.lastName}`
-                      : property?.host?.displayName ||
-                        [property?.host?.firstName, property?.host?.lastName]
-                          .filter(Boolean)
-                          .join(" ") ||
-                        "Property Host"}
+                      : hostPublicName(property?.host)}
                   </p>
                   <p className="text-slate-400 text-xs mt-0.5">
                     {isHost ? guest?.email : hostContact?.email || ""}
@@ -1622,6 +1624,13 @@ export default function BookingDetails() {
                 )
               )}
             </div>
+
+            <LeasePanel
+              booking={booking}
+              isHost={isHost}
+              onUpdate={(patch) => setBooking((prev) => ({ ...prev, ...patch }))}
+              showToast={showToast}
+            />
 
             <DepositV2Panel
               booking={booking}

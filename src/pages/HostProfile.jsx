@@ -5,6 +5,7 @@ import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import VerifiedName from "../components/VerifiedName";
 import PropertyCard from "../components/PropertyCard";
+import { hostPublicName } from "../utils/hostName";
 
 const HostProfile = () => {
   const { id } = useParams();
@@ -63,10 +64,7 @@ const HostProfile = () => {
     );
   }
 
-  const hostName =
-    host.displayName ||
-    `${host.firstName || ""} ${host.lastName || ""}`.trim() ||
-    "Host";
+  const hostName = hostPublicName(host);
 
   return (
     <div className="min-h-screen bg-white px-4 pb-6 pt-24 sm:px-8 sm:pb-8 sm:pt-28">

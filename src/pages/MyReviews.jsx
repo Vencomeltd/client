@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { apiFetch } from "../utils/api";
+import { hostPublicName } from "../utils/hostName";
 
 const ReviewRow = ({ review, subtitle }) => (
   <div style={{
@@ -133,7 +134,7 @@ export default function MyReviews() {
               subtitle={
                 activeTab === "given"
                   ? review.property?.title || "Property"
-                  : `From ${review.host?.displayName || review.host?.firstName || "Host"} — ${review.property?.title || "Property"}`
+                  : `From ${hostPublicName(review.host)} — ${review.property?.title || "Property"}`
               }
             />
           ))}

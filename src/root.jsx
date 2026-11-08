@@ -12,6 +12,7 @@ import { CurrencyProvider } from "./context/CurrencyContext.jsx";
 import SupportChatWidget from "./components/SupportChatWidget.jsx";
 import NavigationProgress from "./components/NavigationProgress.jsx";
 import "./index.css";
+import { SITE_CONTENT_DEFAULTS, SEO_PAGE_BY_PATH } from "./content/siteContent";
 
 // Same provider tree main.jsx/App.jsx used to set up around
 // <ReactDOM.createRoot>/<Router>/<AppContent> -- the framework now
@@ -38,11 +39,23 @@ function canonicalPath(pathname) {
   return path;
 }
 
+// Published site-text overrides (admin -> Site content). Fetched on its own
+// so a failure only means the bundled defaults are shown.
+async function loadSiteContent() {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/site-content`);
+    return res.ok ? await res.json() : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function loader({ request }) {
   const url = new URL(request.url);
   const path = canonicalPath(url.pathname);
   if (path !== url.pathname) throw redirect(`${path}${url.search}`, 301);
 
+  const siteContent = await loadSiteContent();
   try {
     const [categoriesRes, linksRes] = await Promise.all([
       fetch(`${import.meta.env.VITE_API_URL}/categories/with-counts`),
@@ -59,9 +72,10 @@ export async function loader({ request }) {
       // /chairs); the server only returns pages that exist.
       footerCities: links.cities || [],
       footerServicePaths: Object.fromEntries((links.services || []).map((s) => [s.name, s.path])),
+      siteContent,
     };
   } catch {
-    return { footerCategories: [], footerCities: [], footerServicePaths: {} };
+    return { footerCategories: [], footerCities: [], footerServicePaths: {}, siteContent };
   }
 }
 
@@ -81,10 +95,13 @@ export function shouldRevalidate({ formMethod, defaultShouldRevalidate }) {
   return false;
 }
 
-export function meta({ location }) {
-  const title = "VenCome – Book & List Commercial Spaces | UK";
-  const description =
-    "VenCome is the UK's B2B marketplace for commercial spaces — book offices, studios, treatment rooms, meeting rooms, and event venues by the hour, day, or month.";
+export function meta({ location, data }) {
+  // Static pages (home, about, contact) take their title/description from
+  // Site content; everything else uses the site-wide default.
+  const page = SEO_PAGE_BY_PATH[location?.pathname || "/"] || "home";
+  const text = (key) => data?.siteContent?.[key] ?? SITE_CONTENT_DEFAULTS[key];
+  const title = text(`seo.${page}.title`);
+  const description = text(`seo.${page}.description`);
   return [
     { title },
     { name: "description", content: description },

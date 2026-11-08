@@ -5,6 +5,7 @@ import { apiFetch } from "../utils/api";
 import { initSocket } from "../utils/socket";
 import VencomeLoader from "../components/Loader";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { hostPublicName } from "../utils/hostName";
 
 export default function ConversationPage() {
   const { id } = useParams();
@@ -100,16 +101,18 @@ export default function ConversationPage() {
     </div>
   );
 
-  const otherUser = conversation.host?._id === currentUser._id ||
-    conversation.host?._id === currentUser.id
-    ? conversation.guest
-    : conversation.host;
+  const viewerIsHost = conversation.host?._id === currentUser._id ||
+    conversation.host?._id === currentUser.id;
+  const otherUser = viewerIsHost ? conversation.guest : conversation.host;
 
-  const otherName = otherUser?.displayName ||
-    [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
-    otherUser?.name ||
-    otherUser?.email?.split("@")[0] ||
-    "Guest";
+  // A guest sees the host by their public host name (never their email).
+  const otherName = !viewerIsHost
+    ? hostPublicName(otherUser)
+    : otherUser?.displayName ||
+      [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
+      otherUser?.name ||
+      otherUser?.email?.split("@")[0] ||
+      "Guest";
 
   const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 

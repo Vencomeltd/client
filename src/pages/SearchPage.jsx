@@ -24,6 +24,7 @@ import PropertyCard from "../components/PropertyCard";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
 import Footer from "../components/Footer";
 import { trackEvent } from "../utils/analytics";
+import useSiteText from "../hooks/useSiteText";
 
 const DURATION_OPTIONS = ["Any", "Hourly", "Daily", "Weekly", "Monthly", "Annual"];
 
@@ -320,6 +321,7 @@ export function meta() {
 }
 
 export default function SearchPage() {
+  const t = useSiteText();
   const loaderData = useLoaderData();
   const [searchParams, setSearchParams] = useSearchParams();
   const resultsRef = useRef(null);
@@ -863,9 +865,9 @@ export default function SearchPage() {
                 className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-[#E5E7EB] bg-white px-6 text-center"
               >
                 <div style={{ textAlign: "center", padding: "80px 0", color: "#6B7280" }}>
-                  <p style={{ fontSize: "18px", marginBottom: "8px" }}>No spaces match your search</p>
+                  <p style={{ fontSize: "18px", marginBottom: "8px" }}>{t("search.empty.heading")}</p>
                   <p style={{ fontSize: "14px" }}>
-                    Try adjusting your filters or search a different location
+                    {t("search.empty.body")}
                   </p>
                 </div>
               </motion.div>

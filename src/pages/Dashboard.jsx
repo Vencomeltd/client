@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import getGreeting from "../utils/greeting";
 import {
@@ -16,8 +16,10 @@ import {
   Plus,
   PoundSterling,
   Star,
+  UserRound,
 } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { hostPublicName, hostProfileIncomplete, hasProfilePhoto } from "../utils/hostName";
 
 const ACTIONS = [
   { icon: Plus, title: "List Your Space", description: "Start earning from your property", href: "/create-space" },
@@ -99,6 +101,42 @@ const getCustomerName = (booking) =>
   booking.guest?.name ||
   [booking.guest?.firstName, booking.guest?.lastName].filter(Boolean).join(" ") ||
   "Guest";
+
+// Guests see a host with no profile name as plain "Host" (and no photo) --
+// prompt them to complete it.
+function IncompleteProfileBanner({ token }) {
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setMe)
+      .catch(() => {});
+  }, [token]);
+
+  if (!me?.isHost || !hostProfileIncomplete(me)) return null;
+  const missing = [hostPublicName(me) === "Host" && "a name or business name", !hasProfilePhoto(me) && "a profile photo"].filter(Boolean);
+
+  return (
+    <div className="mb-7 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C7D2FE] bg-[#EEF2FF] px-5 py-4 sm:px-6">
+      <div className="flex items-center gap-3">
+        <UserRound size={20} className="shrink-0 text-[#305CDE]" />
+        <div>
+          <p className="text-[14px] font-bold text-[#0A1628]">Complete your host profile</p>
+          <p className="text-[13px] text-[#374151]">
+            Guests currently see you as "{hostPublicName(me)}". Add {missing.join(" and ")} so they know who they're booking with.
+          </p>
+        </div>
+      </div>
+      <Link
+        to="/profile"
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white transition hover:opacity-90"
+      >
+        Complete profile <ArrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
 
 function IncompleteDraftBanner({ token }) {
   const [drafts, setDrafts] = useState([]);
@@ -230,6 +268,7 @@ function OnboardingChecklist({ token }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const token = localStorage.getItem("vencome_token");
   const user = JSON.parse(localStorage.getItem("vencome_user") || "{}");
   const [listings, setListings] = useState([]);
@@ -256,6 +295,20 @@ export default function Dashboard() {
       if (listingsRes.ok) {
         const listingsData = await listingsRes.json();
         const allListings = listingsData.properties || [];
+        // A host who has no listing at all goes straight to creating (or resuming) one,
+        // once per browser session so "back" from the form doesn't bounce them again.
+        // They may have a draft; /create-space resumes it.
+        if (allListings.length === 0 && !JSON.parse(localStorage.getItem("vencome_user") || "{}").isAdmin) {
+          let alreadySent = false;
+          try {
+            alreadySent = sessionStorage.getItem("vencome_first_listing_redirect") === "1";
+            sessionStorage.setItem("vencome_first_listing_redirect", "1");
+          } catch { /* private mode: still redirect once per load */ }
+          if (!alreadySent) {
+            navigate("/create-space", { replace: true });
+            return;
+          }
+        }
         setListings(allListings);
         setStats((prev) => ({
           ...prev,
@@ -285,7 +338,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, navigate]);
 
   useEffect(() => {
     fetchHostDashboard();
@@ -328,6 +381,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Overview">
+      <IncompleteProfileBanner token={token} />
       <IncompleteDraftBanner token={token} />
 
       <motion.section

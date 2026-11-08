@@ -4,6 +4,7 @@ import { MessageSquare } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import VencomeLoader from "../components/Loader";
 import DashboardLayout from "../layouts/DashboardLayout";
+import { hostPublicName } from "../utils/hostName";
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
@@ -66,11 +67,15 @@ export default function ChatPage() {
               const isHost = conv.host?._id === currentUser._id ||
                 conv.host?._id === currentUser.id;
               const otherUser = isHost ? conv.guest : conv.host;
-              const otherName = otherUser?.displayName ||
-                [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
-                otherUser?.name ||
-                otherUser?.email?.split("@")[0] ||
-                (isHost ? "Guest" : "Host");
+              // A guest sees the host by their public host name (never their
+              // email); a host sees the guest as before.
+              const otherName = !isHost
+                ? hostPublicName(otherUser)
+                : otherUser?.displayName ||
+                  [otherUser?.firstName, otherUser?.lastName].filter(Boolean).join(" ") ||
+                  otherUser?.name ||
+                  otherUser?.email?.split("@")[0] ||
+                  "Guest";
               const otherInitials = otherName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
               return (

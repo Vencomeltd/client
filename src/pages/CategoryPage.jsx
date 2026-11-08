@@ -8,6 +8,7 @@ import PropertyCard from "../components/PropertyCard";
 import VencomeLoader from "../components/Loader";
 import TagList from "../components/TagList";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
+import useSiteText from "../hooks/useSiteText";
 
 const SORT_OPTIONS = ["Relevance", "Price: Low to High", "Price: High to Low"];
 
@@ -72,6 +73,7 @@ export function meta({ data }) {
 }
 
 const CategoryPage = () => {
+  const t = useSiteText();
   const { id } = useParams();
   const navigate = useNavigate();
   const loaderData = useLoaderData();
@@ -203,15 +205,13 @@ const CategoryPage = () => {
               <Sparkles size={28} />
             </span>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#305CDE]">
-              Coming Soon
+              {t("category.soon.eyebrow")}
             </p>
             <h2 className="mb-4 text-[clamp(22px,4vw,30px)] font-extrabold text-[#0A1628]">
               {category.name} is launching soon
             </h2>
             <p className="mb-8 text-[15px] leading-7 text-[#6B7280]">
-              We're onboarding hosts in this category right now. Browsing and
-              booking will open shortly — but you can list your space today
-              and be ready the moment it goes live.
+              {t("category.soon.body")}
             </p>
             <Link
               to="/create-space"

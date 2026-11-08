@@ -38,8 +38,10 @@ import apiFetch from "../utils/apiClient";
 import { apiFetch as apiFetchJson } from "../utils/api";
 import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
+import { minBookingHoursOf, rangeShorterThanMinimum } from "../utils/minBookingHours";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
 import { getResponsiveImageProps } from "../utils/responsiveImage";
+import { quote as quotePrice } from "../utils/vatPricing";
 import {
   recurringDays,
   recurringBookings,
@@ -48,6 +50,8 @@ import {
   openWeekdays,
   STANDARD_HOURS,
 } from "../utils/recurringDates";
+import { hostPublicName, verifiedCompanyName } from "../utils/hostName";
+import useSiteText from "../hooks/useSiteText";
 
 const BRAND = {
   navy: "#0A1628",
@@ -150,7 +154,7 @@ const MOCK_PROPERTY = {
     "Catering must be pre-arranged 48hrs in advance",
     "Maximum 24 guests at any time",
     "Access via reception — photo ID required",
-    "Cancellation: 72 hours notice for full refund",
+    "Cancellation: 48 hours notice for full refund",
   ],
   location_detail: {
     lat: 51.5045,
@@ -326,11 +330,7 @@ const buildPricingTiers = (pricing = {}) =>
 const normalizePropertyData = (property) => {
   if (!property) return null;
 
-  const hostName =
-    property.host?.displayName ||
-    [property.host?.firstName, property.host?.lastName].filter(Boolean).join(" ") ||
-    property.host?.name ||
-    "VenCome Host";
+  const hostName = hostPublicName(property.host);
   const location = [
     property.location?.city,
     property.location?.country,
@@ -422,7 +422,7 @@ const normalizePropertyData = (property) => {
     pricing,
     host: {
       name: hostName,
-      company: property.host?.company || "VenCome Host",
+      company: verifiedCompanyName(property.host) || "",
       avatar: property.host?.profileImage || property.host?.avatar || property.coverImage || "",
       verified: Boolean(property.host?.venComeVerified),
       venComeVerified: Boolean(property.host?.venComeVerified),
@@ -843,7 +843,12 @@ export default function PropertyDetails() {
   const today = startOfDay(new Date());
   const [property, setProperty] = useState(loaderData?.property || null);
   const [loading, setLoading] = useState(!loaderData?.property);
-  const [error, setError] = useState(null);
+  // "not_found" only for a real 404; "failed" for a 5xx or network error.
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // Which id the listing on screen belongs to, so a failed background
+  // re-fetch keeps it instead of replacing it with an error page.
+  const loadedIdRef = useRef(loaderData?.property ? id : null);
   const [isSaved, setIsSaved] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -860,6 +865,8 @@ export default function PropertyDetails() {
   );
   const [selectedDurationType, setSelectedDurationType] = useState(null);
   const [bookingMode, setBookingMode] = useState("single");
+  // Lease (a monthly price with a minimum term): start date + how many months.
+  const [leaseConfig, setLeaseConfig] = useState({ startDate: "", months: 0 });
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [selectedDates, setSelectedDates] = useState([]);
@@ -1005,33 +1012,48 @@ export default function PropertyDetails() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const fetchProperty = async () => {
+      // Booked dates load on their own, so a failure there can't hide the listing.
+      fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((bookingData) => {
+          if (bookingData && !cancelled) setBookedDates(bookingData.bookedDates || []);
+        })
+        .catch(() => {});
       try {
-        const [propRes, bookingsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`),
-          fetch(`${import.meta.env.VITE_API_URL}/bookings/property/${id}/booked-dates`),
-        ]);
-        if (!propRes.ok) throw new Error("Property not found");
+        const propRes = await fetch(`${import.meta.env.VITE_API_URL}/properties/${id}`);
+        if (!propRes.ok) {
+          throw Object.assign(new Error("Couldn't load this listing"), { status: propRes.status });
+        }
         const data = await propRes.json();
         const prop = data.property || data;
+        if (cancelled) return;
         setProperty(prop);
+        setLoadError(null);
+        loadedIdRef.current = id;
         // SEO meta tags (title/description/OG/canonical/JSON-LD) are now
         // handled declaratively by this route's meta() export + the SSR
         // loader above, instead of imperative DOM manipulation here.
-
-        if (bookingsRes.ok) {
-          const bookingData = await bookingsRes.json();
-          setBookedDates(bookingData.bookedDates || []);
-        }
       } catch (err) {
-        setError(err.message);
+        if (cancelled) return;
+        // Keep a listing that's already on screen; the server on Render can
+        // be slow or fail briefly, and that doesn't mean the listing is gone.
+        if (loadedIdRef.current === id) {
+          console.error("Failed to refresh listing:", err);
+          return;
+        }
+        setLoadError(err.status === 404 ? "not_found" : "failed");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (id) fetchProperty();
-  }, [id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, reloadKey]);
 
   // Guest-facing visibility into Property.unitsCount (e.g. "3 of 5 available
   // for these dates") -- only meaningful once both dates are picked, and
@@ -1374,13 +1396,45 @@ export default function PropertyDetails() {
       } else if (selectedTier.unit === "day") {
         price = calculateDailyPriceWithBreakdown(range.checkIn, 1, selectedTier.price, customDayPricing).totalPrice;
       }
-      return { ...range, price };
+      // Same pricing function the server uses: utilities + VAT on the core.
+      const q = quotePrice({
+        corePence: Math.round(price * 100),
+        quantity: selectedTier.unit === "hour" ? Math.round(((range.checkOut - range.checkIn) / (1000 * 60 * 60)) * 10) / 10 : 1,
+        tax: property?.pricing?.vat?.[VAT_KEY_BY_UNIT[selectedTier.unit]],
+      });
+      return { ...range, price: q.totalPence / 100, q };
     });
     const total = Math.round(items.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
+    const sum = (field) => items.reduce((acc, item) => acc + item.q[field], 0);
+    const totals = { corePence: sum("corePence"), utilitiesPence: sum("utilitiesPence"), vatPence: sum("vatPence"), vatRatePct: items[0]?.q.vatRatePct };
     // Hourly listings without opening hours are booked for standard hours.
     const standardHours = items.some((item) => item.hours === STANDARD_HOURS);
-    return { items, total, unit: selectedTier.unit, standardHours };
-  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing, property?.availability]);
+    return { items, total, totals, unit: selectedTier.unit, standardHours };
+  }, [bookingMode, selectedTier, recurringConfig, property?.pricing?.customDayPricing, property?.pricing?.vat, property?.availability]);
+
+  // The booking panel's total: utilities + VAT on the core (same function the
+  // server prices the booking with).
+  const bookingQuote = useMemo(() => {
+    if (!(bookingMetrics.subtotal > 0) || !selectedTier) return null;
+    return quotePrice({
+      corePence: Math.round(bookingMetrics.subtotal * 100),
+      quantity: bookingMetrics.units,
+      tax: property?.pricing?.vat?.[VAT_KEY_BY_UNIT[selectedTier.unit]],
+    });
+  }, [bookingMetrics, selectedTier, property?.pricing?.vat]);
+
+  // A listing with a minimum term books monthly as a lease, paid month by
+  // month (server: POST /bookings/lease). Each month is priced on its own.
+  const leaseMinimum = selectedTier?.unit === "month" ? property?.pricing?.minimumTermMonths || 0 : 0;
+  const leaseMonths = Math.max(leaseMinimum, leaseConfig.months || 0);
+  const leaseQuote = useMemo(() => {
+    if (!(leaseMinimum >= 2) || !(Number(property?.pricing?.monthly) > 0)) return null;
+    return quotePrice({
+      corePence: Math.round(Number(property.pricing.monthly) * 100),
+      quantity: 1,
+      tax: property?.pricing?.vat?.monthly,
+    });
+  }, [leaseMinimum, property?.pricing?.monthly, property?.pricing?.vat?.monthly]);
 
   const cleaningFee = 0;
   const platformFee = bookingMetrics.subtotal > 0 ? Math.round(bookingMetrics.subtotal * 0.1) : 0;
@@ -1434,7 +1488,34 @@ export default function PropertyDetails() {
     );
   }
 
-  if (error || !propertyView) {
+  if (loadError === "failed") {
+    return (
+      <>
+        <Navbar />
+        <div style={{ textAlign: "center", padding: "80px 24px" }}>
+          <p style={{ fontSize: "20px", color: "#111827", marginBottom: "8px" }}>
+            Couldn't load this listing
+          </p>
+          <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "24px" }}>
+            Something went wrong on our side. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoadError(null);
+              setLoading(true);
+              setReloadKey((key) => key + 1);
+            }}
+            style={{ color: "#0A1628", fontWeight: "600", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", fontSize: "inherit" }}
+          >
+            Try again
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (loadError === "not_found" || !propertyView) {
     return (
       <>
         <Navbar />
@@ -1552,6 +1633,32 @@ export default function PropertyDetails() {
         return;
       }
 
+      if (leaseQuote) {
+        if (!leaseConfig.startDate) {
+          setBookingError("Please choose when your lease starts");
+          setBookingLoading(false);
+          return;
+        }
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/bookings/lease`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId: property._id,
+            startDate: new Date(`${leaseConfig.startDate.slice(0, 10)}T09:00:00`).toISOString(),
+            months: leaseMonths,
+            guests,
+            agreedToTerms: Boolean(property?.listingTerms?.trim()),
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setBookingError(data.error || "This lease couldn't be booked");
+          return;
+        }
+        navigate(`/checkout/series/${data.groupId}`);
+        return;
+      }
+
       let bookingsToCreate = [];
 
       if (bookingMode === "single") {
@@ -1621,6 +1728,13 @@ export default function PropertyDetails() {
         return { checkIn: checkInISO, checkOut: checkOutISO };
       };
       const ranges = bookingsToCreate.map(toBackendRange);
+
+      // Hourly bookings can't be shorter than the host's minimum.
+      const minHours = minBookingHoursOf(property);
+      if (selectedTier?.unit === "hour" && rangeShorterThanMinimum(ranges, minHours)) {
+        setBookingError(`This space has a minimum booking of ${minHours} hours. Please choose a longer time.`);
+        return;
+      }
 
       // Recurring / Multiple Dates: the server books every date or none (the
       // error names any date that's taken), and they're paid for together
@@ -1880,6 +1994,8 @@ export default function PropertyDetails() {
               <motion.section {...sectionProps(0.2)}>
                 <PricingSection
                   pricing={pricingOptions}
+                  vat={property?.pricing?.vat}
+                  minimumTermMonths={property?.pricing?.minimumTermMonths || 0}
                   selectedPricingTier={pricingOptions?.findIndex((t) => t.unit === targetUnit) ?? 0}
                   onSelectTier={(idx) => {
                     setSelectedPricingTier(idx);
@@ -1975,10 +2091,16 @@ export default function PropertyDetails() {
                 onBook={handleBookClick}
                 onEnquiry={handleEnquiry}
                 bookingMetrics={bookingMetrics}
+                bookingQuote={bookingQuote}
                 bookingTotal={bookingTotal}
                 platformFee={platformFee}
                 unavailableDates={unavailableDates}
                 unitAvailability={unitAvailability}
+                leaseQuote={leaseQuote}
+                leaseMinimum={leaseMinimum}
+                leaseMonths={leaseMonths}
+                leaseConfig={leaseConfig}
+                onLeaseConfigChange={setLeaseConfig}
               />
             </motion.aside>
           </div>
@@ -2542,6 +2664,17 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
       </div>
 
       {images.length > 1 ? (
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-[#111827] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#111827] md:hidden"
+        >
+          <Grid size={16} />
+          <span>View all {images.length} photos</span>
+        </button>
+      ) : null}
+
+      {images.length > 1 ? (
         <div className="mt-2 flex gap-2 overflow-x-auto md:hidden">
           {images.map((image, index) => (
             <button
@@ -2912,10 +3045,7 @@ function ReportListingModal({ propertyId, onClose }) {
 
 function HostSection({ property }) {
   return (() => {
-    const hostName = property?.host?.displayName ||
-      (property?.host?.firstName && property?.host?.lastName
-        ? `${property.host.firstName} ${property.host.lastName}`
-        : property?.host?.firstName || property?.host?.email?.split("@")[0] || "VenCome Host");
+    const hostName = hostPublicName(property?.host);
 
     const hostInitials = hostName
       .split(" ")
@@ -2994,7 +3124,7 @@ function HostSection({ property }) {
                 Verified Host
               </span>
             ) : (
-              "VenCome Host"
+              "Host"
             )}{" "}
             · Hosting since{" "}
             {new Date(property?.host?.createdAt || property?.createdAt).toLocaleDateString(
@@ -3209,7 +3339,7 @@ function UnitsAvailableSection({ unitsCount, unitAvailability, hasDatesSelected 
   );
 }
 
-function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
+function PricingSection({ pricing, selectedPricingTier, onSelectTier, minimumTermMonths = 0, vat }) {
   return (
     <div className="border-b border-[#E5E7EB] py-6">
       <h2 className="text-[20px] font-bold text-[#0A1628]">Pricing Options</h2>
@@ -3224,6 +3354,11 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
             "Per Year": "annual",
           };
           const key = keyMap[tier.label];
+          const displayQuote = quotePrice({
+            corePence: Math.round(tier.price * 100),
+            quantity: 1,
+            tax: vat?.[key],
+          });
           const labels = {
             hourly: "PER HOUR",
             daily: "PER DAY",
@@ -3242,7 +3377,7 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
             hourly: "1 hour minimum",
             daily: "Full day booking",
             weekly: "Weekly arrangement",
-            monthly: "Monthly rolling",
+            monthly: minimumTermMonths > 0 ? `${minimumTermMonths}-month minimum` : "Monthly rolling",
             annual: "Annual lease",
           };
 
@@ -3278,7 +3413,7 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
                   marginBottom: "4px",
                 }}
               >
-                £{tier.price.toLocaleString()}
+                £{(displayQuote.totalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: displayQuote.totalPence % 100 ? 2 : 0, maximumFractionDigits: 2 })}
                 <span
                   style={{
                     fontSize: "14px",
@@ -3287,9 +3422,12 @@ function PricingSection({ pricing, selectedPricingTier, onSelectTier }) {
                   }}
                 >
                   {" "}
-                  {units[key]}
+                  {units[key]}{displayQuote.vatRatePct > 0 ? " inc. VAT" : ""}
                 </span>
               </p>
+              {displayQuote.utilitiesPence > 0 && (
+                <p className="text-[12px] text-[#6B7280]">Includes utilities</p>
+              )}
               <p style={{ fontSize: "12px", color: "#9CA3AF" }}>{descriptions[key]}</p>
             </div>
           );
@@ -3716,6 +3854,27 @@ const WEEKDAY_CHIPS = [
   { day: 6, label: "Sat" },
   { day: 0, label: "Sun" },
 ];
+// pricing.vat key for a price tier's unit (annual has no VAT settings).
+const VAT_KEY_BY_UNIT = { hour: "hourly", day: "daily", week: "weekly", month: "monthly" };
+
+// Core / utilities / VAT lines for the booking panel, when there is more
+// than the core price to show.
+function PriceBreakdownLines({ q }) {
+  if (!q || (!q.utilitiesPence && !q.vatPence)) return null;
+  const gbp = (pence) => `£${(pence / 100).toFixed(2)}`;
+  const rows = [
+    ["Core price", q.corePence],
+    ...(q.utilitiesPence ? [["Utilities", q.utilitiesPence]] : []),
+    ...(q.vatPence ? [[`VAT at ${q.vatRatePct}%`, q.vatPence]] : []),
+  ];
+  return rows.map(([label, amount]) => (
+    <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "#6B7280", marginBottom: "4px" }}>
+      <span>{label}</span>
+      <span>{gbp(amount)}</span>
+    </div>
+  ));
+}
+
 // Weekly and fortnightly both count calendar weeks from the start date.
 const PERIOD_LABEL = { weekly: "How many weeks", biweekly: "How many weeks", monthly: "How many months" };
 const PERIOD_WORD = { weekly: "weeks", biweekly: "weeks", monthly: "months" };
@@ -3815,11 +3974,77 @@ function RecurringSummary({ preview }) {
       <p style={{ margin: "8px 0 0", color: "#6B7280" }}>
         Last booking: {last.checkIn.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short", year: "numeric" })}
       </p>
+      <div style={{ marginTop: "8px" }}>
+        <PriceBreakdownLines q={preview.totals} />
+      </div>
       <p style={{ margin: "8px 0 0", paddingTop: "8px", borderTop: "1px solid #E0E7FF", fontWeight: "800", color: "#0A1628", fontSize: "14px" }}>
         {samePrice
           ? `${items.length} booking${items.length !== 1 ? "s" : ""} × ${gbp(items[0].price)} = ${gbp(total)}`
           : `Total ${gbp(total)}`}
       </p>
+    </div>
+  );
+}
+
+// Lease: when it starts, how many months (at least the listing's minimum),
+// and what's paid when -- month 1 at checkout, then each month on its own.
+function LeaseFields({ quote, minimum, months, config, onChange, unavailableDates }) {
+  const gbp = (pence) => `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const stepButton = {
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    border: "1.5px solid #E5E7EB",
+    background: "#fff",
+    fontSize: "18px",
+    cursor: "pointer",
+  };
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#374151", background: "#F5F7FF", borderRadius: "10px", padding: "10px 12px" }}>
+        <strong>{minimum}-month minimum.</strong> Paid monthly — you pay the first month now, then each month is taken from
+        your card 3 days before it starts.
+      </p>
+      <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", marginBottom: "6px" }}>Lease starts</label>
+      <CalendarPicker
+        value={config.startDate}
+        onChange={(value) => onChange({ ...config, startDate: value })}
+        placeholder="Select a start date"
+        unavailableDates={unavailableDates}
+      />
+      <label style={{ fontSize: "13px", fontWeight: "600", color: "#374151", display: "block", margin: "12px 0 6px" }}>Months</label>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <button
+          type="button"
+          aria-label="Fewer months"
+          onClick={() => onChange({ ...config, months: Math.max(minimum, months - 1) })}
+          disabled={months <= minimum}
+          style={{ ...stepButton, opacity: months <= minimum ? 0.4 : 1 }}
+        >
+          −
+        </button>
+        <span style={{ fontSize: "18px", fontWeight: "700", color: "#0A1628", minWidth: "32px", textAlign: "center" }}>{months}</span>
+        <button
+          type="button"
+          aria-label="More months"
+          onClick={() => onChange({ ...config, months: Math.min(36, months + 1) })}
+          disabled={months >= 36}
+          style={{ ...stepButton, opacity: months >= 36 ? 0.4 : 1 }}
+        >
+          +
+        </button>
+      </div>
+      <div style={{ marginTop: "14px", borderRadius: "12px", padding: "14px 16px", border: "1.5px solid #E5E7EB" }}>
+        <PriceBreakdownLines q={quote} />
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "800", color: "#0A1628", fontSize: "15px" }}>
+          <span>Due today (month 1)</span>
+          <span>{gbp(quote.totalPence)}</span>
+        </div>
+        <p style={{ margin: "8px 0 0", fontSize: "13px", color: "#6B7280" }}>
+          Then {months - 1} monthly payment{months - 1 === 1 ? "" : "s"} of {gbp(quote.totalPence)}. Lease total{" "}
+          {gbp(quote.totalPence * months)} over {months} months.
+        </p>
+      </div>
     </div>
   );
 }
@@ -3847,11 +4072,18 @@ function BookingSidebar({
   onBook,
   onEnquiry,
   bookingMetrics,
+  bookingQuote,
   bookingTotal,
   platformFee,
   unavailableDates,
   unitAvailability,
+  leaseQuote,
+  leaseMinimum,
+  leaseMonths,
+  leaseConfig,
+  onLeaseConfigChange,
 }) {
+  const t = useSiteText();
   const minDateTime = new Date().toISOString().slice(0, 16);
   const minDate = new Date().toISOString().slice(0, 10);
   const maxCapacity =
@@ -3862,6 +4094,10 @@ function BookingSidebar({
   const selectedOption = enabledPricingOptions.find(
     (option) => option.key === selectedDurationType
   );
+  const selectedPriceQuote = selectedOption ? quotePrice({
+    corePence: Math.round(selectedOption.price * 100),
+    tax: property?.pricing?.vat?.[selectedOption.key],
+  }) : null;
   // Recurring needs a start date (and times, for hourly) before it can book.
   const recurringIncomplete = bookingMode === "recurring" && !recurringPreview?.items.length;
   // Repeat days on offer: only days the space is open.
@@ -3925,7 +4161,7 @@ function BookingSidebar({
                 color: "#0A1628",
               }}
             >
-              £{selectedOption.price}
+              £{(selectedPriceQuote.totalPence / 100).toLocaleString("en-GB", { minimumFractionDigits: selectedPriceQuote.totalPence % 100 ? 2 : 0, maximumFractionDigits: 2 })}
               <span
                 style={{
                   fontSize: "14px",
@@ -3934,13 +4170,29 @@ function BookingSidebar({
                 }}
               >
                 {" "}
-                {selectedOption.unit}
+                {selectedOption.unit}{selectedPriceQuote.vatRatePct > 0 ? " inc. VAT" : ""}{selectedPriceQuote.utilitiesPence > 0 ? " incl. utilities" : ""}
               </span>
             </p>
           ) : null}
+          {selectedDurationType === "hourly" && minBookingHoursOf(property) > 0 && (
+            <p style={{ marginTop: "4px", fontSize: "13px", fontWeight: "600", color: "#6B7280" }}>
+              Minimum {minBookingHoursOf(property)} hour{minBookingHoursOf(property) === 1 ? "" : "s"}
+            </p>
+          )}
         </div>
       )}
 
+      {leaseQuote ? (
+        <LeaseFields
+          quote={leaseQuote}
+          minimum={leaseMinimum}
+          months={leaseMonths}
+          config={leaseConfig}
+          onChange={onLeaseConfigChange}
+          unavailableDates={unavailableDates}
+        />
+      ) : (
+      <>
       <div style={{ marginBottom: "20px" }}>
         <p
           style={{
@@ -4316,6 +4568,8 @@ function BookingSidebar({
           </div>
         </div>
       )}
+      </>
+      )}
 
       <div style={{ marginBottom: "20px" }}>
         <label
@@ -4403,16 +4657,19 @@ function BookingSidebar({
         </div>
       ) : null}
 
-      {bookingMode !== "recurring" && bookingMetrics?.subtotal > 0 && (
+      {!leaseQuote && bookingMode !== "recurring" && bookingMetrics?.subtotal > 0 && (
         <div style={{ background: "#FFFFFF", borderRadius: "12px", padding: "14px 16px", marginBottom: "14px", border: "1.5px solid #E5E7EB" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <span style={{ fontSize: "13px", color: "#6B7280" }}>
               {bookingMetrics.breakdown || bookingMetrics.label}
             </span>
           </div>
+          <PriceBreakdownLines q={bookingQuote} />
           <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "14px", fontWeight: "700", color: "#0A1628" }}>Total</span>
-            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>£{bookingMetrics.subtotal.toLocaleString()}</span>
+            <span style={{ fontSize: "16px", fontWeight: "800", color: "#0A1628" }}>
+              £{(bookingQuote ? bookingQuote.totalPence / 100 : bookingMetrics.subtotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
       )}
@@ -4471,7 +4728,7 @@ function BookingSidebar({
       </button>
 
       <p style={{ fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>
-        You won't be charged yet
+        {t("listing.booking.note")}
       </p>
     </div>
   );

@@ -17,6 +17,7 @@ import {
 import DashboardLayout from "../layouts/DashboardLayout";
 import { useDashboardBadge } from "../layouts/DashboardLayout";
 import ReviewModal from "../components/ReviewModal";
+import { hostPublicName } from "../utils/hostName";
 
 const TABS = ["upcoming", "current", "past", "cancelled"];
 const STATUS_FILTERS = ["All", "Confirmed", "Pending", "Completed", "Cancelled"];
@@ -247,10 +248,17 @@ export default function MyBookings() {
             price: b.totalPrice || 0,
             status: statusMap[b.status] || "Confirmed",
             bookingRef: b._id.toString().slice(-8).toUpperCase(),
-            host: b.host?.displayName || b.host?.firstName || "Host",
+            host: hostPublicName(b.host),
             hostAvatar: b.host?.profileImage || "",
             isHost: b.host?._id === currentUser.id || b.host === currentUser.id,
             canCancel: tab === "upcoming" && (b.status === "confirmed" || b.status === "pending"),
+            // A lease month inside the minimum term is ended by VenCome, not
+            // cancelled online (server: inLeaseMinimumTerm).
+            leaseLabel: b.lease?.months ? `Lease month ${b.lease.index} of ${b.lease.months}` : "",
+            leaseLocked: Boolean(b.lease?.securedAt) && b.status === "confirmed" && b.lease.index <= b.lease.minimumMonths,
+            priceNote: b.lease?.months && !b.isPaid
+              ? b.lease.chargeAt ? `Charged on ${new Date(b.lease.chargeAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Due at checkout"
+              : "Total paid",
             canModify: false,
             canMessage: true,
             hasReview: b.reviewed || false,
@@ -263,6 +271,13 @@ export default function MyBookings() {
         });
 
         setAllBookings(mapped);
+        // ?booking=<id> (e.g. "Manage booking" on the confirmation page):
+        // open that booking's tab and its details.
+        const linked = mapped.find((b) => b.id === new URLSearchParams(window.location.search).get("booking"));
+        if (linked) {
+          setActiveTab(linked.tab);
+          setSelectedBooking(linked);
+        }
       } catch (err) {
         console.error("Failed to fetch bookings:", err);
       } finally {
@@ -445,7 +460,10 @@ export default function MyBookings() {
                       <p className="text-[20px] font-extrabold text-[#0A1628]">
                         {formatPrice(booking.price)}
                       </p>
-                      <p className="mt-1 text-[12px] text-[#6B7280]">Total paid</p>
+                      <p className="mt-1 text-[12px] text-[#6B7280]">
+                        {booking.leaseLabel ? `${booking.leaseLabel} · ` : ""}
+                        {booking.priceNote}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -467,7 +485,13 @@ export default function MyBookings() {
                       </div>
                     ) : null}
 
-                    {booking.status === "Confirmed" && booking.tab === "upcoming" ? (
+                    {booking.status === "Confirmed" && booking.tab === "upcoming" && booking.leaseLocked ? (
+                      <div className="flex min-w-[120px] flex-1 sm:flex-none">
+                        <SmallButton onClick={() => window.dispatchEvent(new Event("vencome:open-chat"))}>
+                          Contact VenCome to end lease
+                        </SmallButton>
+                      </div>
+                    ) : booking.status === "Confirmed" && booking.tab === "upcoming" ? (
                       <div className="flex min-w-[120px] flex-1 sm:flex-none">
                         <SmallButton danger onClick={() => handleCancel(booking)}>
                           {cancellingId === booking.id ? "Cancelling..." : "Cancel Booking"}
