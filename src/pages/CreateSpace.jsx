@@ -313,8 +313,8 @@ const getCustomMinutes = (value, unit) => {
 function StepIndicator({ step, flow = SINGLE_FLOW, incomplete = new Set() }) {
   const currentIndex = flow.indexOf(step);
   return (
-    <div className="sticky top-0 z-50 -mx-4 -mt-6 mb-8 border-b border-[#E5E7EB] bg-white px-4 py-4 sm:-mx-10 sm:-mt-10 sm:px-8">
-      <div className="hidden items-start gap-3 md:flex">
+    <div className="sticky top-0 z-50 -mx-4 -mt-4 mb-8 border-b border-[#E5E7EB] bg-white px-4 py-4 md:-mx-8 md:-mt-8 md:px-8">
+      <div className="hidden items-start gap-3 overflow-x-auto md:flex">
         {flow.map((stepId, index) => {
           const label = STEP_LABELS[stepId - 1];
           const stepNumber = index + 1;
@@ -1866,7 +1866,7 @@ export default function CreateSpace() {
                 />
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  <div style={{ position: "relative", zIndex: 1000 }}>
+                  <div style={{ position: "relative", zIndex: 20 }}>
                     <label className="mb-2 block text-[13px] font-bold text-[#0A1628]">
                       Search location
                     </label>
