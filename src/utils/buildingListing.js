@@ -33,11 +33,11 @@ export const unitsAvailableText = (count) => {
   return `${n} ${n === 1 ? "unit" : "units"} available`;
 };
 
-// "From £869.40/month inc. VAT" pieces, or null when no unit has a price.
+// "From £869.40/month" pieces, or null when no unit has a price.
 export const fromPrice = (building) => {
   const pence = Number(building?.fromPricePence);
   if (!(pence > 0)) return null;
-  return { price: formatPence(pence), unit: "/month inc. VAT" };
+  return { price: formatPence(pence), unit: "/month" };
 };
 
 // ---- Unit card -----------------------------------------------------------
