@@ -1407,19 +1407,23 @@ export default function CreateSpace() {
       const videoFileToUpload = form.video instanceof File ? form.video : null;
       const resolvedVideoUrl = videoFileToUpload ? await uploadFileToR2(videoFileToUpload) : null;
 
-      let mergedImages;
-      let mergedLease;
-      let mergedVideo;
-      setForm((prev) => {
-        mergedImages = (prev.images || []).map((image) => resolvedMap.get(image) ?? image);
-        mergedLease =
-          prev.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl
-            ? resolvedLeaseUrl
-            : prev.leaseAgreement;
-        mergedVideo =
-          prev.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : prev.video;
-        return { ...prev, images: mergedImages, leaseAgreement: mergedLease, video: mergedVideo };
-      });
+      // The saved payload is computed from the form as it is now. It must NOT
+      // read values assigned inside the setForm updater below: React runs that
+      // updater later when updates are queued, so those variables were still
+      // undefined here and `mergedImages[0]` threw (the draft failed to save).
+      const mergedImages = (form.images || []).map((image) => resolvedMap.get(image) ?? image);
+      const mergedLease =
+        form.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl ? resolvedLeaseUrl : form.leaseAgreement;
+      const mergedVideo = form.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : form.video;
+      // Local state is merged against whatever it is at commit time, so photos
+      // added while an upload was in flight survive.
+      setForm((prev) => ({
+        ...prev,
+        images: (prev.images || []).map((image) => resolvedMap.get(image) ?? image),
+        leaseAgreement:
+          prev.leaseAgreement === leaseFileToUpload && resolvedLeaseUrl ? resolvedLeaseUrl : prev.leaseAgreement,
+        video: prev.video === videoFileToUpload && resolvedVideoUrl ? resolvedVideoUrl : prev.video,
+      }));
 
       const payload = {
         title: form.title || form.locationName || "Untitled space",
