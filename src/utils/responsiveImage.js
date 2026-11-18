@@ -2,12 +2,15 @@ const IMAGE_WIDTHS = [480, 800, 1200, 1600];
 
 // Photos uploaded before the WebP-variant pipeline are stored at their
 // original size (some are 10-15 MB, and the homepage alone pulled 78 MB on
-// mobile). In production they go through Vercel's image optimizer, which
-// resizes them and serves WebP. Widths and quality must match "images" in
-// vercel.json. If the optimizer ever fails, onError swaps the <img> back to
-// the original file so nothing shows as broken.
+// mobile). In production they go through wsrv.nl, a free image CDN that
+// resizes them and serves WebP (a 15 MB photo comes back at about 45 KB at
+// 800px). Vercel's /_vercel/image is not available to React Router builds.
+// If the resizer ever fails, onError swaps the <img> back to the original
+// file so nothing shows as broken.
 const OPTIMIZE_HOSTS = [/\.r2\.dev$/i];
 const OPT_QUALITY = 70;
+const SITE_ORIGIN = "https://www.vencome.com";
+const RESIZER = "https://wsrv.nl/";
 const canOptimize = () => import.meta.env.PROD;
 
 function isOptimizable(url) {
@@ -34,7 +37,8 @@ function pickWidth(width) {
 
 export function optimizedImageUrl(url, width = 800) {
   if (!canOptimize() || !isOptimizable(url)) return url;
-  return `/_vercel/image?url=${encodeURIComponent(url)}&w=${pickWidth(width)}&q=${OPT_QUALITY}`;
+  const absolute = url.startsWith("/") ? `${SITE_ORIGIN}${url}` : url;
+  return `${RESIZER}?url=${encodeURIComponent(absolute)}&w=${pickWidth(width)}&q=${OPT_QUALITY}&output=webp&we`;
 }
 
 function fallbackToOriginal(original) {
