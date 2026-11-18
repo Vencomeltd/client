@@ -25,9 +25,27 @@ export default function Impersonate() {
 
     (async () => {
       try {
+        // Look the customer up FIRST, with their support-access token, and only
+        // switch the stored sign-in once that worked. It used to switch the
+        // token first: if this lookup then failed, the browser was left with the
+        // admin's profile but the CUSTOMER's token, so the admin page opened
+        // showing the customer's name, a default "Full Admin" label and zeros.
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("Couldn't load this user");
+        const user = await res.json();
+
+        // Keep the admin's own session for "Return to Admin" -- but never
+        // overwrite one that is already saved (that would store a customer's
+        // session as the admin's if this link is opened while already viewing as someone).
         const adminToken = localStorage.getItem("vencome_token");
         const adminUser = localStorage.getItem("vencome_user");
-        if (adminToken && adminUser) {
+        const saved = JSON.parse(localStorage.getItem("vencome_admin_return") || "null");
+        if (saved) {
+          // Already viewing as someone: keep the admin's own saved session, update who/when.
+          localStorage.setItem("vencome_admin_return", JSON.stringify({ ...saved, userId, userName, expiresAt }));
+        } else if (adminToken && adminUser) {
           localStorage.setItem(
             "vencome_admin_return",
             JSON.stringify({ token: adminToken, user: adminUser, userId, userName, expiresAt })
@@ -35,18 +53,11 @@ export default function Impersonate() {
         }
 
         localStorage.setItem("vencome_token", token);
+        localStorage.setItem("vencome_user", JSON.stringify(user));
         localStorage.setItem("vencome_login_time", Date.now().toString());
         localStorage.removeItem("vencome_refresh"); // session ends when the 1h token expires, no silent refresh
-
-        const res = await fetch(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Couldn't load this user");
-        const user = await res.json();
-
-        localStorage.setItem("vencome_user", JSON.stringify(user));
         window.location.href = user.isHost ? "/dashboard" : "/customer/dashboard";
-      } catch (err) {
+      } catch {
         setError("This support access link has expired or is no longer valid.");
       }
     })();
