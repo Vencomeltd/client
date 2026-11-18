@@ -550,9 +550,14 @@ export default function Dashboard() {
       <section className="mb-7">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 className="text-[18px] font-bold text-[#0A1628]">Recent Listings</h3>
-          <Link to="/host/listings" className="text-[14px] font-medium text-[#305CDE]">
-            View listings →
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/create-space" className="text-[14px] font-medium text-[#305CDE]">
+              + Add listing
+            </Link>
+            <Link to="/host/listings" className="text-[14px] font-medium text-[#305CDE]">
+              View listings →
+            </Link>
+          </div>
         </div>
 
         <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

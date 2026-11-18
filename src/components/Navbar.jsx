@@ -1271,7 +1271,8 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
                       <div style={{ fontSize: 12, color: COLORS.grey, marginTop: 2 }}>United Kingdom</div>
                     </button>
                     <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Choose a language and region</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10 }}>
+                    {/* As many columns as fit (2 on a phone, 5 on desktop) so names are never clipped. */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
                       {languages.map(({ code, label, region }) => (
                         <button key={code} type="button" onClick={() => setLanguage(code)}
                           style={{ padding: 12, borderRadius: 16, border: "1.5px solid " + (language === code ? COLORS.navy : COLORS.border), background: "white", cursor: "pointer", textAlign: "left" }}>

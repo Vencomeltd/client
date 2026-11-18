@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 
@@ -12,6 +12,13 @@ export default function AdminLogin() {
   const [awaitingOtp, setAwaitingOtp] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // The admin panel sends people here with a reason (see AdminDashboard.jsx).
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "expired") setError("Your admin session has ended. Please sign in again.");
+    else if (reason === "not-admin") setError("That account doesn't have admin access. Sign in with an admin account.");
+  }, []);
 
   const finishLogin = (data) => {
     localStorage.setItem("vencome_token", data.token);
