@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLoaderData, Link } from "react-router-dom";
 import { redirect } from "react-router";
 import { edgeCached } from "../utils/edgeCache";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 import { Sparkles, Building2 } from "lucide-react";
 import { apiFetch } from "../utils/api";
 import PropertyCard from "../components/PropertyCard";
@@ -141,7 +142,7 @@ const CategoryPage = () => {
       {category.image && (
         <div className="relative h-[220px] w-full overflow-hidden sm:h-[280px] lg:h-[340px]">
           <img
-            src={category.image}
+            src={optimizedImageUrl(category.image, 1600)}
             alt={category.name}
             className="absolute inset-0 h-full w-full object-cover"
           />

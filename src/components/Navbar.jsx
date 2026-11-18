@@ -286,16 +286,30 @@ export default function Navbar({ activeTab: activeTabProp, onTabChange }) {
     fetchCategories();
   }, []);
 
+  // Google Maps (used for location suggestions) is ~400 KB of script and
+  // blocked the main thread for 1.7 s on mobile when loaded with the page.
+  // Load it on the visitor's first tap, click, key press or focus instead.
+  // That is always before they type a location.
   useEffect(() => {
-    if (window.google?.maps?.places) return;
-    const existingScript = document.getElementById("google-maps-script");
-    if (existingScript) return;
-    const script = document.createElement("script");
-    script.id = "google-maps-script";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places,geocoding&language=en`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    const loadMaps = () => {
+      if (window.google?.maps?.places) return;
+      if (document.getElementById("google-maps-script")) return;
+      const script = document.createElement("script");
+      script.id = "google-maps-script";
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places,geocoding&language=en`;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    };
+    const events = ["pointerdown", "keydown", "focusin", "touchstart"];
+    const onFirstInteraction = () => {
+      events.forEach((e) => window.removeEventListener(e, onFirstInteraction, true));
+      loadMaps();
+    };
+    events.forEach((e) =>
+      window.addEventListener(e, onFirstInteraction, { capture: true, passive: true })
+    );
+    return () => events.forEach((e) => window.removeEventListener(e, onFirstInteraction, true));
   }, []);
 
   useEffect(() => {

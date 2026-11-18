@@ -41,7 +41,7 @@ import { trackEvent } from "../utils/analytics";
 import PlatformReviewModal from "../components/PlatformReviewModal";
 import { minBookingHoursOf, rangeShorterThanMinimum } from "../utils/minBookingHours";
 import { calculateDailyPriceWithBreakdown, calculateHourlyPriceWithBreakdown, getLowestWeeklyRate } from "../utils/dayPricing";
-import { getResponsiveImageProps } from "../utils/responsiveImage";
+import { getResponsiveImageProps, optimizedImageUrl } from "../utils/responsiveImage";
 import { quote as quotePrice } from "../utils/vatPricing";
 import {
   recurringDays,
@@ -4886,7 +4886,8 @@ function SimilarSpaces({ spaces }) {
                   }}
                 >
                   <img
-                    src={space.coverImage}
+                    src={optimizedImageUrl(space.coverImage, 480)}
+                    loading="lazy"
                     alt={space.title}
                     style={{ width: "100%", height: "200px", objectFit: "cover" }}
                   />
@@ -5159,7 +5160,7 @@ function Lightbox({
                     />
                   ) : null}
                   <motion.img
-                    src={currentLightboxImage}
+                    src={optimizedImageUrl(currentLightboxImage, 1600)}
                     alt={`Property image ${activeImageIndex + 1}`}
                     drag="x"
                     dragConstraints={{ left: 0, right: 0 }}

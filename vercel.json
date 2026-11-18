@@ -12,7 +12,33 @@
   "headers": [
     {
       "source": "/sitemap.xml",
-      "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }]
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        }
+      ]
     }
-  ]
+  ],
+  "images": {
+    "sizes": [
+      480,
+      800,
+      1200,
+      1600
+    ],
+    "qualities": [
+      70
+    ],
+    "formats": [
+      "image/webp"
+    ],
+    "minimumCacheTTL": 2678400,
+    "remotePatterns": [
+      {
+        "protocol": "https",
+        "hostname": "pub-97cdfc8cfed74487b1473ffec5ca191d.r2.dev"
+      }
+    ]
+  }
 }

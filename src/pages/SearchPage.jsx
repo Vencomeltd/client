@@ -24,6 +24,7 @@ import PropertyCard from "../components/PropertyCard";
 import { getLowestWeeklyRate } from "../utils/dayPricing";
 import Footer from "../components/Footer";
 import { trackEvent } from "../utils/analytics";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 import useSiteText from "../hooks/useSiteText";
 
 const DURATION_OPTIONS = ["Any", "Hourly", "Daily", "Weekly", "Monthly", "Annual"];
@@ -185,7 +186,7 @@ function PropertyMap({ listings }) {
         div.textContent = priceLabel;
         div.addEventListener("click", () => {
           const image = listing.coverImage
-            ? `<img src="${listing.coverImage}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+            ? `<img src="${optimizedImageUrl(listing.coverImage, 480)}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
             : "";
           const content = `
             <div style="width:200px;font-family:sans-serif;">

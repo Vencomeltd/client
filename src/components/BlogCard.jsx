@@ -1,12 +1,14 @@
 // src/components/BlogCard.jsx
 import { Link } from "react-router-dom";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 
 export default function BlogCard({ blog }) {
   return (
     <article className="bg-white shadow-sm rounded-lg overflow-hidden hover:shadow-lg transition">
       <Link to={`/blog/${blog.slug}`} className="block">
         <img
-          src={blog.featuredImage}
+          src={optimizedImageUrl(blog.featuredImage, 800)}
+          loading="lazy"
           alt={blog.title}
           className="w-full h-44 object-cover"
         />

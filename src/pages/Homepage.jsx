@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRouteLoaderData } from "react-router-dom";
 import { edgeCached } from "../utils/edgeCache";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import {
   Building2,
@@ -160,7 +161,7 @@ function HeroSection() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           y: bgY,
-          backgroundImage: "url('/hero-collage.jpg')",
+          backgroundImage: `url('${optimizedImageUrl("/hero-collage.jpg", 1200)}')`,
         }}
       />
 
@@ -795,7 +796,7 @@ function RecentBlogs({ blogs, loading }) {
                 onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
               >
                 {blog.coverImage ? (
-                  <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", height: 180, objectFit: "cover" }} />
+                  <img src={optimizedImageUrl(blog.coverImage, 800)} alt={blog.title} loading="lazy" style={{ width: "100%", height: 180, objectFit: "cover" }} />
                 ) : (
                   <div style={{ height: 180, background: "linear-gradient(135deg, #0A1628 0%, #305CDE 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <span style={{ fontSize: 36 }}>✍️</span>
