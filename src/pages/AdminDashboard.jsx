@@ -8750,10 +8750,26 @@ export default function AdminDashboard() {
   useEffect(() => {
     const adminApi = `${import.meta.env.VITE_API_URL}/admin`;
     const originalFetch = window.fetch;
+    let confirming = false;
     window.fetch = async (...args) => {
       const res = await originalFetch(...args);
       const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-      if (res.status === 401 && url.startsWith(adminApi)) leaveToAdminLogin("expired");
+      // One 401 is not proof the session ended (the dashboard fires a dozen
+      // requests on load): ask the server again, separately, before signing
+      // the admin out. A network problem or a server error leaves them in.
+      if (res.status === 401 && url.startsWith(adminApi) && !url.startsWith(`${adminApi}/me`) && !confirming) {
+        confirming = true;
+        setTimeout(async () => {
+          try {
+            const check = await originalFetch(`${adminApi}/me`, { headers: { Authorization: `Bearer ${localStorage.getItem("vencome_token")}` } });
+            if (check.status === 401) leaveToAdminLogin("expired");
+          } catch {
+            // can't reach the server: stay where we are
+          } finally {
+            confirming = false;
+          }
+        }, 1500);
+      }
       return res;
     };
     return () => {
@@ -8766,17 +8782,22 @@ export default function AdminDashboard() {
   // panel shows until access is confirmed.
   useEffect(() => {
     const loadMyAdmin = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 403) return leaveToAdminLogin("not-admin");
-        if (res.ok) setMyAdmin(await res.json());
-        else if (res.status !== 401) setAccessProblem("We couldn't confirm your admin access. Check your connection, then refresh the page.");
-      } catch (err) {
-        console.error("Failed to load current admin:", err);
-        setAccessProblem("We couldn't reach the server to confirm your admin access. Check your connection, then refresh the page.");
+      // Only a repeated 401 (or a definite 403) sends the person back to sign in;
+      // a server hiccup (5xx) or a network problem gets a "Try again" instead.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.status === 403) return leaveToAdminLogin("not-admin");
+          if (res.ok) return setMyAdmin(await res.json());
+          if (res.status === 401 && attempt === 2) return leaveToAdminLogin("expired");
+        } catch (err) {
+          console.error("Failed to load current admin:", err);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
+      setAccessProblem("We couldn't confirm your admin access just now. This is usually a momentary server problem.");
     };
     loadMyAdmin();
   }, [token]);
@@ -9690,7 +9711,12 @@ export default function AdminDashboard() {
       <div className="flex min-h-screen items-center justify-center bg-[#F8F6F0] px-6">
         <div className="max-w-sm rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm">
           {accessProblem ? (
-            <p role="alert" className="text-[14px] font-semibold text-[#DC2626]">{accessProblem}</p>
+            <>
+              <p role="alert" className="text-[14px] font-semibold text-[#DC2626]">{accessProblem}</p>
+              <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-[#0A1628] px-4 py-2 text-[13px] font-semibold text-white">
+                Try again
+              </button>
+            </>
           ) : (
             <p className="text-[14px] font-medium text-[#0A1628]">Checking your admin access…</p>
           )}
