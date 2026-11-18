@@ -348,10 +348,13 @@ function getUserStatus(user = {}) {
 }
 
 function getListingStatus(listing = {}) {
+  if (listing.isDraft) return "draft";
   return listing.isActive ? "active" : "inactive";
 }
 
 function getListingPriceLabel(listing = {}) {
+  // A saved draft's prices aren't loaded in the list: open it to see them.
+  if (listing.isDraft) return "—";
   // A building has no price of its own: its rooms do.
   if (listing.listingType === "building") {
     return listing.fromPricePence > 0 ? `From ${formatCurrency(listing.fromPricePence / 100)} / month` : "See rooms";
@@ -537,13 +540,15 @@ function StatusPill({ status, type = "generic" }) {
     const classes =
       status === "active" || status === "live"
         ? "border-[rgba(22,163,74,0.2)] bg-[rgba(22,163,74,0.1)] text-[#16A34A]"
-        : status === "paused"
+        : status === "paused" || status === "draft"
         ? "border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.1)] text-[#D97706]"
         : "border-[rgba(107,114,128,0.2)] bg-[rgba(107,114,128,0.1)] text-[#6B7280]";
     const label =
       status === "active" || status === "live"
         ? "Active"
-        : status === "inactive" || status === "draft"
+        : status === "draft"
+        ? "Draft"
+        : status === "inactive"
         ? "Inactive"
         : status;
 
@@ -2480,7 +2485,7 @@ const LISTING_STATUS_TABS = [
 
 // Listing drafts (saved in the wizard, never published), oldest first. Admin
 // can open one in full -- photos included -- and delete it.
-function AdminDraftsPanel({ showTest, onToast, onChanged }) {
+function AdminDraftsPanel({ showTest, onToast, onChanged, autoOpenId, onAutoOpened }) {
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -2536,6 +2541,15 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
     load();
     onChanged?.();
   };
+
+  // Opened from a draft row in "All listings".
+  useEffect(() => {
+    if (!autoOpenId) return;
+    open({ _id: autoOpenId });
+    onAutoOpened?.();
+    // Runs once per draft id; open/onAutoOpened are not needed as triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenId]);
 
   const form = openDraft?.formData || {};
   const images = (form.images || []).filter((image) => typeof image === "string" && image);
@@ -2895,11 +2909,26 @@ function AdminDraftsPanel({ showTest, onToast, onChanged }) {
   );
 }
 
+// A listing's photo in the table: a neat grey tile when it has none or the
+// image fails to load (a broken image used to spill its alt text over the title).
+function ListingThumb({ src, className }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className={`${className} flex shrink-0 items-center justify-center bg-[#F3F4F6] text-[#9CA3AF]`}>
+        <Building2 size={16} />
+      </div>
+    );
+  }
+  return <img src={src} alt="" className={`${className} shrink-0`} onError={() => setFailed(true)} />;
+}
+
 function ListingsSection({
   listings,
   locationOptions,
   locationFilter, setLocationFilter,
   typeFilter, setTypeFilter,
+  draftRows = [],
   noPhotosOnly, setNoPhotosOnly,
   vatNotSetOnly, setVatNotSetOnly,
   categoryFilter, setCategoryFilter,
@@ -2953,6 +2982,15 @@ function ListingsSection({
 
   // The server may not filter by category yet, so the page is filtered here too.
   const filteredListings = listings.filter((listing) => inListingCategory(listing, categoryFilter));
+  // "All listings" also shows saved drafts (they live in a separate list), at
+  // the top of the first page.
+  const displayListings = listingStatus === "all" && listingsPage === 1 ? [...draftRows, ...filteredListings] : filteredListings;
+  // "Open draft" on a draft row jumps to the Draft tab with that draft opened.
+  const [autoOpenDraftId, setAutoOpenDraftId] = useState(null);
+  const onOpenDraft = (draftId) => {
+    setAutoOpenDraftId(draftId);
+    onListingStatusChange("draft");
+  };
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [exporting, setExporting] = useState(false);
   useEffect(() => {
@@ -3166,7 +3204,8 @@ function ListingsSection({
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white">
-        <div className="flex flex-col gap-3 border-b border-[#E5E7EB] px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+        {/* Row 1: the status tabs. Row 2: the filters, which wrap instead of squeezing the tabs. */}
+        <div className="border-b border-[#E5E7EB] px-5 py-4">
           <div className="flex flex-wrap gap-2">
             {LISTING_STATUS_TABS.map((tab) => (
               <button
@@ -3174,20 +3213,22 @@ function ListingsSection({
                 type="button"
                 title={tab.hint}
                 onClick={() => onListingStatusChange(tab.key)}
-                className={`rounded-full px-4 py-2 text-[13px] font-medium ${
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium ${
                   listingStatus === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
                 }`}
               >
                 {tab.label}
-                {listingCounts ? ` (${formatNumber(listingCounts[tab.key] ?? 0)})` : ""}
+                {listingCounts
+                  ? ` (${formatNumber(tab.key === "all" ? (listingCounts.all ?? 0) + (listingCounts.draft ?? 0) : listingCounts[tab.key] ?? 0)})`
+                  : ""}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             <button
               type="button"
               onClick={() => setShowReorder((v) => !v)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-semibold text-[#111827]"
+              className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-[#111827]"
             >
               <GripVertical size={14} />
               {showReorder ? "Done reordering" : "Reorder homepage"}
@@ -3223,15 +3264,15 @@ function ListingsSection({
                 <option key={category._id} value={category._id}>{category.name}</option>
               ))}
             </select>
-            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+            <label className="flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
               <input type="checkbox" checked={noPhotosOnly} onChange={(e) => setNoPhotosOnly(e.target.checked)} />
               No photos
             </label>
-            <label className="flex h-10 items-center gap-2 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
+            <label className="flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827]">
               <input type="checkbox" checked={vatNotSetOnly} onChange={(e) => setVatNotSetOnly(e.target.checked)} />
               VAT status not set
             </label>
-            <label className="flex h-10 items-center gap-2 text-[13px] text-[#374151]">
+            <label className="flex h-10 items-center gap-2 whitespace-nowrap text-[13px] text-[#374151]">
               <input type="checkbox" checked={showTestListings} onChange={(e) => setShowTestListings(e.target.checked)} />
               Show test and internal accounts
             </label>
@@ -3249,7 +3290,7 @@ function ListingsSection({
                     setExporting(false);
                   }
                 }}
-                className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-[#111827] disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E5E7EB] bg-white px-3 text-[12px] font-semibold text-[#111827] disabled:opacity-60"
               >
                 <Download size={14} />
                 {exporting ? "Exporting…" : "Export CSV"}
@@ -3261,7 +3302,7 @@ function ListingsSection({
         {showReorder ? <HomepageOrderPanel onToast={onToast} /> : null}
 
         {listingStatus === "draft" ? (
-          <AdminDraftsPanel showTest={showTestListings} onToast={onToast} onChanged={onRefresh} />
+          <AdminDraftsPanel showTest={showTestListings} onToast={onToast} onChanged={onRefresh} autoOpenId={autoOpenDraftId} onAutoOpened={() => setAutoOpenDraftId(null)} />
         ) : (
         <>
 
@@ -3292,14 +3333,14 @@ function ListingsSection({
                     ))}
                   </tr>
                 ))
-              ) : filteredListings.length === 0 ? (
+              ) : displayListings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-[14px] text-[#6B7280]">
                     {listings.length === 0 ? "No data yet" : "No listings match your search"}
                   </td>
                 </tr>
               ) : (
-                filteredListings.map((listing, index) => (
+                displayListings.map((listing, index) => (
                 <motion.tr
                   key={listing._id}
                   initial={{ opacity: 0 }}
@@ -3309,7 +3350,7 @@ function ListingsSection({
                 >
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
-                      <img src={listing.coverImage} alt={listing.title} className="h-12 w-16 rounded-lg object-cover" />
+                      <ListingThumb src={listing.coverImage} className="h-12 w-16 rounded-lg object-cover" />
                       <div className="min-w-0 max-w-[280px]">
                         <p className="truncate text-[13px] font-semibold text-[#0A1628]" title={listing.title}>{listing.title}</p>
                         <p className="flex flex-wrap gap-1">
@@ -3343,20 +3384,32 @@ function ListingsSection({
                   <td className="px-4 py-3.5 text-[13px] font-semibold text-[#305CDE]">{getListingPriceLabel(listing)}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedListing(listing)}
-                        className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingListingId(listing.slug || listing._id)}
-                        className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
-                      >
-                        Edit
-                      </button>
+                      {listing.isDraft ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenDraft?.(listing.draftId)}
+                          className="whitespace-nowrap rounded-lg border border-[#305CDE] bg-white px-3 py-2 text-[12px] font-medium text-[#305CDE]"
+                        >
+                          Open draft
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedListing(listing)}
+                            className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingListingId(listing.slug || listing._id)}
+                            className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                          >
+                            Edit
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </motion.tr>
@@ -3375,12 +3428,12 @@ function ListingsSection({
                 <div className="mt-3 h-8 w-full rounded-lg bg-[#F3F4F6]" />
               </div>
             ))
-          ) : filteredListings.length === 0 ? (
+          ) : displayListings.length === 0 ? (
             <div className="rounded-xl border border-[#E5E7EB] bg-white p-6 text-center text-[14px] text-[#6B7280]">
               {listings.length === 0 ? "No data yet" : "No listings match your search"}
             </div>
           ) : (
-            filteredListings.map((listing, index) => (
+            displayListings.map((listing, index) => (
               <motion.div
                 key={listing._id}
                 initial={{ opacity: 0, y: 12 }}
@@ -3410,20 +3463,32 @@ function ListingsSection({
                 <p className="mt-1 text-[11px] text-[#6B7280]">Created by {personLine(listing.createdBy || listing.host)}</p>
                 <p className="mt-1 text-[12px] text-[#6B7280]">{formatDate(listing.createdAt)}</p>
                 <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedListing(listing)}
-                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
-                  >
-                    View
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingListingId(listing.slug || listing._id)}
-                    className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
-                  >
-                    Edit
-                  </button>
+                  {listing.isDraft ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenDraft?.(listing.draftId)}
+                      className="inline-flex rounded-lg border border-[#305CDE] bg-white px-3 py-2 text-[12px] font-medium text-[#305CDE]"
+                    >
+                      Open draft
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedListing(listing)}
+                        className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827] cursor-pointer"
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingListingId(listing.slug || listing._id)}
+                        className="inline-flex rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[12px] font-medium text-[#111827]"
+                      >
+                        Edit
+                      </button>
+                    </>
+                  )}
                 </div>
               </motion.div>
             ))
@@ -8804,6 +8869,8 @@ export default function AdminDashboard() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [showTestAccounts, setShowTestAccounts] = useState(false);
   const [listings, setListings] = useState([]);
+  // Saved drafts, shown inside "All listings" (they are stored separately).
+  const [draftRows, setDraftRows] = useState([]);
   // Skeleton while a tab/page loads, like Users. The request id drops a slow
   // answer for a tab the admin has already left.
   const [listingsLoading, setListingsLoading] = useState(true);
@@ -9232,6 +9299,22 @@ export default function AdminDashboard() {
         showTest ? fetch(`${API}/admin/properties/counts`, { headers }) : null,
       ]);
       if (request !== listingsRequest.current) return;
+      // "All listings" also shows saved drafts, unless a filter narrows the table
+      // (drafts can't be matched by city, category, type or photo checks).
+      const narrowed = typeFilter || locationFilter || noPhotosOnly || vatNotSetOnly || categoryFilter;
+      if (status === "all" && page === 1 && !narrowed) {
+        const draftsRes = await fetch(`${API}/admin/drafts?page=1&limit=50${showTest ? "" : "&excludeTest=true"}`, { headers });
+        if (request !== listingsRequest.current) return;
+        const draftData = draftsRes.ok ? await draftsRes.json() : { drafts: [] };
+        const needle = debouncedListingQuery.toLowerCase();
+        setDraftRows(
+          (draftData.drafts || [])
+            .filter((d) => !needle || String(d.title || "").toLowerCase().includes(needle))
+            .map((d) => ({ _id: `draft-${d._id}`, draftId: d._id, isDraft: true, title: d.title, coverImage: d.coverImage, host: d.host, createdBy: d.createdBy, createdAt: d.createdAt, location: {} }))
+        );
+      } else {
+        setDraftRows([]);
+      }
       if (res.ok) {
         const data = await res.json();
         setListings(data.properties || []);
@@ -9259,7 +9342,7 @@ export default function AdminDashboard() {
     } finally {
       if (request === listingsRequest.current) setListingsLoading(false);
     }
-  }, [listingParams]);
+  }, [listingParams, typeFilter, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter, debouncedListingQuery]);
 
   // Deliberately independent of fetchListings/listingsPage -- the queue
   // needs to see every pending_review listing platform-wide, not just
@@ -9544,6 +9627,7 @@ export default function AdminDashboard() {
         setLocationFilter={setLocationFilter}
         typeFilter={typeFilter}
         setTypeFilter={setTypeFilter}
+        draftRows={draftRows}
         noPhotosOnly={noPhotosOnly}
         setNoPhotosOnly={setNoPhotosOnly}
         vatNotSetOnly={vatNotSetOnly}
