@@ -54,7 +54,7 @@ import {
 import { hostPublicName, verifiedCompanyName } from "../utils/hostName";
 import useSiteText from "../hooks/useSiteText";
 import { BuildingSummary, BuildingUnitsSection } from "../components/BuildingUnits";
-import { isBuilding, unitAvailability as roomAvailability, unitsAvailableText } from "../utils/buildingListing";
+import { fromPrice, isBuilding, unitAvailability as roomAvailability, unitsAvailableText } from "../utils/buildingListing";
 
 const BRAND = {
   navy: "#0A1628",
@@ -4857,6 +4857,12 @@ function SimilarSpaces({ spaces }) {
                 : p.monthly
                 ? "/month"
                 : "/day";
+              // A building has no price of its own: "From £X/month" from its
+              // cheapest room. Anything with no price at all says POA, never £0.
+              const buildingFrom = isBuilding(space) ? fromPrice(space) : null;
+              const hasPrice = isBuilding(space) ? Boolean(buildingFrom) : price > 0;
+              const priceText = isBuilding(space) ? (buildingFrom ? `From ${buildingFrom.price}` : "POA") : price > 0 ? `£${price.toLocaleString()}` : "POA";
+              const unitText = hasPrice ? (isBuilding(space) ? buildingFrom.unit : unit) : "";
 
               return (
                 <div
@@ -4924,7 +4930,7 @@ function SimilarSpaces({ spaces }) {
                       {space.category?.name || ""}
                     </p>
                     <p style={{ fontSize: "16px", fontWeight: "700", color: "#0A1628", margin: 0 }}>
-                      £{price.toLocaleString()}
+                      {priceText}
                       <span
                         style={{
                           fontSize: "13px",
@@ -4933,7 +4939,7 @@ function SimilarSpaces({ spaces }) {
                         }}
                       >
                         {" "}
-                        {unit}
+                        {unitText}
                       </span>
                     </p>
                   </div>

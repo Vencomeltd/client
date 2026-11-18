@@ -687,7 +687,7 @@ function AdminLayout({ children, activeSection, onSectionChange, searchQuery, se
             </div>
             <div>
               <p className="text-[13px] font-semibold text-white">{adminName || "Admin"}</p>
-              <p className="text-[11px] text-white/50">{ADMIN_ROLE_LABELS[adminRole] || "Full Admin"}</p>
+              <p className="text-[11px] text-white/50">{ADMIN_ROLE_LABELS[adminRole] || "Admin"}</p>
             </div>
           </div>
         </div>
@@ -1119,7 +1119,7 @@ function OverviewSection({ onSectionChange, moderationQueue, setReviewOpenId, st
       icon: Building2,
       label: "Active Listings",
       value: formatNumber(totalListingsCount),
-      subtitle: `${formatNumber(stats.draftListings || 0)} drafts · ${formatNumber(stats.inactiveListings || 0)} inactive`,
+      subtitle: `${formatNumber(stats.draftListings || 0)} drafts · ${formatNumber(stats.inactiveListings || 0)} inactive${stats.roomCount ? ` · ${formatNumber(stats.buildingCount || 0)} buildings with ${formatNumber(stats.roomCount)} rooms` : ""}`,
       growth: "",
       iconClasses: "bg-[rgba(48,92,222,0.1)] text-[#305CDE]",
       positive: true,
@@ -2469,9 +2469,11 @@ const personLine = (user) => {
 };
 
 const LISTING_STATUS_TABS = [
-  { key: "all", label: "All" },
+  // Drafts live in their own list (saved in the wizard, not yet published), so
+  // "All listings" is every published listing; the Draft tab shows the rest.
+  { key: "all", label: "All listings", hint: "Every published listing: active, inactive and pending. Saved drafts are in the Draft tab." },
   { key: "active", label: "Active" },
-  { key: "draft", label: "Draft" },
+  { key: "draft", label: "Draft", hint: "Listings saved but not published yet. Open one to edit or finish it." },
   { key: "inactive", label: "Inactive" },
   { key: "pending", label: "Pending review" },
 ];
@@ -2897,6 +2899,7 @@ function ListingsSection({
   listings,
   locationOptions,
   locationFilter, setLocationFilter,
+  typeFilter, setTypeFilter,
   noPhotosOnly, setNoPhotosOnly,
   vatNotSetOnly, setVatNotSetOnly,
   categoryFilter, setCategoryFilter,
@@ -3169,6 +3172,7 @@ function ListingsSection({
               <button
                 key={tab.key}
                 type="button"
+                title={tab.hint}
                 onClick={() => onListingStatusChange(tab.key)}
                 className={`rounded-full px-4 py-2 text-[13px] font-medium ${
                   listingStatus === tab.key ? "bg-[#0A1628] text-white" : "border border-[#E5E7EB] bg-white text-[#111827]"
@@ -3188,6 +3192,17 @@ function ListingsSection({
               <GripVertical size={14} />
               {showReorder ? "Done reordering" : "Reorder homepage"}
             </button>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              aria-label="Listing type"
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-white px-3 text-[13px] text-[#111827] outline-none focus:border-[#0A1628]"
+            >
+              <option value="">All types</option>
+              <option value="building">Buildings only</option>
+              <option value="single">Single spaces only</option>
+              <option value="room">Rooms (inside buildings)</option>
+            </select>
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
@@ -3776,7 +3791,8 @@ function TeamSection({ onToast }) {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTitle, setInviteTitle] = useState("");
-  const [inviteRole, setInviteRole] = useState("full_admin");
+  // No default: the role has to be chosen on purpose (it used to start on Full Admin).
+  const [inviteRole, setInviteRole] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const [savingRoleId, setSavingRoleId] = useState(null);
@@ -3835,11 +3851,11 @@ function TeamSection({ onToast }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ adminRole }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "");
       setTeam((current) => current.map((m) => (m._id === member._id ? { ...m, adminRole } : m)));
       onToast("Role updated");
-    } catch {
-      onToast("Failed to update role");
+    } catch (err) {
+      onToast(err.message || "Failed to update role");
     } finally {
       setSavingRoleId(null);
     }
@@ -3854,17 +3870,27 @@ function TeamSection({ onToast }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ isAdmin: false }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "");
       setTeam((current) => current.filter((m) => m._id !== member._id));
       onToast("Admin access revoked");
-    } catch {
-      onToast("Failed to revoke access");
+    } catch (err) {
+      onToast(err.message || "Failed to revoke access");
     }
   };
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) {
       setInviteError("Email is required");
+      return;
+    }
+    if (!inviteRole) {
+      setInviteError("Choose a role for this person");
+      return;
+    }
+    if (
+      inviteRole === "full_admin" &&
+      !(await confirm(`Give ${inviteEmail.trim()} FULL admin access? A Full Admin can see every user, booking and payment, and can add or remove other admins.`))
+    ) {
       return;
     }
     setInviting(true);
@@ -3886,7 +3912,7 @@ function TeamSection({ onToast }) {
       setShowInvite(false);
       setInviteEmail("");
       setInviteTitle("");
-      setInviteRole("full_admin");
+      setInviteRole("");
       await loadTeam();
     } catch {
       setInviteError("Failed to add team member");
@@ -3979,7 +4005,9 @@ function TeamSection({ onToast }) {
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #F3F4F6", paddingTop: 12 }}>
                   <span style={{ fontSize: 12, color: "#9CA3AF" }}>
-                    Joined {formatDate(member.createdAt)}
+                    {member.adminGrantedAt
+                      ? `Admin access given ${formatDate(member.adminGrantedAt)}${member.adminGrantedBy ? ` by ${member.adminGrantedBy.displayName || member.adminGrantedBy.email || "an admin"}` : ""}`
+                      : `Account created ${formatDate(member.createdAt)} · who gave admin access isn't recorded`}
                   </span>
                   <button
                     type="button"
@@ -4021,8 +4049,10 @@ function TeamSection({ onToast }) {
           <select
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value)}
+            aria-label="Role"
             style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
           >
+            <option value="">Choose a role…</option>
             {ADMIN_ROLES.map((role) => (
               <option key={role.value} value={role.value}>{role.label}</option>
             ))}
@@ -5221,11 +5251,26 @@ function BroadcastSection({ users, stats }) {
     loadHistory();
   }, [loadTemplates, loadHistory]);
 
+  // Hosts grouped by what they have listed (drafts / live listings / none).
+  const [audiences, setAudiences] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/broadcast/audiences`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) setAudiences(await res.json());
+      } catch (err) {
+        console.error("Failed to load broadcast audiences:", err);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Platform-wide totals (stats), not the one page of users this has.
   const targetCount =
     target === "all" ? stats.totalUsers ?? 0 :
     target === "hosts" ? stats.totalHosts ?? 0 :
     target === "specific" ? specificUserIds.length :
+    ["hostsWithDrafts", "hostsWithListings", "hostsNoListings"].includes(target) ? audiences?.[target] ?? 0 :
     stats.totalCustomers ?? 0;
 
   const filteredUserOptions = users.filter((u) => {
@@ -5387,6 +5432,9 @@ function BroadcastSection({ users, stats }) {
               <option value="all">All Users ({stats.totalUsers ?? 0})</option>
               <option value="hosts">Hosts only ({stats.totalHosts ?? 0})</option>
               <option value="customers">Customers only ({stats.totalCustomers ?? 0})</option>
+              <option value="hostsWithDrafts">Hosts with a draft listing ({audiences?.hostsWithDrafts ?? "…"})</option>
+              <option value="hostsWithListings">Hosts with a live listing ({audiences?.hostsWithListings ?? "…"})</option>
+              <option value="hostsNoListings">Hosts with no listings or drafts ({audiences?.hostsNoListings ?? "…"})</option>
               <option value="specific">Specific users...</option>
             </select>
           </div>
@@ -8686,16 +8734,48 @@ export default function AdminDashboard() {
   };
   const { confirm, ConfirmDialog } = useConfirm();
   const [myAdmin, setMyAdmin] = useState(null);
+  const [accessProblem, setAccessProblem] = useState("");
 
+  // Back to the admin sign-in with the reason shown there. A 401 means the
+  // session ended, so the stale sign-in is cleared; a 403 means this account
+  // isn't an admin, so its normal session is left alone.
+  const leaveToAdminLogin = (reason) => {
+    if (reason === "expired") ["vencome_token", "vencome_user", "vencome_refresh", "token", "user"].forEach((key) => localStorage.removeItem(key));
+    window.location.assign(`/admin/login?reason=${reason}`);
+  };
+
+  // Any admin request answered with 401 means the admin session has ended.
+  // Without this the panel kept showing empty numbers (zeros) until the admin
+  // happened to sign in again.
+  useEffect(() => {
+    const adminApi = `${import.meta.env.VITE_API_URL}/admin`;
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+      if (res.status === 401 && url.startsWith(adminApi)) leaveToAdminLogin("expired");
+      return res;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
+  // Ask the server who the admin is. Only real admins get an answer (unlike
+  // /auth/me, which answers for any signed-in account), so nothing in the
+  // panel shows until access is confirmed.
   useEffect(() => {
     const loadMyAdmin = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 403) return leaveToAdminLogin("not-admin");
         if (res.ok) setMyAdmin(await res.json());
+        else if (res.status !== 401) setAccessProblem("We couldn't confirm your admin access. Check your connection, then refresh the page.");
       } catch (err) {
         console.error("Failed to load current admin:", err);
+        setAccessProblem("We couldn't reach the server to confirm your admin access. Check your connection, then refresh the page.");
       }
     };
     loadMyAdmin();
@@ -8734,6 +8814,7 @@ export default function AdminDashboard() {
   const [listingCounts, setListingCounts] = useState(null);
   const [locationOptions, setLocationOptions] = useState([]);
   const [locationFilter, setLocationFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [noPhotosOnly, setNoPhotosOnly] = useState(false);
   const [vatNotSetOnly, setVatNotSetOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -9113,12 +9194,13 @@ export default function AdminDashboard() {
     if (!["all", "draft"].includes(status)) params.set("status", status);
     if (debouncedListingQuery) params.set("q", debouncedListingQuery);
     if (locationFilter) params.set("city", locationFilter);
+    if (typeFilter) params.set("type", typeFilter);
     if (noPhotosOnly) params.set("noPhotos", "true");
     if (vatNotSetOnly) params.set("vatNotSet", "true");
     if (categoryFilter) params.set("category", categoryFilter);
     if (!showTest) params.set("excludeTest", "true");
     return params;
-  }, [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter]);
+  }, [debouncedListingQuery, locationFilter, typeFilter, noPhotosOnly, vatNotSetOnly, categoryFilter]);
 
   // Every page of the current filter, then a CSV of it.
   const exportListingsCsv = useCallback(async (filter) => {
@@ -9167,6 +9249,9 @@ export default function AdminDashboard() {
           totalListings: realCounts.active,
           draftListings: realCounts.draft,
           inactiveListings: realCounts.inactive,
+          // Rooms sit inside their building and are not counted in the total above.
+          buildingCount: realCounts.buildings || 0,
+          roomCount: realCounts.rooms || 0,
         }));
       }
     } catch (err) {
@@ -9329,7 +9414,7 @@ export default function AdminDashboard() {
     fetchUsers(usersPage, { tab: activeUserTab, query: debouncedUserQuery, showTest: showTestAccounts });
   }, [token, usersPage, activeUserTab, debouncedUserQuery, showTestAccounts, fetchUsers]);
 
-  const listingFilterKey = [debouncedListingQuery, locationFilter, noPhotosOnly, vatNotSetOnly, categoryFilter].join("|");
+  const listingFilterKey = [debouncedListingQuery, locationFilter, typeFilter, noPhotosOnly, vatNotSetOnly, categoryFilter].join("|");
   const [prevListingFilterKey, setPrevListingFilterKey] = useState(listingFilterKey);
   if (listingFilterKey !== prevListingFilterKey) {
     setPrevListingFilterKey(listingFilterKey);
@@ -9457,6 +9542,8 @@ export default function AdminDashboard() {
         locationOptions={locationOptions}
         locationFilter={locationFilter}
         setLocationFilter={setLocationFilter}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
         noPhotosOnly={noPhotosOnly}
         setNoPhotosOnly={setNoPhotosOnly}
         vatNotSetOnly={vatNotSetOnly}
@@ -9594,6 +9681,22 @@ export default function AdminDashboard() {
     );
   } else {
     sectionContent = <PlaceholderSection title={SECTION_TITLES[activeSection]} />;
+  }
+
+  // Nothing of the panel (name, role, numbers) shows until the server has
+  // confirmed this account is an admin.
+  if (!myAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8F6F0] px-6">
+        <div className="max-w-sm rounded-2xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm">
+          {accessProblem ? (
+            <p role="alert" className="text-[14px] font-semibold text-[#DC2626]">{accessProblem}</p>
+          ) : (
+            <p className="text-[14px] font-medium text-[#0A1628]">Checking your admin access…</p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (

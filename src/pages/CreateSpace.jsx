@@ -295,6 +295,26 @@ const defaultState = {
 const formatCurrency = (value) =>
   `£${new Intl.NumberFormat("en-GB").format(Number(value) || 0)}`;
 
+// A building's saved availability ({openDays, openTime, closeTime, is24Hours,
+// hoursMode, dayHours[]}) as wizard form fields, so a room can start with the
+// same opening days and hours instead of asking for them again.
+const availabilityFromBuilding = (a) => ({
+  availabilityDays: a?.openDays || [],
+  startTime: a?.openTime || "",
+  endTime: a?.closeTime || "",
+  is24Hours: !!a?.is24Hours,
+  hoursMode: a?.hoursMode || "same",
+  dayHours: Object.fromEntries((a?.dayHours || []).map(({ day, ...hours }) => [day, hours])),
+});
+
+// "Mon, Tue, 09:00 to 17:00" style summary of the building's hours.
+const describeBuildingHours = (a) => {
+  if (!a?.openDays?.length) return "";
+  const days = a.openDays.length === 7 ? "Every day" : a.openDays.map((day) => day.slice(0, 3)).join(", ");
+  const hours = a.hoursMode === "custom" ? "hours vary by day" : a.is24Hours ? "open 24 hours" : a.openTime && a.closeTime ? `${a.openTime} to ${a.closeTime}` : "";
+  return hours ? `${days}, ${hours}` : days;
+};
+
 const formatBufferLabel = (minutes) => {
   if (!minutes) return "No buffer";
   if (minutes % 60 === 0) {
@@ -536,6 +556,8 @@ export default function CreateSpace() {
   const forHostId = searchParams.get("forHost");
   const forHostName = searchParams.get("hostName") || "the host";
   const openDraftParam = searchParams.get("draft");
+  // The building's opening days and hours, for a room's "same as the building" option.
+  const [buildingAvailability, setBuildingAvailability] = useState(null);
   const [roomSetupError, setRoomSetupError] = useState("");
   // The id of the listing just published (a building gets rooms added to it).
   const [publishedId, setPublishedId] = useState(null);
@@ -690,6 +712,26 @@ export default function CreateSpace() {
     return () => setActAsHost("");
   }, [forHostId]);
 
+  // A room opened from a saved draft: fetch its building's hours too, so the
+  // Availability step can offer "same as the building".
+  useEffect(() => {
+    if (form.listingType !== "unit" || !form.parentBuilding || buildingAvailability) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/properties/${form.parentBuilding}`);
+        const data = await res.json();
+        const building = data.property || data;
+        if (!cancelled && res.ok && building.availability?.openDays?.length) setBuildingAvailability(building.availability);
+      } catch {
+        // the option simply doesn't appear
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.listingType, form.parentBuilding, buildingAvailability]);
+
   useEffect(() => {
     if (parentBuildingId) {
       // Adding a room to a building: straight into the room flow.
@@ -699,7 +741,9 @@ export default function CreateSpace() {
           const data = await res.json();
           const building = data.property || data;
           if (!res.ok || building.listingType !== "building") throw new Error("Not a building");
-          setForm({ ...defaultState, listingType: "unit", parentBuilding: building._id, parentBuildingTitle: building.title });
+          // A new room starts with the building's opening days and hours.
+          if (building.availability?.openDays?.length) setBuildingAvailability(building.availability);
+          setForm({ ...defaultState, listingType: "unit", parentBuilding: building._id, parentBuildingTitle: building.title, ...availabilityFromBuilding(building.availability) });
           setStep(ROOM_FLOW[0]);
           setEntryPhase("wizard");
         } catch {
@@ -3502,6 +3546,20 @@ export default function CreateSpace() {
                       </div>
                     </div>
                   ) : null}
+                  {isRoom && buildingAvailability ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3">
+                      <p className="text-[13px] text-[#1E3A8A]">
+                        <strong>Same as the building:</strong> {describeBuildingHours(buildingAvailability)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setForm((current) => ({ ...current, ...availabilityFromBuilding(buildingAvailability) }))}
+                        className="rounded-lg bg-[#305CDE] px-3 py-2 text-[13px] font-semibold text-white"
+                      >
+                        Use the building's opening times
+                      </button>
+                    </div>
+                  ) : null}
                   <div>
                     <h3 className={sectionTitleClassName}>Open Days</h3>
                     <div className="mt-4 flex flex-wrap gap-3">
@@ -4612,6 +4670,11 @@ export default function CreateSpace() {
                   title="Preview Your Listing"
                   subtitle="Review the core information before you publish your space to VenCome."
                 />
+                {isBuilding ? (
+                  <p className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
+                    <strong>Next: add your rooms.</strong> Publishing saves the building. Straight after, you add each studio or room with its own size, price and availability, and guests book those rooms. The building only appears to guests once it has at least one room.
+                  </p>
+                ) : null}
 
                 <div className="space-y-6">
                   <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
