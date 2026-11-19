@@ -3,6 +3,7 @@ import { Link, useLoaderData } from "react-router-dom";
 import { edgeCached } from "../utils/edgeCache";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 
 const CATEGORIES = ["All", "News", "Guides", "Industry", "Tips", "Updates", "Case Studies"];
 
@@ -119,7 +120,7 @@ export default function BlogList() {
                   onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}
                 >
                   {blog.coverImage ? (
-                    <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", height: 200, objectFit: "cover", flexShrink: 0 }} />
+                    <img src={optimizedImageUrl(blog.coverImage, 800)} alt={blog.title} loading="lazy" style={{ width: "100%", height: 200, objectFit: "cover", flexShrink: 0 }} />
                   ) : (
                     <div style={{ height: 200, flexShrink: 0, background: "linear-gradient(135deg, #0A1628 0%, #305CDE 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <span style={{ fontSize: 40 }}>✍️</span>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useLoaderData } from "react-router-dom";
 import { edgeCached } from "../utils/edgeCache";
+import { optimizedImageUrl } from "../utils/responsiveImage";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -182,7 +183,7 @@ export default function BlogDetails() {
         </div>
 
         {blog.coverImage && (
-          <img src={blog.coverImage} alt={blog.title} style={{ width: "100%", borderRadius: 16, marginBottom: 40, maxHeight: 440, objectFit: "cover" }} />
+          <img src={optimizedImageUrl(blog.coverImage, 1200)} alt={blog.title} fetchPriority="high" style={{ width: "100%", borderRadius: 16, marginBottom: 40, maxHeight: 440, objectFit: "cover" }} />
         )}
 
         <div
@@ -356,7 +357,7 @@ export default function BlogDetails() {
                 <a key={rb._id} href={`/blog/${rb.slug}`} style={{ textDecoration: "none" }}>
                   <div style={{ background: "#FFFFFF", borderRadius: 14, overflow: "hidden", border: "1.5px solid #E5E7EB" }}>
                     {rb.coverImage ? (
-                      <img src={rb.coverImage} alt={rb.title} style={{ width: "100%", height: 130, objectFit: "cover" }} />
+                      <img src={optimizedImageUrl(rb.coverImage, 480)} alt={rb.title} loading="lazy" style={{ width: "100%", height: 130, objectFit: "cover" }} />
                     ) : (
                       <div style={{ height: 130, background: "linear-gradient(135deg, #0A1628, #305CDE)" }} />
                     )}
