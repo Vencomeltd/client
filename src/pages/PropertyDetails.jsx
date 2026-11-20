@@ -2625,7 +2625,7 @@ function PhotoGallery({ images, onOpen, onShowAll, activeImageIndex, onChangeIma
         markLoaded(src);
         recordAspectRatio(src, probe);
       };
-      probe.src = src;
+      probe.src = getResponsiveImageProps(src).src || src;
       if (probe.complete) {
         markLoaded(src);
         recordAspectRatio(src, probe);
@@ -5030,7 +5030,7 @@ function Lightbox({
       if (!src || loadedSet.has(src)) return;
       const probe = new window.Image();
       probe.onload = () => markLoaded(src);
-      probe.src = src;
+      probe.src = optimizedImageUrl(src, 1600);
       if (probe.complete) markLoaded(src);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
