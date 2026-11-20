@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download, Trash2 } from "lucide-react";
+import { Loader2, Bell, Lock, CreditCard, Building2, Shield, BadgeCheck, CheckCircle2, AlertCircle, Wallet, CalendarDays, Download, Trash2, Eye, EyeOff } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import DashboardLayout from "../layouts/DashboardLayout";
@@ -84,6 +84,31 @@ function AddCardForm({ onAdded, onCancel }) {
   );
 }
 
+// A password box with an eye button to show or hide what is typed.
+function PasswordField({ value, onChange, placeholder, inputStyle, autoComplete = "new-password" }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        type={shown ? "text" : "password"}
+        style={{ ...inputStyle, paddingRight: 46 }}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+      />
+      <button
+        type="button"
+        onClick={() => setShown((current) => !current)}
+        aria-label={shown ? "Hide password" : "Show password"}
+        style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 6, cursor: "pointer", color: "#6B7280", display: "flex" }}
+      >
+        {shown ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
+  );
+}
+
 export default function Settings() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +123,12 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
+  // Accounts that signed in with an emailed code may never have set a password,
+  // so "current password" can be swapped for a code emailed to the account.
+  const [useEmailCode, setUseEmailCode] = useState(false);
+  const [emailCode, setEmailCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
   const [notifications, setNotifications] = useState({
     emailBookings: true,
     emailMessages: true,
@@ -432,7 +463,60 @@ export default function Settings() {
     }
   };
 
+  // Emails a one-time code to the account (the same code flow as "Forgot password").
+  const handleSendPasswordCode = async () => {
+    if (!user?.email) return;
+    setSendingCode(true);
+    try {
+      const res = await apiFetch("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email: user.email }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't send the code");
+      setCodeSent(true);
+      toast.success(`We emailed a code to ${user.email}`);
+    } catch (err) {
+      toast.error(err.message || "Couldn't send the code");
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  // Set a password with the emailed code instead of the current password.
+  const handlePasswordSaveWithCode = async () => {
+    if (!emailCode.trim() || !passwords.newPass || !passwords.confirm) {
+      toast.error("Enter the code from your email and your new password twice");
+      return;
+    }
+    if (passwords.newPass !== passwords.confirm) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    if (passwords.newPass.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setSaving(true);
+    try {
+      const verify = await apiFetch("/auth/verify-otp", { method: "POST", body: JSON.stringify({ email: user.email, otp: emailCode.trim() }) });
+      const verified = await verify.json().catch(() => ({}));
+      if (!verify.ok || !verified.resetToken) throw new Error(verified.error || "That code is not right or has expired");
+      const reset = await apiFetch("/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ resetToken: verified.resetToken, password: passwords.newPass, confirmPassword: passwords.confirm }),
+      });
+      if (!reset.ok) throw new Error((await reset.json().catch(() => ({}))).error || "Failed to set the password");
+      toast.success("Password set. You can now sign in with it.");
+      setPasswords({ current: "", newPass: "", confirm: "" });
+      setEmailCode("");
+      setCodeSent(false);
+      setUseEmailCode(false);
+    } catch (err) {
+      toast.error(err.message || "Failed to set the password");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handlePasswordSave = async () => {
+    if (useEmailCode) return handlePasswordSaveWithCode();
     if (!passwords.current || !passwords.newPass || !passwords.confirm) {
       toast.error("Please fill in all password fields");
       return;
@@ -694,20 +778,49 @@ export default function Settings() {
 
           {activeTab === "password" && (
             <div>
-              <p style={sectionTitle}>Change Password</p>
+              <p style={sectionTitle}>{useEmailCode ? "Set a Password" : "Change Password"}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: "18px", maxWidth: "440px" }}>
-                <div>
-                  <label style={labelStyle}>Current Password</label>
-                  <input type="password" style={inputStyle} value={passwords.current} onChange={e => setPasswords(p => ({ ...p, current: e.target.value }))} placeholder="Enter current password" />
-                </div>
+                {useEmailCode ? (
+                  <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10, padding: 14 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: "#1E3A8A" }}>
+                      Signed in with an emailed code and never set a password? We'll email a code to <strong>{user?.email}</strong>. Enter it below to set your password.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleSendPasswordCode}
+                      disabled={sendingCode}
+                      style={{ marginTop: 10, background: "#0A1628", color: "#fff", border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 13, fontWeight: 600, cursor: sendingCode ? "not-allowed" : "pointer", opacity: sendingCode ? 0.7 : 1 }}
+                    >
+                      {sendingCode ? "Sending..." : codeSent ? "Send the code again" : "Email me a code"}
+                    </button>
+                  </div>
+                ) : null}
+                {useEmailCode ? (
+                  <div>
+                    <label style={labelStyle}>Code from your email</label>
+                    <input type="text" inputMode="numeric" autoComplete="one-time-code" style={inputStyle} value={emailCode} onChange={e => setEmailCode(e.target.value)} placeholder="6-digit code" />
+                  </div>
+                ) : (
+                  <div>
+                    <label style={labelStyle}>Current Password</label>
+                    <PasswordField inputStyle={inputStyle} autoComplete="current-password" value={passwords.current} onChange={e => setPasswords(p => ({ ...p, current: e.target.value }))} placeholder="Enter current password" />
+                  </div>
+                )}
                 <div>
                   <label style={labelStyle}>New Password</label>
-                  <input type="password" style={inputStyle} value={passwords.newPass} onChange={e => setPasswords(p => ({ ...p, newPass: e.target.value }))} placeholder="At least 8 characters" />
+                  <PasswordField inputStyle={inputStyle} value={passwords.newPass} onChange={e => setPasswords(p => ({ ...p, newPass: e.target.value }))} placeholder="At least 8 characters" />
                 </div>
                 <div>
                   <label style={labelStyle}>Confirm New Password</label>
-                  <input type="password" style={inputStyle} value={passwords.confirm} onChange={e => setPasswords(p => ({ ...p, confirm: e.target.value }))} placeholder="Repeat new password" />
+                  <PasswordField inputStyle={inputStyle} value={passwords.confirm} onChange={e => setPasswords(p => ({ ...p, confirm: e.target.value }))} placeholder="Repeat new password" />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => { setUseEmailCode((current) => !current); setEmailCode(""); setCodeSent(false); }}
+                  style={{ background: "none", border: "none", padding: 0, textAlign: "left", color: "#305CDE", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {useEmailCode ? "I know my current password" : "Don't have a current password? Use an emailed code instead"}
+                </button>
                 {saveBtn(handlePasswordSave)}
               </div>
             </div>
