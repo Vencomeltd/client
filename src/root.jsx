@@ -154,17 +154,11 @@ export function Layout({ children }) {
       <head>
         <meta charSet="utf-8" />
         {import.meta.env.VITE_GA_MEASUREMENT_ID ? (
-          <>
-            <script
-              async
-              src={`https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA_MEASUREMENT_ID}`}
-            />
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA_MEASUREMENT_ID}');`,
-              }}
-            />
-          </>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA_MEASUREMENT_ID}');(function(){var l=false;function go(){if(l)return;l=true;var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA_MEASUREMENT_ID}';document.head.appendChild(s);}function idle(){if('requestIdleCallback' in window){requestIdleCallback(go,{timeout:4000});}else{setTimeout(go,3000);}}['pointerdown','keydown','touchstart','scroll'].forEach(function(e){window.addEventListener(e,go,{once:true,passive:true});});if(document.readyState==='complete'){idle();}else{window.addEventListener('load',function(){setTimeout(idle,1500);});}})();`,
+            }}
+          />
         ) : null}
         {/* Tried Tidio here in place of the custom SupportChatWidget, but its
             widget script (code.tidio.co/...) now returns 403 Forbidden --
