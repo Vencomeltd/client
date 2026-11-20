@@ -165,7 +165,7 @@ export default function BlogDetails() {
           <span style={{ fontSize: 13, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "4px 12px", borderRadius: 999 }}>
             {blog.category}
           </span>
-          <span style={{ fontSize: 13, color: "#9CA3AF" }}>{blog.readTime} min read</span>
+          <span style={{ fontSize: 13, color: "#6B7280" }}>{blog.readTime} min read</span>
         </div>
 
         <h1 style={{ fontSize: 36, fontWeight: 800, color: "#0A1628", lineHeight: 1.3, marginBottom: 16 }}>{blog.title}</h1>

@@ -807,7 +807,7 @@ function RecentBlogs({ blogs, loading }) {
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "3px 10px", borderRadius: 999 }}>
                       {blog.category}
                     </span>
-                    <span style={{ fontSize: 11, color: "#9CA3AF" }}>{blog.readTime} min read</span>
+                    <span style={{ fontSize: 11, color: "#6B7280" }}>{blog.readTime} min read</span>
                   </div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1628", marginBottom: 8, lineHeight: 1.4 }}>{blog.title}</h3>
                   <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.6, marginBottom: 12 }}>{blog.excerpt?.slice(0, 100)}{blog.excerpt?.length > 100 ? "..." : ""}</p>
