@@ -131,7 +131,7 @@ export default function BlogList() {
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#305CDE", background: "rgba(48,92,222,0.08)", padding: "3px 10px", borderRadius: 999, overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                         {blog.category}
                       </span>
-                      <span style={{ fontSize: 12, color: "#9CA3AF", flexShrink: 0 }}>{blog.readTime} min read</span>
+                      <span style={{ fontSize: 12, color: "#6B7280", flexShrink: 0 }}>{blog.readTime} min read</span>
                     </div>
                     <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0A1628", marginBottom: 8, lineHeight: 1.4, height: "2.8em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{blog.title}</h2>
                     <p style={{ fontSize: 14, color: "#6B7280", lineHeight: 1.6, marginBottom: 16, height: "4.8em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>{blog.excerpt}</p>
