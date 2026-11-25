@@ -119,7 +119,8 @@ const resolveListingData = ({
     location:
       location ??
       source.location?.address ??
-      source.location ??
+      // Never the location object itself: React can't render it.
+      (typeof source.location === "string" ? source.location : source.location?.city) ??
       "Location unavailable",
     category: categoryName(category ?? source.category),
     // Capped to keep the card's tag row from wrapping into a wall of pills
