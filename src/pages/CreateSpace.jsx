@@ -1518,7 +1518,15 @@ export default function CreateSpace() {
         const data = await res.json();
         setDraftId(data.draft._id);
       }
-      if (!silent) setDraftNotice({ ok: true, text: "Draft saved. You can continue later from your dashboard." });
+      if (!silent) {
+        setDraftNotice({
+          ok: true,
+          text:
+            form.listingType === "building"
+              ? "Draft saved. To add rooms, use “Publish & add rooms” on Preview."
+              : "Draft saved. You can continue later from your dashboard.",
+        });
+      }
     } catch (err) {
       console.error("Failed to save draft:", err);
       if (!silent) setDraftNotice({ ok: false, text: "Failed to save the draft. Please try again." });
@@ -4672,7 +4680,7 @@ export default function CreateSpace() {
                 />
                 {isBuilding ? (
                   <p className="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-[13px] text-[#1E3A8A]">
-                    <strong>Next: add your rooms.</strong> Publishing saves the building. Straight after, you add each studio or room with its own size, price and availability, and guests book those rooms. The building only appears to guests once it has at least one room.
+                    <strong>Next: add your rooms.</strong> Rooms can't be added to a draft. Press <strong>Publish &amp; add rooms</strong> below: this saves the building, and guests won't see it until a room is published. Straight after, you add each studio or room with its own size, price and availability, and guests book those rooms. Not ready for a room to go live? Use Save Draft on the room.
                   </p>
                 ) : null}
 
@@ -4973,7 +4981,7 @@ export default function CreateSpace() {
                   type="button"
                   disabled={isLoading || isPublishing}
                   onClick={handlePublish}
-                  className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-70 sm:w-auto sm:flex-none"
+                  className="inline-flex min-h-[44px] w-full flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] bg-[#305CDE] px-7 py-3 text-[15px] font-semibold text-white transition hover:bg-[#254FC7] disabled:opacity-70 sm:w-auto sm:flex-none"
                 >
                   {isLoading || isPublishing ? (
                     <>
@@ -4983,7 +4991,7 @@ export default function CreateSpace() {
                   ) : (
                     <>
                       <Upload size={16} />
-                      {isRoom ? "Publish Room" : isBuilding ? "Publish Building" : "Publish Listing"}
+                      {isRoom ? "Publish Room" : isBuilding ? "Publish & add rooms" : "Publish Listing"}
                     </>
                   )}
                 </button>
