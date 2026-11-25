@@ -12,7 +12,7 @@ import { CurrencyProvider } from "./context/CurrencyContext.jsx";
 import SupportChatWidget from "./components/SupportChatWidget.jsx";
 import NavigationProgress from "./components/NavigationProgress.jsx";
 import "./index.css";
-import { SITE_CONTENT_DEFAULTS, SEO_PAGE_BY_PATH } from "./content/siteContent";
+import { SITE_CONTENT_DEFAULTS, SEO_PAGE_BY_PATH, STATIC_PAGE_SEO } from "./content/siteContent";
 
 // Same provider tree main.jsx/App.jsx used to set up around
 // <ReactDOM.createRoot>/<Router>/<AppContent> -- the framework now
@@ -98,17 +98,18 @@ export function shouldRevalidate({ formMethod, defaultShouldRevalidate }) {
 export function meta({ location, data }) {
   // Static pages (home, about, contact) take their title/description from
   // Site content; everything else uses the site-wide default.
-  const page = SEO_PAGE_BY_PATH[location?.pathname || "/"] || "home";
+  // /help shows the Help Centre, so it points search engines there.
+  const path = location?.pathname === "/help" ? "/help-center" : location?.pathname || "/";
+  const page = SEO_PAGE_BY_PATH[path] || "home";
   const text = (key) => data?.siteContent?.[key] ?? SITE_CONTENT_DEFAULTS[key];
-  const title = text(`seo.${page}.title`);
-  const description = text(`seo.${page}.description`);
+  const [title, description] = STATIC_PAGE_SEO[path] || [text(`seo.${page}.title`), text(`seo.${page}.description`)];
   return [
     { title },
     { name: "description", content: description },
     { name: "robots", content: "index, follow" },
     // Default canonical for the homepage and static pages that have no meta of
     // their own. Pages with their own meta export set their own canonical.
-    { tagName: "link", rel: "canonical", href: `https://www.vencome.com${location?.pathname || "/"}` },
+    { tagName: "link", rel: "canonical", href: `https://www.vencome.com${path}` },
     { property: "og:type", content: "website" },
     { property: "og:title", content: title },
     { property: "og:description", content: description },

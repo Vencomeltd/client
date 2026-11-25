@@ -70,8 +70,8 @@ export const SITE_CONTENT_BLOCKS = [
       "Founded in London, VenCome was born from a simple but frustrating experience.\n\nWhile studying, our Founder set out to pursue aesthetics as a side venture — big ambition, limited budget. When it came to finding flexible space to work from, the process proved harder than it should be: unresponsive hosts, compliance headaches, unclear pricing, monthly-only commitments, and listings that never quite matched the right area, time, or price.\n\nAs an entrepreneurship student, she had learned to see problems as opportunities. This one was impossible to ignore.\n\n**She asked herself: why can't booking a professional space be as simple as booking a hotel?**\n\nThat question became VenCome — a marketplace where commercial spaces and professionals connect effortlessly, whether you need a treatment room in London today or a studio in New York tomorrow. Together with her co-founder, they turned an idea into a market-ready solution: the platform she wished had existed — transparent, responsive, and powered by an AI Matchmaker that cuts through the noise to find exactly what you need, fast.\n\nVenCome exists to remove the friction from starting and growing a business — so that budget, location, or limited connections are never what stands between a professional and their potential.",
   },
   { key: "about.mission", group: "About", label: "Our mission", max: 400, rich: true, default: "To become the world's leading marketplace for commercial and professional space rental — trusted by businesses of every size, in every major city, for any duration." },
-  { key: "seo.about.title", group: "About", label: "SEO title", max: 70, seo: true, default: SITE_TITLE },
-  { key: "seo.about.description", group: "About", label: "SEO meta description", max: 160, seo: true, default: SITE_DESCRIPTION },
+  { key: "seo.about.title", group: "About", label: "SEO title", max: 70, seo: true, default: "About VenCome | Our Story and Mission" },
+  { key: "seo.about.description", group: "About", label: "SEO meta description", max: 160, seo: true, default: "Why VenCome was founded in London and how it connects businesses with flexible commercial spaces." },
 
   // Contact
   { key: "contact.title", group: "Contact", label: "Page title", max: 50, default: "Contact Us" },
@@ -85,8 +85,8 @@ export const SITE_CONTENT_BLOCKS = [
     default:
       "The quickest way to reach us is by email at [support@vencome.com](mailto:support@vencome.com). We aim to reply within 24 hours.\n\nTo help us route your message quickly, let us know upfront whether you're a guest, a host, or reaching out about something else — press, partnerships, careers, and so on.",
   },
-  { key: "seo.contact.title", group: "Contact", label: "SEO title", max: 70, seo: true, default: SITE_TITLE },
-  { key: "seo.contact.description", group: "Contact", label: "SEO meta description", max: 160, seo: true, default: SITE_DESCRIPTION },
+  { key: "seo.contact.title", group: "Contact", label: "SEO title", max: 70, seo: true, default: "Contact Us | VenCome" },
+  { key: "seo.contact.description", group: "Contact", label: "SEO meta description", max: 160, seo: true, default: "Contact the VenCome team about bookings, hosting, partnerships or press. We aim to reply within 24 hours." },
 
   // Footer
   { key: "footer.tagline", group: "Footer", label: "Tagline under the logo", max: 160, default: "Discover the worlds most exceptional commercial spaces, from offices and studios to venues and landmark locations." },
@@ -99,6 +99,24 @@ export const SITE_CONTENT_DEFAULTS = Object.fromEntries(SITE_CONTENT_BLOCKS.map(
 
 // Static pages whose SEO title/description live here, by path (root.jsx meta).
 export const SEO_PAGE_BY_PATH = { "/": "home", "/about": "about", "/contact": "contact" };
+
+// The other static pages, each with its own [title, description]: without
+// these they all repeated the homepage's, which search engines read as
+// duplicates.
+export const STATIC_PAGE_SEO = {
+  "/faq": ["Frequently Asked Questions | VenCome", "Answers to common questions about finding, booking and listing commercial spaces on VenCome."],
+  "/help-center": ["Help Centre | VenCome", "Find help with bookings, payments, hosting and your VenCome account."],
+  "/help-support": ["Help & Support | VenCome", "Get support from the VenCome team for bookings, payments and listings."],
+  "/privacy": ["Privacy Policy | VenCome", "How VenCome collects, uses and protects your personal information."],
+  "/terms-and-conditions": ["Terms and Conditions | VenCome", "The terms that apply when you book or list a commercial space on VenCome."],
+  "/cancellation-options": ["Cancellation Options | VenCome", "How cancellations and refunds work for bookings made on VenCome."],
+  "/careers": ["Careers | VenCome", "Join the VenCome team and help build the future of commercial space booking."],
+  "/press": ["Press and Media | VenCome", "Press enquiries and media resources from VenCome."],
+  "/partners": ["Partners and Integrations | VenCome", "The calendar integrations and partners that work with VenCome."],
+  "/safety": ["Safety Information | VenCome", "How VenCome helps keep bookings, payments and spaces safe for guests and hosts."],
+  "/accessibility": ["Accessibility | VenCome", "VenCome's commitment to making the platform accessible to everyone."],
+  "/sitemap": ["Sitemap | VenCome", "Browse the main pages, categories and resources on VenCome."],
+};
 
 // "**bold** and [text](url)" -> [{ type: "text" | "bold" | "link", text, href }]
 // per paragraph (blank line = new paragraph). Only http(s) and mailto links.
